@@ -108,8 +108,12 @@ pub fn update_last_activity_end_time(conn: &Connection, id: i64, timestamp: i64)
 
 /// Log activity with smart coalescing logic.
 ///
-/// If the last entry matches the current process/title/idle state,
-/// updates its end_time. Otherwise, inserts a new entry.
+/// If the last entry matches the current process/title/idle state AND
+/// the time gap is reasonable (< 30 seconds), updates its end_time.
+/// Otherwise, inserts a new entry.
+///
+/// This prevents false duration inflation when the app is restarted
+/// after being closed for hours/days.
 pub fn log_activity(
     conn: &Connection,
     process_name: &str,
@@ -117,15 +121,25 @@ pub fn log_activity(
     is_idle: bool,
     timestamp: i64,
 ) -> Result<()> {
+    const MAX_GAP_SECONDS: i64 = 30;
+
     match get_last_activity_log(conn)? {
         Some(last_log) => {
-            if last_log.process_name == process_name
+            let time_gap = timestamp - last_log.end_time;
+            let is_same_activity = last_log.process_name == process_name
                 && last_log.window_title == window_title
-                && last_log.is_idle == is_idle
-            {
+                && last_log.is_idle == is_idle;
+
+            if is_same_activity && time_gap <= MAX_GAP_SECONDS {
                 update_last_activity_end_time(conn, last_log.id, timestamp)?;
             } else {
                 insert_activity_log(conn, process_name, window_title, is_idle, timestamp)?;
+                if time_gap > MAX_GAP_SECONDS {
+                    println!(
+                        "[Database] Gap detected ({} seconds), starting new entry",
+                        time_gap
+                    );
+                }
                 println!(
                     "[Database] New activity: {} - {} (idle: {})",
                     process_name, window_title, is_idle
