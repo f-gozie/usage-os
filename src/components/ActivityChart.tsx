@@ -1,9 +1,18 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card, CardContent } from '@/components/ui/card';
-import { ProcessStats, formatDuration, getColorForProcess } from '@/lib/stats';
+import { formatDuration, getColorForProcess } from '@/lib/stats';
+
+export interface ChartDataPoint {
+  name: string;
+  displayName: string;
+  totalDuration: number;
+  percentage: number;
+  isIdle?: boolean;
+  color?: string;
+}
 
 interface ActivityChartProps {
-  data: ProcessStats[];
+  data: ChartDataPoint[];
 }
 
 export function ActivityChart({ data }: ActivityChartProps) {
@@ -11,26 +20,27 @@ export function ActivityChart({ data }: ActivityChartProps) {
   const others = data.slice(5);
   
   const chartData = top5.map((stat, index) => ({
-    name: stat.processName,
+    name: stat.name,
     label: stat.displayName,
     value: stat.totalDuration,
     percentage: stat.percentage,
     isIdle: stat.isIdle,
-    color: stat.isIdle
+    color: stat.color || (stat.isIdle
       ? 'hsl(240, 3%, 35%)'
-      : getColorForProcess(stat.processName, index),
+      : getColorForProcess(stat.name, index)),
   }));
 
   if (others.length > 0) {
     const otherTotal = others.reduce((sum, stat) => sum + stat.totalDuration, 0);
     const otherPercentage = others.reduce((sum, stat) => sum + stat.percentage, 0);
+    const othersColor = 'hsl(240, 5%, 45%)';
     chartData.push({
       name: 'Other',
       label: 'Other',
       value: otherTotal,
       percentage: otherPercentage,
       isIdle: false,
-      color: 'hsl(240, 5%, 45%)',
+      color: othersColor,
     });
   }
 
@@ -66,18 +76,19 @@ export function ActivityChart({ data }: ActivityChartProps) {
   }
 
   return (
-    <Card className="border-border/50 hover:border-neon-purple/30 transition-all duration-200 hover:-translate-y-0.5 relative">
+    <Card className="border-border/50 hover:border-neon-purple/30 transition-all duration-200 hover:-translate-y-0.5 relative flex flex-col h-full">
       <div className="absolute top-0 right-0 w-1 h-full bg-gradient-to-b from-neon-purple/50 to-transparent" />
       
-      <CardContent>
-        <ResponsiveContainer width="100%" height={320}>
+      <CardContent className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 min-h-[200px]">
+        <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={chartData}
               cx="50%"
               cy="50%"
-              innerRadius={70}
-              outerRadius={120}
+              innerRadius={60}
+              outerRadius={100}
               paddingAngle={2}
               dataKey="value"
             >
@@ -113,8 +124,9 @@ export function ActivityChart({ data }: ActivityChartProps) {
             />
           </PieChart>
         </ResponsiveContainer>
+        </div>
         
-        <div className="mt-4 space-y-2">
+        <div className="mt-4 space-y-2 overflow-y-auto max-h-[200px] pr-2 custom-scrollbar">
           {chartData.map((entry, index) => (
             <div key={index} className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">

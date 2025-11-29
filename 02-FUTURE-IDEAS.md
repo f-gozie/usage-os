@@ -3,7 +3,7 @@
 **Do not implement these yet. This is a parking lot.**
 
 ## Data Enrichment
-- [ ] **Categorization Rules Engine:** A UI to define rules. E.g., "If process name contains 'Code', category = 'Dev'". "If window title contains 'Reddit', category = 'Slacking'".
+- [x] **Categorization Rules Engine:** A UI to define rules. E.g., "If process name contains 'Code', category = 'Dev'". "If window title contains 'Reddit', category = 'Slacking'".
 - [ ] **Project Tagging:** Ability to manually tag a block of time to a specific project.
 
 ## Gamification Layer (The fun stuff)

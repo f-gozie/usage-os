@@ -1,4 +1,4 @@
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+// import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export type TimeRange = 'today' | 'week';
 
@@ -9,22 +9,28 @@ interface TimeRangeSelectorProps {
 
 export function TimeRangeSelector({ value, onChange }: TimeRangeSelectorProps) {
   return (
-    <Tabs value={value} onValueChange={(v) => onChange(v as TimeRange)}>
-      <TabsList className="grid w-full grid-cols-2 bg-card border border-border/50">
-        <TabsTrigger 
-          value="today"
-          className="data-[state=active]:bg-neon-cyan/10 data-[state=active]:text-neon-cyan data-[state=active]:border-neon-cyan/50 transition-all duration-200"
-        >
-          Today
-        </TabsTrigger>
-        <TabsTrigger 
-          value="week"
-          className="data-[state=active]:bg-neon-purple/10 data-[state=active]:text-neon-purple data-[state=active]:border-neon-purple/50 transition-all duration-200"
-        >
-          Past Week
-        </TabsTrigger>
-      </TabsList>
-    </Tabs>
+    <div className="flex p-1 bg-card/30 rounded-lg border border-border/50 w-fit">
+      <button
+        onClick={() => onChange('today')}
+        className={`px-4 py-1.5 rounded-md text-xs font-mono transition-all ${
+          value === 'today'
+            ? 'bg-neon-cyan/10 text-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.1)]'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        TODAY
+      </button>
+      <button
+        onClick={() => onChange('week')}
+        className={`px-4 py-1.5 rounded-md text-xs font-mono transition-all ${
+          value === 'week'
+            ? 'bg-neon-cyan/10 text-neon-cyan shadow-[0_0_10px_rgba(0,255,255,0.1)]'
+            : 'text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        PAST WEEK
+      </button>
+    </div>
   );
 }
 

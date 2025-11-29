@@ -27,11 +27,71 @@ fn get_activity_stats(
         .map_err(|e| format!("Database error: {}", e))
 }
 
+#[tauri::command]
+fn get_categories(db: State<DbState>) -> Result<Vec<db::Category>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    db::get_categories(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn create_category(
+    db: State<DbState>,
+    name: String,
+    color: String,
+) -> Result<i64, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    db::create_category(&conn, &name, &color).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_category(db: State<DbState>, id: i64) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    db::delete_category(&conn, id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_rules(db: State<DbState>) -> Result<Vec<db::Rule>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    db::get_rules(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn create_rule(
+    db: State<DbState>,
+    category_id: i64,
+    match_field: String,
+    pattern: String,
+) -> Result<i64, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    db::create_rule(&conn, category_id, &match_field, &pattern).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_rule(db: State<DbState>, id: i64) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    db::delete_rule(&conn, id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn reprocess_logs(db: State<DbState>) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    db::reprocess_logs(&conn).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_activity_stats])
+        .invoke_handler(tauri::generate_handler![
+            get_activity_stats,
+            get_categories,
+            create_category,
+            delete_category,
+            get_rules,
+            create_rule,
+            delete_rule,
+            reprocess_logs
+        ])
         .setup(|app| {
             let db_path = db::get_db_path(&app.handle())
                 .expect("Failed to get database path");
