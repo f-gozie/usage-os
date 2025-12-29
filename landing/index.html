@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UsageOS — Own Your Time</title>
+  <meta name="description" content="Privacy-first desktop activity tracking. Beautiful insights. Zero cloud. Your data stays yours.">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Ambient background -->
+  <div class="bg-grid"></div>
+  <div class="bg-glow bg-glow--1"></div>
+  <div class="bg-glow bg-glow--2"></div>
+
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav__container">
+      <a href="#" class="nav__logo">
+        <span class="nav__logo-icon">◈</span>
+        <span>UsageOS</span>
+      </a>
+      <div class="nav__links">
+        <a href="#features">Features</a>
+        <a href="#privacy">Privacy</a>
+        <a href="https://github.com" class="nav__link--github" target="_blank" rel="noopener">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <header class="hero">
+    <div class="hero__container">
+      <div class="hero__badge">
+        <span class="hero__badge-dot"></span>
+        Privacy-first. Local-only.
+      </div>
+
+      <h1 class="hero__title">
+        <span class="hero__title-line">Own Your</span>
+        <span class="hero__title-line hero__title-line--accent">Time</span>
+      </h1>
+
+      <p class="hero__subtitle">
+        Track where your hours go. Beautiful insights into your digital life.
+        <span class="hero__subtitle-emphasis">Zero cloud. Zero telemetry. Just you.</span>
+      </p>
+
+      <div class="hero__actions">
+        <a href="#download" class="btn btn--primary">
+          <span>Download for Free</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </a>
+        <a href="#features" class="btn btn--secondary">See How It Works</a>
+      </div>
+
+      <!-- Terminal Preview -->
+      <div class="hero__terminal">
+        <div class="terminal">
+          <div class="terminal__header">
+            <div class="terminal__dots">
+              <span></span><span></span><span></span>
+            </div>
+            <span class="terminal__title">usageos — activity</span>
+          </div>
+          <div class="terminal__body">
+            <div class="terminal__line">
+              <span class="terminal__prompt">$</span>
+              <span class="terminal__cmd" data-typing>usageos stats --today</span>
+            </div>
+            <div class="terminal__output">
+              <div class="terminal__stat">
+                <span class="terminal__stat-label">Active Time</span>
+                <span class="terminal__stat-value terminal__stat-value--cyan">6h 42m</span>
+              </div>
+              <div class="terminal__stat">
+                <span class="terminal__stat-label">Top App</span>
+                <span class="terminal__stat-value">VS Code</span>
+                <span class="terminal__stat-bar"><span style="width: 78%"></span></span>
+              </div>
+              <div class="terminal__stat">
+                <span class="terminal__stat-label">Category</span>
+                <span class="terminal__stat-value terminal__stat-value--purple">Development</span>
+                <span class="terminal__stat-pct">71%</span>
+              </div>
+              <div class="terminal__stat">
+                <span class="terminal__stat-label">Idle Time</span>
+                <span class="terminal__stat-value terminal__stat-value--dim">1h 23m</span>
+              </div>
+            </div>
+            <div class="terminal__line terminal__line--delayed">
+              <span class="terminal__prompt">$</span>
+              <span class="terminal__cursor"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Features Section -->
+  <section id="features" class="features">
+    <div class="features__container">
+      <div class="section-header">
+        <span class="section-tag">Features</span>
+        <h2 class="section-title">Everything runs locally</h2>
+        <p class="section-desc">No accounts. No subscriptions. No data leaving your machine.</p>
+      </div>
+
+      <div class="features__grid">
+        <div class="feature-card feature-card--large">
+          <div class="feature-card__icon feature-card__icon--cyan">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          <h3 class="feature-card__title">Silent Tracking</h3>
+          <p class="feature-card__desc">
+            Runs invisibly in the background. Polls your active window every 5 seconds with
+            <span class="feature-card__highlight">&lt;1% CPU usage</span>. You won't notice it's there.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon feature-card__icon--purple">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M3 9h18"/>
+              <path d="M9 21V9"/>
+            </svg>
+          </div>
+          <h3 class="feature-card__title">Smart Categories</h3>
+          <p class="feature-card__desc">
+            Define rules to auto-categorize your apps. Know exactly how much time goes to
+            coding, browsing, or slacking.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon feature-card__icon--green">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M18 20V10"/>
+              <path d="M12 20V4"/>
+              <path d="M6 20v-6"/>
+            </svg>
+          </div>
+          <h3 class="feature-card__title">Beautiful Analytics</h3>
+          <p class="feature-card__desc">
+            Visualize your day, week, and trends. Compare with yesterday.
+            Understand your patterns.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card__icon feature-card__icon--orange">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 1v6m0 6v10"/>
+              <path d="M1 12h6m6 0h10"/>
+            </svg>
+          </div>
+          <h3 class="feature-card__title">Idle Detection</h3>
+          <p class="feature-card__desc">
+            Automatically detects when you're AFK. Separates active work from
+            coffee breaks.
+          </p>
+        </div>
+
+        <div class="feature-card feature-card--wide">
+          <div class="feature-card__icon feature-card__icon--pink">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+          <h3 class="feature-card__title">Your Data, Your Machine</h3>
+          <p class="feature-card__desc">
+            Everything stored in a local SQLite database. Export anytime. Delete anytime.
+            <span class="feature-card__highlight">We never see it. No one does.</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Privacy Section -->
+  <section id="privacy" class="privacy">
+    <div class="privacy__container">
+      <div class="privacy__content">
+        <span class="section-tag section-tag--light">Privacy Promise</span>
+        <h2 class="privacy__title">
+          Zero data collection.<br>
+          <span class="privacy__title--dim">Not now. Not ever.</span>
+        </h2>
+        <ul class="privacy__list">
+          <li>
+            <span class="privacy__check">✓</span>
+            No cloud sync
+          </li>
+          <li>
+            <span class="privacy__check">✓</span>
+            No user accounts
+          </li>
+          <li>
+            <span class="privacy__check">✓</span>
+            No analytics or telemetry
+          </li>
+          <li>
+            <span class="privacy__check">✓</span>
+            No network requests
+          </li>
+          <li>
+            <span class="privacy__check">✓</span>
+            100% open source
+          </li>
+        </ul>
+      </div>
+      <div class="privacy__visual">
+        <div class="privacy__lock">
+          <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.5">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <div class="privacy__lock-glow"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download Section -->
+  <section id="download" class="download">
+    <div class="download__container">
+      <h2 class="download__title">Start tracking in seconds</h2>
+      <p class="download__desc">Available for macOS, Windows, and Linux. Free forever.</p>
+
+      <div class="download__buttons">
+        <a href="#" class="download__btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+          </svg>
+          <div class="download__btn-text">
+            <span class="download__btn-label">Download for</span>
+            <span class="download__btn-platform">macOS</span>
+          </div>
+        </a>
+
+        <a href="#" class="download__btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/>
+          </svg>
+          <div class="download__btn-text">
+            <span class="download__btn-label">Download for</span>
+            <span class="download__btn-platform">Windows</span>
+          </div>
+        </a>
+
+        <a href="#" class="download__btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139zm.529 3.405h.013c.213 0 .396.062.584.198.19.135.33.332.438.533.105.259.158.459.166.724 0-.02.006-.04.006-.06v.105a.086.086 0 01-.004-.021l-.004-.024a1.807 1.807 0 01-.15.706.953.953 0 01-.213.335.71.71 0 00-.088-.042c-.104-.045-.198-.064-.284-.133a1.312 1.312 0 00-.22-.066c.05-.06.146-.133.183-.198.053-.128.082-.264.088-.402v-.02a1.21 1.21 0 00-.061-.4c-.045-.134-.101-.2-.183-.333-.084-.066-.167-.132-.267-.132h-.016c-.093 0-.176.03-.262.132a.8.8 0 00-.205.334 1.18 1.18 0 00-.09.4v.019c.002.089.008.179.02.267-.193-.067-.438-.135-.607-.202a1.635 1.635 0 01-.018-.2v-.02a1.772 1.772 0 01.15-.768c.082-.22.232-.406.43-.533a.985.985 0 01.594-.2zm-2.962.059h.036c.142 0 .27.048.399.135.146.129.264.288.344.465.09.199.14.4.153.667v.004c.007.134.006.2-.002.266v.08c-.03.007-.056.018-.083.024-.152.055-.274.135-.393.2.012-.09.013-.18.003-.267v-.015c-.012-.133-.04-.2-.082-.333a.613.613 0 00-.166-.267.248.248 0 00-.183-.064h-.021c-.071.006-.13.04-.186.132a.552.552 0 00-.12.27.944.944 0 00-.023.33v.015c.012.135.037.2.08.334.046.134.098.2.166.268.01.009.02.018.034.024-.07.057-.117.07-.176.136a.304.304 0 01-.131.068 2.62 2.62 0 01-.275-.402 1.772 1.772 0 01-.155-.667 1.759 1.759 0 01.08-.668 1.43 1.43 0 01.283-.535c.128-.133.26-.2.418-.2zm1.37 1.706c.332 0 .733.065 1.216.399.293.2.523.269 1.052.468h.003c.255.136.405.266.478.399v-.131a.571.571 0 01.016.47c-.123.31-.516.643-1.063.842v.002c-.268.135-.501.333-.775.465-.276.135-.588.292-1.012.267a1.139 1.139 0 01-.448-.067 3.566 3.566 0 01-.322-.198c-.195-.135-.363-.332-.612-.465v-.005h-.005c-.4-.246-.616-.512-.686-.71-.07-.268-.005-.47.193-.6.224-.135.38-.271.483-.336.104-.074.143-.102.176-.131h.002v-.003c.169-.202.436-.47.839-.601.139-.036.294-.065.466-.065zm2.8 2.142c.358 1.417 1.196 3.475 1.735 4.473.286.534.855 1.659 1.102 3.024.156-.005.33.018.513.064.646-1.671-.546-3.467-1.089-3.966-.22-.2-.232-.335-.123-.335.59.534 1.365 1.572 1.646 2.757.13.535.16 1.104.021 1.67.067.028.135.06.205.067 1.032.534 1.413.938 1.23 1.537v-.002c-.06-.135-.12-.2-.184-.268-.193-.135-.406-.199-.603-.135-.06.003-.12.006-.184.021-.09.135-.09.334-.105.467-.015.135.06.266.12.4.03.066.062.132.09.2.07.132.13.266.13.466.08-.135.136-.2.146-.335.01-.067.02-.134.03-.2.02-.067.074-.135.14-.2.073-.067.145-.134.202-.2.078-.067.142-.135.2-.27.005-.202-.03-.403-.094-.537-.093-.2-.226-.468-.393-.602l-.004-.003c.12-.003.3.015.456.072.18.062.345.143.422.345 0 .007 0 .02.003.032l.006.025.01.023.01.02a.595.595 0 00.093-.045c.29-.203.543-.465.643-.733.077-.2.073-.47-.041-.668-.102-.2-.267-.399-.43-.535-.19-.18-.39-.35-.608-.505-.106-.085-.206-.172-.315-.257-.101-.08-.2-.161-.273-.269-.074-.107-.127-.22-.147-.4-.02-.135-.025-.27-.03-.403-.04-.075-.1-.135-.148-.206a.4.4 0 01-.057-.164.57.57 0 01.057-.266c.038-.059.09-.111.145-.16h.005c.11-.109.22-.226.3-.336a.596.596 0 00.103-.18.62.62 0 00.033-.27.85.85 0 00-.095-.3 1.95 1.95 0 00-.27-.377c-.073-.084-.146-.17-.193-.26-.046-.089-.07-.179-.054-.27.003-.198.142-.397.34-.397.03 0 .066.004.1.012a.4.4 0 01.184.067c.05.04.093.092.128.148.016.023.03.05.04.076.01.022.017.046.022.068.004.02.006.04.006.06v.016c.003.16-.03.32-.092.467-.06.148-.148.283-.25.4a3.26 3.26 0 01-.246.255c-.058.058-.11.114-.157.17a.538.538 0 00-.103.197 1.094 1.094 0 00-.018.252c0 .015.001.027.003.04-.005.108.007.22.034.327.025.107.065.21.117.307.052.095.116.182.189.262.076.08.159.154.248.218.163.123.335.234.514.334.18.1.365.19.557.267.191.077.387.141.588.19.203.047.41.08.62.09.212.01.427-.005.645-.047.22-.043.443-.111.666-.205.225-.093.45-.212.669-.358.22-.145.432-.316.628-.514.195-.196.376-.417.537-.66.16-.243.3-.507.41-.788.11-.282.188-.582.223-.892.035-.31.028-.63-.022-.948-.05-.318-.144-.632-.278-.935-.134-.303-.308-.593-.52-.862-.21-.27-.458-.517-.738-.737a4.698 4.698 0 00-.88-.572c-.322-.16-.67-.286-1.032-.372a4.96 4.96 0 00-1.1-.123 5.34 5.34 0 00-.558.03c-.195.02-.39.055-.58.103-.392.098-.77.248-1.13.447a4.5 4.5 0 00-.985.73 4.403 4.403 0 00-.76 1.01 4.496 4.496 0 00-.49 1.218c-.114.44-.16.9-.13 1.355.03.456.132.9.302 1.322.17.42.408.816.71 1.172.302.355.665.668 1.08.93.414.263.877.472 1.375.62-.35-.76-.558-1.534-.617-2.3zm2.44 5.05c.074.134.144.268.205.402.022.045.04.093.054.14.007.022.012.045.016.067a.302.302 0 01.006.073v.072c-.003.037-.01.073-.02.108a.535.535 0 01-.044.105.528.528 0 01-.07.1.545.545 0 01-.09.082.573.573 0 01-.201.085.62.62 0 01-.229.01.733.733 0 01-.234-.067.803.803 0 01-.206-.135.891.891 0 01-.164-.195.954.954 0 01-.114-.248c-.024-.088-.04-.18-.04-.274 0-.073.006-.146.02-.217.01-.055.026-.11.047-.163.035-.09.08-.175.132-.253.054-.08.116-.154.186-.22.07-.067.146-.126.228-.177.042-.026.086-.05.13-.07.023-.012.046-.02.07-.03.024-.01.05-.02.077-.024.024-.006.05-.01.077-.01.023-.002.047-.002.07 0 .026.002.053.006.08.012a.487.487 0 01.15.058c.047.03.09.067.125.112.037.045.066.097.087.152.02.055.033.114.037.173l.001.044v.02c0 .028-.003.054-.01.08l-.006.028-.01.025c-.004.008-.006.017-.012.024a.237.237 0 01-.03.05.239.239 0 01-.043.046.188.188 0 01-.053.032c.048-.007.102-.02.148-.04.046-.02.088-.047.125-.08.037-.035.07-.076.096-.12.027-.047.047-.097.06-.15.013-.054.02-.11.017-.165-.002-.044-.01-.088-.023-.13a.423.423 0 00-.06-.12.388.388 0 00-.095-.1.424.424 0 00-.127-.063.503.503 0 00-.15-.02c-.054 0-.11.01-.162.03-.054.02-.105.05-.15.086a.7.7 0 00-.124.127.912.912 0 00-.095.158c-.027.056-.05.116-.065.177-.017.062-.028.126-.033.19-.005.065-.003.13.006.194.01.066.028.13.053.192.026.062.058.12.098.175a.78.78 0 00.14.148.75.75 0 00.178.105.755.755 0 00.213.05c.075.006.15-.002.225-.024a.622.622 0 00.2-.097.564.564 0 00.154-.165.575.575 0 00.08-.224.62.62 0 00-.01-.236.714.714 0 00-.096-.22 1.08 1.08 0 00-.17-.198z"/>
+          </svg>
+          <div class="download__btn-text">
+            <span class="download__btn-label">Download for</span>
+            <span class="download__btn-platform">Linux</span>
+          </div>
+        </a>
+      </div>
+
+      <p class="download__note">
+        Built with <a href="https://tauri.app" target="_blank" rel="noopener">Tauri</a>.
+        Lightweight. Fast. Native.
+      </p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer__container">
+      <div class="footer__brand">
+        <span class="footer__logo">◈ UsageOS</span>
+        <p class="footer__tagline">Time tracking for the paranoid.</p>
+      </div>
+      <div class="footer__links">
+        <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+        <a href="#features">Features</a>
+        <a href="#privacy">Privacy</a>
+      </div>
+      <p class="footer__copy">
+        Made with obsessive attention to privacy.
+      </p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
