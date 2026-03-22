@@ -64,11 +64,6 @@ fn get_current_timestamp() -> i64 {
         .as_secs() as i64
 }
 
-/// Get current Unix timestamp in seconds (public for testing).
-pub fn get_current_timestamp_pub() -> i64 {
-    get_current_timestamp()
-}
-
 /// Start the background watcher that polls active window info.
 ///
 /// Runs indefinitely, polling every POLL_INTERVAL_SECS seconds.
