@@ -72,3 +72,13 @@ export async function deleteRule(id: number): Promise<void> {
 export async function reprocessLogs(): Promise<void> {
   return await invoke('reprocess_logs');
 }
+
+// --- Settings ---
+
+export async function getSettings(): Promise<[string, string][]> {
+  return await invoke('get_settings');
+}
+
+export async function updateSetting(key: string, value: string): Promise<void> {
+  return await invoke('update_setting', { key, value });
+}
