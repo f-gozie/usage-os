@@ -48,68 +48,121 @@ pub fn get_db_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(app_data_dir.join("usage.db"))
 }
 
-/// Initialize the SQLite database and create schema if needed.
+// --- Migration System ---
+
+/// A database migration with a version number and apply function.
+struct Migration {
+    version: i64,
+    name: &'static str,
+    sql: &'static str,
+}
+
+/// All migrations in order. Each runs exactly once.
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "initial_schema",
+        sql: "
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                color TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+                match_field TEXT NOT NULL,
+                pattern TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                process_name TEXT NOT NULL,
+                window_title TEXT NOT NULL,
+                start_time INTEGER NOT NULL,
+                end_time INTEGER NOT NULL,
+                is_idle INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_start_time ON activity_logs(start_time);
+        ",
+    },
+    Migration {
+        version: 2,
+        name: "add_category_id_to_activity_logs",
+        sql: "
+            ALTER TABLE activity_logs ADD COLUMN category_id INTEGER REFERENCES categories(id);
+        ",
+    },
+    Migration {
+        version: 3,
+        name: "add_settings_table",
+        sql: "
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+        ",
+    },
+];
+
+/// Ensure the schema_migrations table exists.
+fn ensure_migrations_table(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            applied_at INTEGER NOT NULL
+        );"
+    )?;
+    Ok(())
+}
+
+/// Get the highest applied migration version, or 0 if none.
+fn get_current_version(conn: &Connection) -> Result<i64> {
+    let version: i64 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+            [],
+            |row| row.get(0),
+        )?;
+    Ok(version)
+}
+
+/// Run all pending migrations.
+pub fn run_migrations(conn: &Connection) -> Result<()> {
+    ensure_migrations_table(conn)?;
+    let current = get_current_version(conn)?;
+
+    for migration in MIGRATIONS {
+        if migration.version <= current {
+            continue;
+        }
+        println!(
+            "[Database] Running migration {}: {}",
+            migration.version, migration.name
+        );
+        conn.execute_batch(migration.sql)?;
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs() as i64;
+
+        conn.execute(
+            "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?1, ?2, ?3)",
+            (migration.version, migration.name, now),
+        )?;
+    }
+
+    Ok(())
+}
+
+/// Initialize the SQLite database with migration-based schema management.
 ///
 /// Returns a thread-safe database connection wrapped in Arc<Mutex>.
 pub fn init_database(db_path: &PathBuf) -> Result<DbConnection> {
     let conn = Connection::open(db_path)?;
-
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS activity_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            process_name TEXT NOT NULL,
-            window_title TEXT NOT NULL,
-            start_time INTEGER NOT NULL,
-            end_time INTEGER NOT NULL,
-            is_idle INTEGER NOT NULL,
-            category_id INTEGER REFERENCES categories(id)
-        )",
-        [],
-    )?;
-
-    // Create categories table
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            color TEXT NOT NULL
-        )",
-        [],
-    )?;
-
-    // Create rules table
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS rules (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-            match_field TEXT NOT NULL,
-            pattern TEXT NOT NULL
-        )",
-        [],
-    )?;
-
-    // Migration: Add category_id to activity_logs if it doesn't exist (for existing DBs)
-    // We check if the column exists by selecting from pragma_table_info
-    let has_category_id: bool = conn
-        .query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('activity_logs') WHERE name='category_id'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0) > 0;
-
-    if !has_category_id {
-        println!("[Database] Migrating: Adding category_id to activity_logs");
-        if let Err(e) = conn.execute("ALTER TABLE activity_logs ADD COLUMN category_id INTEGER REFERENCES categories(id)", []) {
-            eprintln!("[Database] Migration failed: {}", e);
-        }
-    }
-
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_start_time ON activity_logs(start_time)",
-        [],
-    )?;
-
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+    run_migrations(&conn)?;
     println!("[Database] Initialized database at {:?}", db_path);
     Ok(Arc::new(Mutex::new(conn)))
 }
@@ -443,58 +496,11 @@ mod tests {
     use super::*;
     use rusqlite::Connection;
 
-    /// Create an in-memory database with the same schema as init_database.
+    /// Create an in-memory database using the migration system.
     fn setup_test_db() -> Connection {
         let conn = Connection::open_in_memory().expect("Failed to open in-memory db");
-
-        // Enable foreign keys
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS categories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                color TEXT NOT NULL
-            )",
-            [],
-        ).unwrap();
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS rules (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-                match_field TEXT NOT NULL,
-                pattern TEXT NOT NULL
-            )",
-            [],
-        ).unwrap();
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS activity_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                process_name TEXT NOT NULL,
-                window_title TEXT NOT NULL,
-                start_time INTEGER NOT NULL,
-                end_time INTEGER NOT NULL,
-                is_idle INTEGER NOT NULL,
-                category_id INTEGER REFERENCES categories(id)
-            )",
-            [],
-        ).unwrap();
-
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_start_time ON activity_logs(start_time)",
-            [],
-        ).unwrap();
-
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )",
-            [],
-        ).unwrap();
-
+        run_migrations(&conn).expect("Migrations should succeed");
         conn
     }
 
@@ -515,6 +521,34 @@ mod tests {
         assert!(tables.contains(&"categories".to_string()));
         assert!(tables.contains(&"rules".to_string()));
         assert!(tables.contains(&"settings".to_string()));
+        assert!(tables.contains(&"schema_migrations".to_string()));
+    }
+
+    #[test]
+    fn test_migrations_are_idempotent() {
+        let conn = setup_test_db();
+        let v1 = get_current_version(&conn).unwrap();
+        // Running migrations again should be a no-op
+        run_migrations(&conn).unwrap();
+        let v2 = get_current_version(&conn).unwrap();
+        assert_eq!(v1, v2);
+        assert_eq!(v2, 3); // We have 3 migrations
+    }
+
+    #[test]
+    fn test_migration_versions_recorded() {
+        let conn = setup_test_db();
+        let mut stmt = conn.prepare("SELECT version, name FROM schema_migrations ORDER BY version").unwrap();
+        let migrations: Vec<(i64, String)> = stmt
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert_eq!(migrations.len(), 3);
+        assert_eq!(migrations[0].0, 1);
+        assert_eq!(migrations[0].1, "initial_schema");
+        assert_eq!(migrations[1].0, 2);
+        assert_eq!(migrations[2].0, 3);
     }
 
     // --- Activity log round-trip ---
