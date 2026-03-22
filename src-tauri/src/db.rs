@@ -343,7 +343,7 @@ pub fn delete_rule(conn: &Connection, id: i64) -> Result<()> {
 
 // --- Categorization Logic ---
 
-fn find_category(conn: &Connection, process_name: &str, window_title: &str) -> Result<Option<i64>> {
+pub fn find_category(conn: &Connection, process_name: &str, window_title: &str) -> Result<Option<i64>> {
     let rules = get_rules(conn)?;
     for rule in rules {
         let match_target = if rule.match_field == "process" {
@@ -385,4 +385,429 @@ pub fn reprocess_logs(conn: &Connection) -> Result<()> {
     }
     
     Ok(())
+}
+
+/// Delete activity logs older than the given number of days.
+///
+/// Returns the number of rows deleted.
+pub fn cleanup_old_data(conn: &Connection, retention_days: i64) -> Result<usize> {
+    if retention_days <= 0 {
+        return Ok(0);
+    }
+    let cutoff = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs() as i64
+        - (retention_days * 86400);
+    let deleted = conn.execute(
+        "DELETE FROM activity_logs WHERE end_time < ?1",
+        [cutoff],
+    )?;
+    if deleted > 0 {
+        println!("[Database] Cleaned up {} old activity logs (retention: {} days)", deleted, retention_days);
+    }
+    Ok(deleted)
+}
+
+// --- Settings ---
+
+pub fn get_setting(conn: &Connection, key: &str) -> Result<Option<String>> {
+    let mut stmt = conn.prepare("SELECT value FROM settings WHERE key = ?1")?;
+    let mut rows = stmt.query([key])?;
+    if let Some(row) = rows.next()? {
+        Ok(Some(row.get(0)?))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
+    )?;
+    Ok(())
+}
+
+pub fn get_all_settings(conn: &Connection) -> Result<Vec<(String, String)>> {
+    let mut stmt = conn.prepare("SELECT key, value FROM settings ORDER BY key ASC")?;
+    let rows = stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    rows.collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    /// Create an in-memory database with the same schema as init_database.
+    fn setup_test_db() -> Connection {
+        let conn = Connection::open_in_memory().expect("Failed to open in-memory db");
+
+        // Enable foreign keys
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                color TEXT NOT NULL
+            )",
+            [],
+        ).unwrap();
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+                match_field TEXT NOT NULL,
+                pattern TEXT NOT NULL
+            )",
+            [],
+        ).unwrap();
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                process_name TEXT NOT NULL,
+                window_title TEXT NOT NULL,
+                start_time INTEGER NOT NULL,
+                end_time INTEGER NOT NULL,
+                is_idle INTEGER NOT NULL,
+                category_id INTEGER REFERENCES categories(id)
+            )",
+            [],
+        ).unwrap();
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_start_time ON activity_logs(start_time)",
+            [],
+        ).unwrap();
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )",
+            [],
+        ).unwrap();
+
+        conn
+    }
+
+    // --- Schema tests ---
+
+    #[test]
+    fn test_init_database_creates_schema() {
+        let conn = setup_test_db();
+        // Verify all tables exist
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+        assert!(tables.contains(&"activity_logs".to_string()));
+        assert!(tables.contains(&"categories".to_string()));
+        assert!(tables.contains(&"rules".to_string()));
+        assert!(tables.contains(&"settings".to_string()));
+    }
+
+    // --- Activity log round-trip ---
+
+    #[test]
+    fn test_insert_and_get_activity_logs() {
+        let conn = setup_test_db();
+        insert_activity_log(&conn, "firefox", "GitHub", false, 1000, None).unwrap();
+        insert_activity_log(&conn, "code", "main.rs", false, 1010, None).unwrap();
+
+        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
+        assert_eq!(logs.len(), 2);
+        assert_eq!(logs[0].process_name, "firefox");
+        assert_eq!(logs[1].process_name, "code");
+    }
+
+    // --- Coalescing tests ---
+
+    #[test]
+    fn test_coalesce_same_process_within_30s() {
+        let conn = setup_test_db();
+        let t = 1000;
+        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
+        log_activity(&conn, "firefox", "GitHub", false, t + 5).unwrap();
+        log_activity(&conn, "firefox", "GitHub", false, t + 10).unwrap();
+
+        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
+        assert_eq!(logs.len(), 1, "Should coalesce into a single entry");
+        assert_eq!(logs[0].start_time, t);
+        assert_eq!(logs[0].end_time, t + 10);
+    }
+
+    #[test]
+    fn test_coalesce_same_process_after_30s_gap() {
+        let conn = setup_test_db();
+        let t = 1000;
+        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
+        // Gap of 31s — exceeds MAX_GAP_SECONDS
+        log_activity(&conn, "firefox", "GitHub", false, t + 31).unwrap();
+
+        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
+        assert_eq!(logs.len(), 2, "Should create a new entry after 30s gap");
+        assert_eq!(logs[0].start_time, t);
+        assert_eq!(logs[1].start_time, t + 31);
+    }
+
+    #[test]
+    fn test_coalesce_different_process_new_entry() {
+        let conn = setup_test_db();
+        let t = 1000;
+        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
+        log_activity(&conn, "code", "main.rs", false, t + 5).unwrap();
+
+        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
+        assert_eq!(logs.len(), 2, "Different process should create new entry");
+        assert_eq!(logs[0].process_name, "firefox");
+        assert_eq!(logs[1].process_name, "code");
+    }
+
+    #[test]
+    fn test_coalesce_idle_state_change() {
+        let conn = setup_test_db();
+        let t = 1000;
+        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
+        // Same process but now idle
+        log_activity(&conn, "firefox", "GitHub", true, t + 5).unwrap();
+
+        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
+        assert_eq!(logs.len(), 2, "Idle state change should create new entry");
+        assert!(!logs[0].is_idle);
+        assert!(logs[1].is_idle);
+    }
+
+    #[test]
+    fn test_coalesce_boundary_exactly_30s() {
+        let conn = setup_test_db();
+        let t = 1000;
+        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
+        // Exactly 30s gap — should still coalesce (MAX_GAP_SECONDS is <=)
+        log_activity(&conn, "firefox", "GitHub", false, t + 30).unwrap();
+
+        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
+        assert_eq!(logs.len(), 1, "Exactly 30s gap should still coalesce");
+        assert_eq!(logs[0].end_time, t + 30);
+    }
+
+    // --- find_category tests ---
+
+    #[test]
+    fn test_find_category_matches_process_name() {
+        let conn = setup_test_db();
+        let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
+        create_rule(&conn, cat_id, "process", "firefox").unwrap();
+
+        let result = find_category(&conn, "firefox", "Some Page").unwrap();
+        assert_eq!(result, Some(cat_id));
+    }
+
+    #[test]
+    fn test_find_category_case_insensitive() {
+        let conn = setup_test_db();
+        let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
+        create_rule(&conn, cat_id, "process", "firefox").unwrap();
+
+        let result = find_category(&conn, "Firefox", "Some Page").unwrap();
+        assert_eq!(result, Some(cat_id), "Should match case-insensitively");
+    }
+
+    #[test]
+    fn test_find_category_matches_window_title() {
+        let conn = setup_test_db();
+        let cat_id = create_category(&conn, "Development", "#00ff00").unwrap();
+        create_rule(&conn, cat_id, "title", "github").unwrap();
+
+        let result = find_category(&conn, "firefox", "GitHub - Pull Request").unwrap();
+        assert_eq!(result, Some(cat_id));
+    }
+
+    #[test]
+    fn test_find_category_no_match() {
+        let conn = setup_test_db();
+        create_category(&conn, "Browsers", "#ff0000").unwrap();
+        // No rules created
+
+        let result = find_category(&conn, "firefox", "Some Page").unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_find_category_no_rules_at_all() {
+        let conn = setup_test_db();
+        let result = find_category(&conn, "firefox", "Some Page").unwrap();
+        assert_eq!(result, None);
+    }
+
+    // --- reprocess_logs tests ---
+
+    #[test]
+    fn test_reprocess_logs_clears_and_reapplies() {
+        let conn = setup_test_db();
+        let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
+
+        // Insert logs without category
+        insert_activity_log(&conn, "firefox", "GitHub", false, 1000, None).unwrap();
+        insert_activity_log(&conn, "code", "main.rs", false, 1010, None).unwrap();
+
+        // Now add a rule for firefox
+        create_rule(&conn, cat_id, "process", "firefox").unwrap();
+
+        // Reprocess
+        reprocess_logs(&conn).unwrap();
+
+        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
+        assert_eq!(logs[0].category_id, Some(cat_id), "firefox should be categorized");
+        assert_eq!(logs[1].category_id, None, "code should remain uncategorized");
+    }
+
+    // --- Category CRUD tests ---
+
+    #[test]
+    fn test_category_crud() {
+        let conn = setup_test_db();
+
+        // Create
+        let id = create_category(&conn, "Work", "#0000ff").unwrap();
+        assert!(id > 0);
+
+        // Read
+        let cats = get_categories(&conn).unwrap();
+        assert_eq!(cats.len(), 1);
+        assert_eq!(cats[0].name, "Work");
+        assert_eq!(cats[0].color, "#0000ff");
+
+        // Delete
+        delete_category(&conn, id).unwrap();
+        let cats = get_categories(&conn).unwrap();
+        assert_eq!(cats.len(), 0);
+    }
+
+    #[test]
+    fn test_delete_category_cascades_rules() {
+        let conn = setup_test_db();
+        let cat_id = create_category(&conn, "Work", "#0000ff").unwrap();
+        create_rule(&conn, cat_id, "process", "slack").unwrap();
+
+        assert_eq!(get_rules(&conn).unwrap().len(), 1);
+
+        delete_category(&conn, cat_id).unwrap();
+        // Rules should be cascade-deleted
+        assert_eq!(get_rules(&conn).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_delete_category_nullifies_activity_logs() {
+        let conn = setup_test_db();
+        let cat_id = create_category(&conn, "Work", "#0000ff").unwrap();
+        insert_activity_log(&conn, "slack", "General", false, 1000, Some(cat_id)).unwrap();
+
+        delete_category(&conn, cat_id).unwrap();
+
+        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
+        assert_eq!(logs[0].category_id, None, "category_id should be NULL after category deletion");
+    }
+
+    // --- Rule CRUD tests ---
+
+    #[test]
+    fn test_rule_crud() {
+        let conn = setup_test_db();
+        let cat_id = create_category(&conn, "Dev", "#00ff00").unwrap();
+
+        // Create
+        let rule_id = create_rule(&conn, cat_id, "process", "code").unwrap();
+        assert!(rule_id > 0);
+
+        // Read
+        let rules = get_rules(&conn).unwrap();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].category_id, cat_id);
+        assert_eq!(rules[0].match_field, "process");
+        assert_eq!(rules[0].pattern, "code");
+
+        // Delete
+        delete_rule(&conn, rule_id).unwrap();
+        assert_eq!(get_rules(&conn).unwrap().len(), 0);
+    }
+
+    // --- Cleanup tests ---
+
+    #[test]
+    fn test_cleanup_old_data_deletes_correct_rows() {
+        let conn = setup_test_db();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        // Old log (100 days ago)
+        insert_activity_log(&conn, "old-app", "Old", false, now - 100 * 86400, None).unwrap();
+        // Update end_time to also be old
+        conn.execute(
+            "UPDATE activity_logs SET end_time = ?1 WHERE process_name = 'old-app'",
+            [now - 100 * 86400],
+        ).unwrap();
+
+        // Recent log (1 day ago)
+        insert_activity_log(&conn, "new-app", "New", false, now - 86400, None).unwrap();
+
+        let deleted = cleanup_old_data(&conn, 30).unwrap();
+        assert_eq!(deleted, 1);
+
+        let logs = get_activity_logs(&conn, 0, now + 1000).unwrap();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].process_name, "new-app");
+    }
+
+    #[test]
+    fn test_cleanup_zero_retention_does_nothing() {
+        let conn = setup_test_db();
+        insert_activity_log(&conn, "app", "Title", false, 1000, None).unwrap();
+
+        let deleted = cleanup_old_data(&conn, 0).unwrap();
+        assert_eq!(deleted, 0);
+
+        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
+        assert_eq!(logs.len(), 1);
+    }
+
+    // --- Settings tests ---
+
+    #[test]
+    fn test_settings_get_set() {
+        let conn = setup_test_db();
+
+        // Initially empty
+        assert_eq!(get_setting(&conn, "retention_days").unwrap(), None);
+
+        // Set
+        set_setting(&conn, "retention_days", "30").unwrap();
+        assert_eq!(get_setting(&conn, "retention_days").unwrap(), Some("30".to_string()));
+
+        // Upsert
+        set_setting(&conn, "retention_days", "60").unwrap();
+        assert_eq!(get_setting(&conn, "retention_days").unwrap(), Some("60".to_string()));
+    }
+
+    #[test]
+    fn test_get_all_settings() {
+        let conn = setup_test_db();
+        set_setting(&conn, "retention_days", "30").unwrap();
+        set_setting(&conn, "chart_top_n", "8").unwrap();
+
+        let all = get_all_settings(&conn).unwrap();
+        assert_eq!(all.len(), 2);
+    }
 }

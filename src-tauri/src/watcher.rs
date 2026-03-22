@@ -53,6 +53,11 @@ fn get_current_timestamp() -> i64 {
         .as_secs() as i64
 }
 
+/// Get current Unix timestamp in seconds (public for testing).
+pub fn get_current_timestamp_pub() -> i64 {
+    get_current_timestamp()
+}
+
 /// Start the background watcher that polls active window info.
 ///
 /// Runs indefinitely, polling every POLL_INTERVAL_SECS seconds.
@@ -86,6 +91,19 @@ pub async fn start_watcher(db_conn: DbConnection) {
                 eprintln!("[Watcher] Failed to log activity: {}", e);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_current_timestamp_reasonable() {
+        let ts = get_current_timestamp();
+        // Should be after 2024-01-01 and before 2030-01-01
+        assert!(ts > 1_704_067_200, "Timestamp should be after 2024");
+        assert!(ts < 1_893_456_000, "Timestamp should be before 2030");
     }
 }
 
