@@ -26,6 +26,7 @@ export function SettingsView() {
   const [newRuleCatId, setNewRuleCatId] = useState<string>('');
   const [newRuleMatchField, setNewRuleMatchField] = useState('process');
   const [newRulePattern, setNewRulePattern] = useState('');
+  const [newRuleIgnoreTitle, setNewRuleIgnoreTitle] = useState(false);
   
   const [retentionDays, setRetentionDays] = useState('0');
   const [reprocessing, setReprocessing] = useState(false);
@@ -102,8 +103,9 @@ export function SettingsView() {
   const handleCreateRule = async () => {
     if (!newRuleCatId || !newRulePattern) return;
     try {
-      await createRule(parseInt(newRuleCatId), newRuleMatchField, newRulePattern);
+      await createRule(parseInt(newRuleCatId), newRuleMatchField, newRulePattern, newRuleIgnoreTitle);
       setNewRulePattern('');
+      setNewRuleIgnoreTitle(false);
       fetchData();
     } catch (e) {
       console.error(e);
@@ -286,6 +288,16 @@ export function SettingsView() {
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateRule()}
               />
               
+              <label className="flex items-center gap-2 text-xs font-mono text-muted-foreground mt-1 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={newRuleIgnoreTitle}
+                  onChange={(e) => setNewRuleIgnoreTitle(e.target.checked)}
+                  className="rounded border-border accent-neon-green"
+                />
+                Ignore window title (group all windows of this app)
+              </label>
+              
               <div className="flex gap-2 items-center text-xs font-mono text-muted-foreground mt-1">
                 THEN SET CATEGORY TO
                 <select
@@ -318,6 +330,7 @@ export function SettingsView() {
                       <span className="text-muted-foreground font-mono">Match:</span>
                       <span className="font-mono text-foreground truncate">
                         {rule.match_field === 'process' ? 'Process' : 'Title'} contains "{rule.pattern}"
+                        {rule.ignore_title && <span className="ml-1 text-neon-purple">(ignore title)</span>}
                       </span>
                       
                       <span className="text-muted-foreground font-mono">Set:</span>

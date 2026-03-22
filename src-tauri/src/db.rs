@@ -31,6 +31,7 @@ pub struct Rule {
     pub category_id: i64,
     pub match_field: String, // "process" or "title"
     pub pattern: String,
+    pub ignore_title: bool,
 }
 
 /// Get the database file path in the app's data directory.
@@ -100,6 +101,13 @@ const MIGRATIONS: &[Migration] = &[
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+        ",
+    },
+    Migration {
+        version: 4,
+        name: "add_ignore_title_to_rules",
+        sql: "
+            ALTER TABLE rules ADD COLUMN ignore_title INTEGER NOT NULL DEFAULT 0;
         ",
     },
 ];
@@ -364,13 +372,14 @@ pub fn delete_category(conn: &Connection, id: i64) -> Result<()> {
 // --- Rule CRUD ---
 
 pub fn get_rules(conn: &Connection) -> Result<Vec<Rule>> {
-    let mut stmt = conn.prepare("SELECT id, category_id, match_field, pattern FROM rules ORDER BY id ASC")?;
+    let mut stmt = conn.prepare("SELECT id, category_id, match_field, pattern, ignore_title FROM rules ORDER BY id ASC")?;
     let rows = stmt.query_map([], |row| {
         Ok(Rule {
             id: row.get(0)?,
             category_id: row.get(1)?,
             match_field: row.get(2)?,
             pattern: row.get(3)?,
+            ignore_title: row.get::<_, i64>(4)? != 0,
         })
     })?;
     rows.collect()
@@ -381,10 +390,11 @@ pub fn create_rule(
     category_id: i64,
     match_field: &str,
     pattern: &str,
+    ignore_title: bool,
 ) -> Result<i64> {
     conn.execute(
-        "INSERT INTO rules (category_id, match_field, pattern) VALUES (?1, ?2, ?3)",
-        (category_id, match_field, pattern),
+        "INSERT INTO rules (category_id, match_field, pattern, ignore_title) VALUES (?1, ?2, ?3, ?4)",
+        (category_id, match_field, pattern, ignore_title as i64),
     )?;
     Ok(conn.last_insert_rowid())
 }
@@ -532,7 +542,7 @@ mod tests {
         run_migrations(&conn).unwrap();
         let v2 = get_current_version(&conn).unwrap();
         assert_eq!(v1, v2);
-        assert_eq!(v2, 3); // We have 3 migrations
+        assert_eq!(v2, 4); // We have 4 migrations
     }
 
     #[test]
@@ -544,11 +554,13 @@ mod tests {
             .unwrap()
             .filter_map(|r| r.ok())
             .collect();
-        assert_eq!(migrations.len(), 3);
+        assert_eq!(migrations.len(), 4);
         assert_eq!(migrations[0].0, 1);
         assert_eq!(migrations[0].1, "initial_schema");
         assert_eq!(migrations[1].0, 2);
         assert_eq!(migrations[2].0, 3);
+        assert_eq!(migrations[3].0, 4);
+        assert_eq!(migrations[3].1, "add_ignore_title_to_rules");
     }
 
     // --- Activity log round-trip ---
@@ -641,7 +653,7 @@ mod tests {
     fn test_find_category_matches_process_name() {
         let conn = setup_test_db();
         let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
-        create_rule(&conn, cat_id, "process", "firefox").unwrap();
+        create_rule(&conn, cat_id, "process", "firefox", false).unwrap();
 
         let result = find_category(&conn, "firefox", "Some Page").unwrap();
         assert_eq!(result, Some(cat_id));
@@ -651,7 +663,7 @@ mod tests {
     fn test_find_category_case_insensitive() {
         let conn = setup_test_db();
         let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
-        create_rule(&conn, cat_id, "process", "firefox").unwrap();
+        create_rule(&conn, cat_id, "process", "firefox", false).unwrap();
 
         let result = find_category(&conn, "Firefox", "Some Page").unwrap();
         assert_eq!(result, Some(cat_id), "Should match case-insensitively");
@@ -661,7 +673,7 @@ mod tests {
     fn test_find_category_matches_window_title() {
         let conn = setup_test_db();
         let cat_id = create_category(&conn, "Development", "#00ff00").unwrap();
-        create_rule(&conn, cat_id, "title", "github").unwrap();
+        create_rule(&conn, cat_id, "title", "github", false).unwrap();
 
         let result = find_category(&conn, "firefox", "GitHub - Pull Request").unwrap();
         assert_eq!(result, Some(cat_id));
@@ -696,7 +708,7 @@ mod tests {
         insert_activity_log(&conn, "code", "main.rs", false, 1010, None).unwrap();
 
         // Now add a rule for firefox
-        create_rule(&conn, cat_id, "process", "firefox").unwrap();
+        create_rule(&conn, cat_id, "process", "firefox", false).unwrap();
 
         // Reprocess
         reprocess_logs(&conn).unwrap();
@@ -732,7 +744,7 @@ mod tests {
     fn test_delete_category_cascades_rules() {
         let conn = setup_test_db();
         let cat_id = create_category(&conn, "Work", "#0000ff").unwrap();
-        create_rule(&conn, cat_id, "process", "slack").unwrap();
+        create_rule(&conn, cat_id, "process", "slack", false).unwrap();
 
         assert_eq!(get_rules(&conn).unwrap().len(), 1);
 
@@ -761,7 +773,7 @@ mod tests {
         let cat_id = create_category(&conn, "Dev", "#00ff00").unwrap();
 
         // Create
-        let rule_id = create_rule(&conn, cat_id, "process", "code").unwrap();
+        let rule_id = create_rule(&conn, cat_id, "process", "code", false).unwrap();
         assert!(rule_id > 0);
 
         // Read
@@ -774,6 +786,17 @@ mod tests {
         // Delete
         delete_rule(&conn, rule_id).unwrap();
         assert_eq!(get_rules(&conn).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_rule_ignore_title() {
+        let conn = setup_test_db();
+        let cat_id = create_category(&conn, "Dev", "#00ff00").unwrap();
+        create_rule(&conn, cat_id, "process", "code", true).unwrap();
+
+        let rules = get_rules(&conn).unwrap();
+        assert_eq!(rules.len(), 1);
+        assert!(rules[0].ignore_title, "ignore_title should be true");
     }
 
     // --- Cleanup tests ---

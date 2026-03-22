@@ -61,9 +61,11 @@ fn create_rule(
     category_id: i64,
     match_field: String,
     pattern: String,
+    ignore_title: Option<bool>,
 ) -> Result<i64, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
-    db::create_rule(&conn, category_id, &match_field, &pattern).map_err(|e| e.to_string())
+    db::create_rule(&conn, category_id, &match_field, &pattern, ignore_title.unwrap_or(false))
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -76,6 +78,15 @@ fn delete_rule(db: State<DbState>, id: i64) -> Result<(), String> {
 fn reprocess_logs(db: State<DbState>) -> Result<(), String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
     db::reprocess_logs(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_watcher_status() -> Result<serde_json::Value, String> {
+    let errors = watcher::get_error_count();
+    Ok(serde_json::json!({
+        "consecutive_errors": errors,
+        "healthy": errors < 6
+    }))
 }
 
 #[tauri::command]
@@ -103,6 +114,7 @@ pub fn run() {
             create_rule,
             delete_rule,
             reprocess_logs,
+            get_watcher_status,
             get_settings,
             update_setting
         ])

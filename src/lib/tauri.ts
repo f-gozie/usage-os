@@ -21,6 +21,7 @@ export interface Rule {
   category_id: number;
   match_field: string; // "process" or "title"
   pattern: string;
+  ignore_title: boolean;
 }
 
 /**
@@ -60,9 +61,10 @@ export async function getRules(): Promise<Rule[]> {
 export async function createRule(
   categoryId: number,
   matchField: string,
-  pattern: string
+  pattern: string,
+  ignoreTitle: boolean = false,
 ): Promise<number> {
-  return await invoke('create_rule', { categoryId, matchField, pattern });
+  return await invoke('create_rule', { categoryId, matchField, pattern, ignoreTitle });
 }
 
 export async function deleteRule(id: number): Promise<void> {
@@ -71,6 +73,17 @@ export async function deleteRule(id: number): Promise<void> {
 
 export async function reprocessLogs(): Promise<void> {
   return await invoke('reprocess_logs');
+}
+
+// --- Watcher Status ---
+
+export interface WatcherStatus {
+  consecutive_errors: number;
+  healthy: boolean;
+}
+
+export async function getWatcherStatus(): Promise<WatcherStatus> {
+  return await invoke('get_watcher_status');
 }
 
 // --- Settings ---
