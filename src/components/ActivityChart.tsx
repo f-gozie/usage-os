@@ -13,11 +13,12 @@ export interface ChartDataPoint {
 
 interface ActivityChartProps {
   data: ChartDataPoint[];
+  topN?: number;
 }
 
-export function ActivityChart({ data }: ActivityChartProps) {
-  const top5 = data.slice(0, 5);
-  const others = data.slice(5);
+export function ActivityChart({ data, topN = 8 }: ActivityChartProps) {
+  const top5 = data.slice(0, topN);
+  const others = data.slice(topN);
   
   const chartData = top5.map((stat, index) => ({
     name: stat.name,

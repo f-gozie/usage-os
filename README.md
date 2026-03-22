@@ -1,38 +1,27 @@
-# UsageOS
+# Usage OS
 
-A privacy-first desktop utility built with Tauri (Rust + React) that silently tracks computer usage activity and presents the data in a beautiful cyberpunk-styled dashboard.
+[![CI](https://github.com/f-gozie/usage-os/actions/workflows/ci.yml/badge.svg)](https://github.com/f-gozie/usage-os/actions/workflows/ci.yml)
+
+A privacy-first desktop activity tracker built with Tauri v2 (Rust + React). Silently monitors app usage and presents data in a cyberpunk-styled dashboard.
 
 ## Features
 
-- **Background Activity Tracking** - Polls active window every 5 seconds to track app usage
-- **Idle Detection** - Automatically detects when you're away (3+ minutes of inactivity)
-- **Smart Coalescing** - Updates duration instead of creating duplicate entries
-- **Local SQLite Storage** - All data stays on your machine, stored in app data directory
-- **Real-time Dashboard** - View today, yesterday, and weekly stats with live updates
-- **Idle Time Visualization** - Track and visualize idle time separately from active usage
-- **Cyberpunk UI** - Clean, professional dark mode interface with subtle neon accents
+- **Background Activity Tracking** — Polls active window every 5 seconds
+- **Idle Detection** — Detects inactivity after 3 minutes
+- **Smart Coalescing** — Merges consecutive entries for the same app (30s gap threshold)
+- **Category Rules Engine** — Classify apps by process name or window title patterns
+- **Data Retention** — Configure automatic cleanup (30/60/90/180/365 days or keep all)
+- **Local SQLite** — All data stays on your machine
+- **Cyberpunk UI** — Dark mode with neon accents, pie charts, and stats cards
 
-## Tech Stack
+## Screenshots
 
-- **Tauri v2** - Cross-platform desktop framework
-- **Rust** - Backend for window detection, idle tracking, and database operations
-- **React + TypeScript** - Frontend dashboard with type safety
-- **Tailwind CSS** - Utility-first styling
-- **Shadcn UI** - Component foundation with heavy customization
-- **Recharts** - Data visualization
-- **SQLite** - Local time-series database
+<!-- TODO: Add screenshots -->
 
-## Prerequisites
-
-- **macOS**: Accessibility permissions required for window title detection
-  - System Settings > Privacy & Security > Accessibility
-- **Rust** (latest stable)
-- **Node.js** (v18+)
-
-## Installation
+## Quick Start
 
 ```bash
-# Install dependencies
+# Install frontend dependencies
 npm install
 
 # Run in development mode
@@ -42,42 +31,109 @@ npm run tauri dev
 npm run tauri build
 ```
 
-## Database Schema
+## Platform Setup
 
-Activity logs are stored in `~/Library/Application Support/com.favour.usage-os/usage.db` (macOS):
+### macOS
 
-```sql
-CREATE TABLE activity_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    process_name TEXT NOT NULL,
-    window_title TEXT NOT NULL,
-    start_time INTEGER NOT NULL,  -- Unix timestamp
-    end_time INTEGER NOT NULL,    -- Unix timestamp
-    is_idle INTEGER NOT NULL      -- Boolean (0 or 1)
-);
+Grant Accessibility permissions when prompted:
+**System Settings → Privacy & Security → Accessibility**
+
+No additional dependencies needed.
+
+### Windows
+
+No additional dependencies needed.
+
+### Linux
+
+```bash
+sudo apt-get install -y \
+  libwebkit2gtk-4.1-dev \
+  libgtk-3-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev \
+  libxss-dev \
+  libxdo-dev
+```
+
+## Development
+
+### Prerequisites
+
+- Rust (stable, latest)
+- Node.js 22+
+- Platform dependencies (see above)
+
+### Running Tests
+
+```bash
+# Rust tests (database, coalescing, categorization, migrations)
+cargo test --manifest-path src-tauri/Cargo.toml
+
+# TypeScript tests (stats, time utilities)
+npx vitest run
+
+# Both
+cargo test --manifest-path src-tauri/Cargo.toml && npx vitest run
+```
+
+### Dev Mode
+
+```bash
+npm run tauri dev
 ```
 
 ## Architecture
 
-- **Watcher** (`src-tauri/src/watcher.rs`) - Background thread polling active window
-- **Database** (`src-tauri/src/db.rs`) - SQLite operations and coalescing logic
-- **Dashboard** (`src/App.tsx`) - React UI with stats cards and activity charts
-- **Stats** (`src/lib/stats.ts`) - Data processing and aggregation utilities
+```
+usage-os/
+├── src/                        # React/TypeScript frontend
+│   ├── components/
+│   │   ├── ActivityChart.tsx    # Pie chart with top-N + "Other" bucket
+│   │   ├── SettingsView.tsx     # Categories, rules, data retention
+│   │   ├── StatsCard.tsx        # Duration/idle summary cards
+│   │   └── TimeRangeSelector.tsx
+│   ├── lib/
+│   │   ├── stats.ts            # Duration calc, grouping, formatting
+│   │   ├── time.ts             # Relative time formatting
+│   │   ├── tauri.ts            # Tauri IPC bindings
+│   │   └── utils.ts            # CN utility
+│   └── App.tsx                 # Main dashboard layout
+├── src-tauri/                  # Rust backend
+│   └── src/
+│       ├── db.rs               # SQLite, migrations, CRUD, coalescing logic
+│       ├── watcher.rs          # Background window polling + idle detection
+│       ├── lib.rs              # Tauri commands, app setup, data retention
+│       └── main.rs             # Entry point
+└── .github/workflows/ci.yml   # CI: test + build on Linux/macOS/Windows
+```
+
+### Key Design Decisions
+
+- **Coalescing with 30s gap threshold**: If the same process/title/idle-state is active within 30s of the last entry, extend it instead of creating a new row. Prevents false inflation from app restarts.
+- **Migration-based schema**: `schema_migrations` table tracks applied versions. Migrations run on startup, idempotent.
+- **Category rules**: First matching rule wins (ordered by creation). Match on process name or window title, case-insensitive contains.
+
+## Tech Stack
+
+| Layer | Tech |
+|-------|------|
+| Framework | Tauri v2 |
+| Backend | Rust, rusqlite (bundled SQLite) |
+| Frontend | React 19, TypeScript, Vite 7 |
+| Styling | Tailwind CSS, Radix UI |
+| Charts | Recharts |
+| Testing | `cargo test` (Rust), Vitest (TS) |
 
 ## Data Privacy
 
-- 100% local storage - no cloud sync or telemetry
-- No network requests for data storage
-- All processing happens on your device
+- 100% local storage — no cloud, no telemetry, no network requests
+- SQLite database in your app data directory
 - You own your data completely
 
-## Future Enhancements
+## Contributing
 
-See [02-FUTURE-IDEAS.md](02-FUTURE-IDEAS.md) for planned features:
-- Categorization rules engine
-- XP system and gamification
-- Timeline view
-- Export capabilities
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ## License
 

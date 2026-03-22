@@ -8,9 +8,11 @@ import {
   getRules, 
   createRule, 
   deleteRule, 
-  reprocessLogs 
+  reprocessLogs,
+  getSettings,
+  updateSetting,
 } from '@/lib/tauri';
-import { Trash2, Plus, RefreshCw, Layers, ListFilter, CheckCircle, AlertCircle } from 'lucide-react';
+import { Trash2, Plus, RefreshCw, Layers, ListFilter, CheckCircle, AlertCircle, Database } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export function SettingsView() {
@@ -24,7 +26,9 @@ export function SettingsView() {
   const [newRuleCatId, setNewRuleCatId] = useState<string>('');
   const [newRuleMatchField, setNewRuleMatchField] = useState('process');
   const [newRulePattern, setNewRulePattern] = useState('');
+  const [newRuleIgnoreTitle, setNewRuleIgnoreTitle] = useState(false);
   
+  const [retentionDays, setRetentionDays] = useState('0');
   const [reprocessing, setReprocessing] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
@@ -48,13 +52,26 @@ export function SettingsView() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [cats, rls] = await Promise.all([getCategories(), getRules()]);
+      const [cats, rls, settings] = await Promise.all([getCategories(), getRules(), getSettings()]);
       setCategories(cats);
       setRules(rls);
+      const retSetting = settings.find(([k]: [string, string]) => k === 'data_retention_days');
+      if (retSetting) setRetentionDays(retSetting[1]);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRetentionChange = async (value: string) => {
+    setRetentionDays(value);
+    try {
+      await updateSetting('data_retention_days', value);
+      setFeedback({ type: 'success', message: `Data retention updated to ${value === '0' ? 'Keep All' : value + ' days'}` });
+    } catch (e) {
+      console.error(e);
+      setFeedback({ type: 'error', message: 'Failed to update retention setting.' });
     }
   };
 
@@ -86,8 +103,9 @@ export function SettingsView() {
   const handleCreateRule = async () => {
     if (!newRuleCatId || !newRulePattern) return;
     try {
-      await createRule(parseInt(newRuleCatId), newRuleMatchField, newRulePattern);
+      await createRule(parseInt(newRuleCatId), newRuleMatchField, newRulePattern, newRuleIgnoreTitle);
       setNewRulePattern('');
+      setNewRuleIgnoreTitle(false);
       fetchData();
     } catch (e) {
       console.error(e);
@@ -146,6 +164,35 @@ export function SettingsView() {
             </button>
         </div>
       </div>
+
+      {/* Data Retention */}
+      <Card className="border-border/50 bg-card/30 backdrop-blur shrink-0">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base font-mono uppercase tracking-widest text-neon-purple">
+            <Database className="w-4 h-4" /> Data Retention
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-muted-foreground">Keep activity data for:</span>
+            <select
+              value={retentionDays}
+              onChange={(e) => handleRetentionChange(e.target.value)}
+              className="bg-background border border-border rounded px-3 py-2 text-sm focus:border-neon-purple focus:outline-none transition-colors"
+            >
+              <option value="0">Keep All</option>
+              <option value="30">30 days</option>
+              <option value="60">60 days</option>
+              <option value="90">90 days</option>
+              <option value="180">180 days</option>
+              <option value="365">365 days</option>
+            </select>
+            <span className="text-xs text-muted-foreground">
+              {retentionDays === '0' ? 'No automatic cleanup' : `Logs older than ${retentionDays} days are deleted on startup`}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2 flex-1 min-h-0">
         
@@ -241,6 +288,16 @@ export function SettingsView() {
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateRule()}
               />
               
+              <label className="flex items-center gap-2 text-xs font-mono text-muted-foreground mt-1 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={newRuleIgnoreTitle}
+                  onChange={(e) => setNewRuleIgnoreTitle(e.target.checked)}
+                  className="rounded border-border accent-neon-green"
+                />
+                Ignore window title (group all windows of this app)
+              </label>
+              
               <div className="flex gap-2 items-center text-xs font-mono text-muted-foreground mt-1">
                 THEN SET CATEGORY TO
                 <select
@@ -273,6 +330,7 @@ export function SettingsView() {
                       <span className="text-muted-foreground font-mono">Match:</span>
                       <span className="font-mono text-foreground truncate">
                         {rule.match_field === 'process' ? 'Process' : 'Title'} contains "{rule.pattern}"
+                        {rule.ignore_title && <span className="ml-1 text-neon-purple">(ignore title)</span>}
                       </span>
                       
                       <span className="text-muted-foreground font-mono">Set:</span>

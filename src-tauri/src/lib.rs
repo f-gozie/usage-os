@@ -61,9 +61,11 @@ fn create_rule(
     category_id: i64,
     match_field: String,
     pattern: String,
+    ignore_title: Option<bool>,
 ) -> Result<i64, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
-    db::create_rule(&conn, category_id, &match_field, &pattern).map_err(|e| e.to_string())
+    db::create_rule(&conn, category_id, &match_field, &pattern, ignore_title.unwrap_or(false))
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -78,6 +80,27 @@ fn reprocess_logs(db: State<DbState>) -> Result<(), String> {
     db::reprocess_logs(&conn).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn get_watcher_status() -> Result<serde_json::Value, String> {
+    let errors = watcher::get_error_count();
+    Ok(serde_json::json!({
+        "consecutive_errors": errors,
+        "healthy": errors < 6
+    }))
+}
+
+#[tauri::command]
+fn get_settings(db: State<DbState>) -> Result<Vec<(String, String)>, String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    db::get_all_settings(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn update_setting(db: State<DbState>, key: String, value: String) -> Result<(), String> {
+    let conn = db.lock().map_err(|e| e.to_string())?;
+    db::set_setting(&conn, &key, &value).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -90,7 +113,10 @@ pub fn run() {
             get_rules,
             create_rule,
             delete_rule,
-            reprocess_logs
+            reprocess_logs,
+            get_watcher_status,
+            get_settings,
+            update_setting
         ])
         .setup(|app| {
             let db_path = db::get_db_path(&app.handle())
@@ -98,6 +124,22 @@ pub fn run() {
             
             let db_conn = db::init_database(&db_path)
                 .expect("Failed to initialize database");
+            
+            // Run data retention cleanup before starting the watcher
+            {
+                let conn = db_conn.lock().expect("Failed to lock db for cleanup");
+                if let Ok(Some(days_str)) = db::get_setting(&conn, "data_retention_days") {
+                    if let Ok(days) = days_str.parse::<i64>() {
+                        match db::cleanup_old_data(&conn, days) {
+                            Ok(deleted) if deleted > 0 => {
+                                println!("[Startup] Cleaned up {} old activity logs", deleted);
+                            }
+                            Err(e) => eprintln!("[Startup] Cleanup failed: {}", e),
+                            _ => {}
+                        }
+                    }
+                }
+            }
             
             app.manage(db_conn.clone());
             
