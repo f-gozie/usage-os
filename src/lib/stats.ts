@@ -111,7 +111,7 @@ export function groupByProcess(
 ): ProcessStats[] {
   const grouped = new Map<
     string,
-    { processName: string; isIdle: boolean; duration: number; categoryId?: number }
+    { processName: string; isIdle: boolean; duration: number; categoryId?: number | null }
   >();
 
   logs.forEach((log) => {

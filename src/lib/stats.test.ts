@@ -22,7 +22,7 @@ function makeLog(overrides: Partial<ActivityLog> = {}): ActivityLog {
     start_time: 1000,
     end_time: 1060,
     is_idle: false,
-    category_id: undefined,
+    category_id: null,
     ...overrides,
   };
 }

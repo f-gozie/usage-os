@@ -55,8 +55,8 @@ export function SettingsView() {
       const [cats, rls, settings] = await Promise.all([getCategories(), getRules(), getSettings()]);
       setCategories(cats);
       setRules(rls);
-      const retSetting = settings.find(([k]: [string, string]) => k === 'data_retention_days');
-      if (retSetting) setRetentionDays(retSetting[1]);
+      const retSetting = settings.find((s) => s.key === 'data_retention_days');
+      if (retSetting) setRetentionDays(retSetting.value);
     } catch (e) {
       console.error(e);
     } finally {
