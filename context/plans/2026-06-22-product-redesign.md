@@ -1,6 +1,6 @@
 # Usage OS — Product Redesign: Dial + Recap + Local AI
 
-**Task:** TBD (assign in workflow) · **Created:** 2026-06-22 · **Status:** 🔵 Planned
+**Task:** TBD (assign in workflow) · **Created:** 2026-06-22 · **Status:** 🟡 In progress — Phase 0 (feasibility audit complete → `context/feasibility/2026-06-22-feasibility-audit.md`, verdict **GO-WITH-CAVEATS**; native spike next)
 
 > Builds **on** the current `main` (v0.1.0 + the Tier-1 OSS-hygiene foundation). This is an evolution, not a restart. See `context/vision.md` (what/why) and `context/decisions.md` (D1–D25).
 
@@ -29,11 +29,18 @@ From the shipped v0.1.0 + Tier-1 work, do **not** rebuild these:
 
 ## Phase 0 — De-risk & foundation
 
-- [ ] **Native capture spike (isolated)** — prove AX titles + Automation URLs + NSWorkspace events across Cursor/iTerm/Chrome/Safari/Brave on the real Mac. _Make-or-break; nothing else matters if it fails._
-- [ ] **Project-inference spike** — measure auto-tagging accuracy from titles/cwd/repos.
-- [ ] **Ecosystem research** → write `context/standards/{rust,tauri-ipc,capture-and-permissions,testing-and-ci}.md`, grounded not from memory.
-- [ ] **Wire tauri-specta** into the existing app (+ a binding-freshness check in CI alongside the current pipeline).
-- [ ] **Design system (parallel track):** full Bauhaus system in Claude Design (needs `/design-login`), both themes, all states; reconcile `context/design-system.md`. UI build blocked until locked.
+- [x] **Ecosystem research + whole-project feasibility audit** — wrote `context/standards/{rust,tauri-ipc,capture-and-permissions,testing-and-ci,foundation-models}.md` + `context/feasibility/2026-06-22-feasibility-audit.md` (verdict **GO-WITH-CAVEATS**; risk register R1–R83; spike plan §4). Desk-grounded from current sources; **native/version claims provisional until the spike confirms them.**
+- [~] **Native capture spike (isolated)** — on the real Mac. _Make-or-break._ **Spike order (audit §4):**
+  - [x] ① **AX titles with Screen Recording OFF (R2–R4, R7) — ✅ PASS** ([PR #6](https://github.com/f-gozie/usage-os/pull/6), `spikes/ax-titles/`). Real focused-window titles for Chromium (Chrome, Brave), Electron editors/apps (Cursor, Claude, Notion, Figma, WhatsApp, Spotify), native (Finder), terminals (iTerm2) — Accessibility only, no Screen Recording. **R4 retired.** Side-findings: a run loop is required (confirms R6); system-wide `AXFocusedApplication` errors from a CLI (use per-pid); titles already carry project/page signal (helps D6) **and** sensitive content (D8 is load-bearing).
+  - [ ] ② run-loop/threading model + NSWorkspace activation + AXObserver, event-driven, marshaled to a Send channel (R6, R8–R13) — the real capture architecture (the spike's pump was a stopgap).
+  - [ ] ③ browser URL + incognito exclusion (R15–R21, D8).
+  - [ ] ④ `proc_pidinfo` cwd read, non-root/unsandboxed (R22, R24).
+  - _Note: dev-build trust held across rebuilds via `codesign --force --sign -` (R14); for the spike, the binary read cross-app titles fine once trusted._
+- [ ] **Project-inference spike** — measure precision/recall + false-positive rate on the dev's real data; abstain threshold for low-confidence (R23, R26, R27). Depends on spikes ① and ③.
+- [x] **Hard-rule-3 cleanup + missing merge gates** ([PR #5](https://github.com/f-gozie/usage-os/pull/5)) — removed all production `.expect()` (`lib.rs`, `watcher.rs`, `db.rs` → shared `now_unix()` helper), added `#![cfg_attr(not(test), deny(clippy::unwrap_used, expect_used, panic))]` to both crate roots, and wired `clippy -D warnings` + `cargo fmt --check` + `tsc --noEmit` into `ci.yml`. (R82) _Binding-freshness gate deferred until tauri-specta is wired._
+- [ ] **`recharts` stays for now** — audit §M / R77 called it unused, but it's imported by `src/components/ActivityChart.tsx` (the current dashboard). Remove only when the Bauhaus dial replaces that dashboard (Phase 1+).
+- [ ] **Wire tauri-specta** into the existing app — exact-pin the RC trio (D27); migrate `get_watcher_status` (returns `serde_json::Value` → named struct) + the 11 `Result<_, String>` commands → a `thiserror` `AppError` (R48); `BigIntExportBehavior::Number` for i64 timestamps (R49); commands-only first (#211, R50).
+- [ ] **Design system (parallel track):** full Bauhaus system in Claude Design (needs `/design-login`), both themes, all states; reconcile `context/design-system.md`. UI build blocked until locked. **Blocker the audit found:** the Comms yellow `#F2BC0C` fails WCAG non-text contrast (1.47:1) and color is the only context channel — fix the palette (or add arc outlines + a guaranteed non-color cue) and re-run contrast in both themes before locking (R77).
 
 ## Phase 1 — Capture → the dial ("I open it and see MY actual day")
 

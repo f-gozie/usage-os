@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-06-22. Detailed code conventions live in `context/standards/` (generated in Phase 0, grounded in a real spike). This doc is the shape + boundaries._
+_Last updated: 2026-06-22. Detailed code conventions live in `context/standards/` (drafted in Phase 0 from grounded desk research; native/version claims are provisional until the spike confirms them — see `context/feasibility/2026-06-22-feasibility-audit.md`). This doc is the shape + boundaries._
 
 ## Layer map
 
@@ -39,7 +39,7 @@ _Last updated: 2026-06-22. Detailed code conventions live in `context/standards/
 ## Native layer (macOS)
 
 - **App-switch detection:** `NSWorkspace` `didActivateApplicationNotification` (via objc2) on the main run loop → fires on every frontmost-app change.
-- **Window title:** AX API — `AXUIElementCopyAttributeValue(focusedWindow, kAXTitleAttribute)`. Requires Accessibility permission (`AXIsProcessTrusted`). AX calls run on the main thread.
+- **Window title:** AX API — `AXUIElementCopyAttributeValue(focusedWindow, kAXTitleAttribute)` (crate: `objc2-application-services`; observers via `accessibility-sys` — see `context/standards/capture-and-permissions.md`). Requires Accessibility permission (`AXIsProcessTrusted`). AX calls run on the main thread. **Make-or-break, unproven:** that AX returns real titles for Chromium/Electron apps + editors (Chrome, Cursor, VS Code) under Accessibility alone (Screen Recording OFF) — R4, Spike #1.
 - **Browser URL:** AppleScript / Apple Events to the active browser (Automation permission, prompted once per browser). Title-derived site is the fallback when URL is unavailable.
 - **Idle:** existing idle detection + heartbeat to bound long-running/idle windows.
 - **Gotchas to respect:** AX must be main-thread + trusted; NSWorkspace notifications need the run loop; in dev the binary identity differs so granted permissions may not attach (sign the dev build or grant the dev binary); never block the Tokio executor on SQLite (dedicated thread / `spawn_blocking`).
@@ -56,11 +56,11 @@ Schema is already managed by the versioned migration system (`schema_migrations`
 - `embeddings` — vector per labeled exemplar (categorization memory).
 - `settings` — permissions state, exclusions, day-start offset, recap-ping time, theme.
 
-Storage: SQLite WAL. Titles raw-local; excluded/private apps store no title. No network columns, no sync state — there is no server.
+Storage: SQLite. **WAL + a dedicated writer thread are the Phase-1 target (R57); the current code uses `Arc<Mutex<Connection>>` with `foreign_keys` only.** Titles raw-local; excluded/private apps store no title (omit at write time, never store-then-filter — R58). No network columns, no sync state — there is no server.
 
 ## The smart pipeline (batch enrichment, off the hot path)
 
-Capture (real-time, cheap) → coalesce into `events` → **periodic enrichment pass**: project inference, site parsing, embedding-based context assignment → on open / on schedule, build `RecapFacts` in Rust → AI sidecar (or template) phrases it. The model never runs on the capture tick.
+Capture (real-time, cheap) → coalesce into `events` → **periodic enrichment pass**: project inference, site parsing, embedding-based context assignment (embeddings computed **in Rust** via `objc2-natural-language` — D26) → on open / on schedule, build `RecapFacts` in Rust → AI sidecar (or template) phrases it. The model never runs on the capture tick.
 
 ## Frontend
 
