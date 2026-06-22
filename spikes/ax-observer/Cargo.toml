@@ -1,0 +1,75 @@
+# ax-observer — Spike ②
+#
+# ISOLATED standalone crate. Deliberately NOT a member of the src-tauri
+# workspace. Build it from inside this directory (`cd spikes/ax-observer`).
+# The empty `[workspace]` table below makes Cargo treat this as its own
+# workspace root even though an ancestor directory contains the app's
+# workspace manifest — so it never pulls in or perturbs the app.
+[workspace]
+
+[package]
+name = "ax-observer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Spike: prove the event-driven macOS capture model (NSWorkspace activation + AXObserver focus/title notifications on a run loop, marshaled to async)."
+
+[[bin]]
+name = "ax-observer"
+path = "src/main.rs"
+
+[dependencies]
+# objc2 runtime (Retained<T> smart pointers, ProtocolObject, msg_send, etc.).
+objc2 = "0.6"
+
+# NSWorkspace (frontmost app + its notification center) and NSRunningApplication
+# (pid/name/bundle id). `libc` gates NSRunningApplication::processIdentifier.
+objc2-app-kit = { version = "0.3.2", features = [
+    "NSWorkspace",
+    "NSRunningApplication",
+    "libc",
+] }
+
+# Foundation: NSString, plus the notification-center block-observer path —
+# `addObserverForName:object:queue:usingBlock:` is gated on
+# NSNotification + NSOperation + NSString + block2 (see the generated cfg).
+objc2-foundation = { version = "0.3.2", features = [
+    "NSString",
+    "NSNotification",
+    "NSOperation",
+    "block2",
+] }
+
+# Accessibility: AXIsProcessTrusted(WithOptions), AXUIElement, and — new for
+# this spike — the AXObserver family (AXObserverCreate / add_notification /
+# run_loop_source). `AXError` gates the copy/observer calls; `libc` gates the
+# pid-taking constructors (new_application, AXObserver::create).
+objc2-application-services = { version = "0.3.2", features = [
+    "AXUIElement",
+    "AXError",
+    "libc",
+] }
+
+# Core Foundation: CFString (attribute + notification names — the AX constants
+# are NOT re-exported), CFRunLoop + CFRunLoopSource (attach the observer's
+# source to the run loop), CFDictionary/CFNumber (the trust-prompt options +
+# kCFBooleanTrue).
+objc2-core-foundation = { version = "0.3.2", features = [
+    "CFString",
+    "CFDictionary",
+    "CFNumber",
+    "CFRunLoop",
+] }
+
+# block2: RcBlock — the Rust closure that backs the NSWorkspace activation
+# observer (`addObserverForName...usingBlock:`). Pinned by objc2-foundation
+# 0.3.2 to >=0.6.1,<0.8.0; resolves to 0.6.2.
+block2 = "0.6"
+
+# The async "consumer" side of the spike: a real Tokio runtime on its own
+# thread receives CaptureEvents over a Send channel — proving the run-loop
+# callbacks marshal to async without blocking the executor (R6). This mirrors
+# the app, which already runs on Tokio under Tauri.
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time"] }
+
+libc = "0.2"
