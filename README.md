@@ -2,23 +2,40 @@
 
 [![CI](https://github.com/f-gozie/usage-os/actions/workflows/ci.yml/badge.svg)](https://github.com/f-gozie/usage-os/actions/workflows/ci.yml)
 
-A privacy-first desktop activity tracker built with Tauri v2 (Rust + React). Silently monitors app usage and presents data in a cyberpunk-styled dashboard.
+**A private, on-device time mirror for macOS.** Usage OS quietly records where your time goes and shows you the story of your day — calmly, with nothing leaving your machine.
+
+> **Status — in redesign.** Today Usage OS ships as a local activity tracker (see _Available today_). It's being rebuilt around a 24-hour **day-dial**, a daily **recap**, and optional **on-device AI**, in a calm Bauhaus design. The full direction is in [`context/vision.md`](context/vision.md) and the plan is in [`context/plans/`](context/plans/). This README evolves with it.
+
+## What it is
+
+Your Mac already knows how you spent today. Usage OS turns that into _understanding_ — where you focused, what pulled you away, where the hours actually went — as a calm rear-view mirror you check on your own terms, not a productivity coach that nags you. 100% local.
 
 ## Features
 
-- **Background Activity Tracking** — Polls active window every 5 seconds
-- **Idle Detection** — Detects inactivity after 3 minutes
-- **Smart Coalescing** — Merges consecutive entries for the same app (30s gap threshold)
-- **Category Rules Engine** — Classify apps by process name or window title patterns
-- **Data Retention** — Configure automatic cleanup (30/60/90/180/365 days or keep all)
-- **Local SQLite** — All data stays on your machine
-- **Cyberpunk UI** — Dark mode with neon accents, pie charts, and stats cards
+**Available today (v0.1.0)**
+- Background activity tracking (active window, 5s polling)
+- Idle detection (3-minute threshold) + smart coalescing (30s gap)
+- Category rules engine (process name / window-title matching)
+- Configurable data retention (30 / 60 / 90 / 180 / 365 days, or keep all)
+- Local SQLite with versioned migrations
+- Dashboard: distribution chart, stats cards, today / yesterday / week
 
-## Screenshots
+**In active redesign** (see [the plan](context/plans/2026-06-22-product-redesign.md))
+- A 24-hour **day-dial** + a week-of-dials — the new signature
+- A daily **recap**: an honest, plain-English summary of your day
+- Two-axis model — **context** (Deep work / Research / Comms / Breaks) × **project** (auto-inferred)
+- Reliable capture via macOS **Accessibility + Automation** (window titles + browser URLs)
+- Optional **on-device AI** (Apple Foundation Models) for the recap and categorization — never the cloud
+- A **Bauhaus** design language, light & dark
 
-<!-- TODO: Add screenshots -->
+## Privacy
 
-## Quick Start
+- **Nothing leaves your machine.** No cloud, no account, no telemetry, no network calls in the data path — and it's open source, so you can verify it.
+- Data lives in a local SQLite database in your app data directory.
+- Capture uses **Accessibility + Automation** only — **never Screen Recording**.
+- You own your data, completely.
+
+## Quick start
 
 ```bash
 # Install frontend dependencies
@@ -31,21 +48,18 @@ npm run tauri dev
 npm run tauri build
 ```
 
-## Platform Setup
+## Platform setup
+
+The shipped tracker builds cross-platform; the **redesign targets macOS first** (capture relies on macOS APIs).
 
 ### macOS
-
 Grant Accessibility permissions when prompted:
-**System Settings → Privacy & Security → Accessibility**
-
-No additional dependencies needed.
+**System Settings → Privacy & Security → Accessibility**. No additional dependencies needed.
 
 ### Windows
-
 No additional dependencies needed.
 
 ### Linux
-
 ```bash
 sudo apt-get install -y \
   libwebkit2gtk-4.1-dev \
@@ -59,77 +73,45 @@ sudo apt-get install -y \
 ## Development
 
 ### Prerequisites
-
 - Rust (stable, latest)
 - Node.js 22+
 - Platform dependencies (see above)
 
-### Running Tests
-
+### Running tests
 ```bash
 # Rust tests (database, coalescing, categorization, migrations)
 cargo test --manifest-path src-tauri/Cargo.toml
 
 # TypeScript tests (stats, time utilities)
 npx vitest run
-
-# Both
-cargo test --manifest-path src-tauri/Cargo.toml && npx vitest run
-```
-
-### Dev Mode
-
-```bash
-npm run tauri dev
 ```
 
 ## Architecture
 
-```
-usage-os/
-├── src/                        # React/TypeScript frontend
-│   ├── components/
-│   │   ├── ActivityChart.tsx    # Pie chart with top-N + "Other" bucket
-│   │   ├── SettingsView.tsx     # Categories, rules, data retention
-│   │   ├── StatsCard.tsx        # Duration/idle summary cards
-│   │   └── TimeRangeSelector.tsx
-│   ├── lib/
-│   │   ├── stats.ts            # Duration calc, grouping, formatting
-│   │   ├── time.ts             # Relative time formatting
-│   │   ├── tauri.ts            # Tauri IPC bindings
-│   │   └── utils.ts            # CN utility
-│   └── App.tsx                 # Main dashboard layout
-├── src-tauri/                  # Rust backend
-│   └── src/
-│       ├── db.rs               # SQLite, migrations, CRUD, coalescing logic
-│       ├── watcher.rs          # Background window polling + idle detection
-│       ├── lib.rs              # Tauri commands, app setup, data retention
-│       └── main.rs             # Entry point
-└── .github/workflows/ci.yml   # CI: test + build on Linux/macOS/Windows
-```
+The shipped layout: a React/TypeScript frontend (`src/`), a Rust/Tauri backend (`src-tauri/` — `db.rs` SQLite + migrations + coalescing, `watcher.rs` window polling + idle detection, `lib.rs` Tauri commands), and CI across Linux/macOS/Windows.
 
-### Key Design Decisions
+The **target architecture** for the redesign — a Rust core (objc2 capture) + a thin Swift Foundation Models sidecar, a generated tauri-specta IPC contract, and the rusqlite repository — is documented in [`context/architecture.md`](context/architecture.md).
 
-- **Coalescing with 30s gap threshold**: If the same process/title/idle-state is active within 30s of the last entry, extend it instead of creating a new row. Prevents false inflation from app restarts.
-- **Migration-based schema**: `schema_migrations` table tracks applied versions. Migrations run on startup, idempotent.
-- **Category rules**: First matching rule wins (ordered by creation). Match on process name or window title, case-insensitive contains.
+## Tech stack
 
-## Tech Stack
+| Layer | Today | Redesign adds |
+|-------|-------|---------------|
+| Framework | Tauri v2 | — |
+| Backend | Rust, rusqlite (bundled SQLite), versioned migrations | objc2 capture, Swift Foundation Models sidecar |
+| Frontend | React 19, TypeScript, Vite 7 | Bauhaus design system, custom SVG day-dial |
+| IPC | hand-written bindings | tauri-specta (generated, type-safe) |
+| Styling | Tailwind CSS, Radix UI | — |
+| Charts | Recharts | custom SVG dial (no chart library) |
+| Testing | `cargo test` (Rust), Vitest (TS) | + capture/AI trait fakes |
 
-| Layer | Tech |
-|-------|------|
-| Framework | Tauri v2 |
-| Backend | Rust, rusqlite (bundled SQLite) |
-| Frontend | React 19, TypeScript, Vite 7 |
-| Styling | Tailwind CSS, Radix UI |
-| Charts | Recharts |
-| Testing | `cargo test` (Rust), Vitest (TS) |
+## Project docs
 
-## Data Privacy
-
-- 100% local storage — no cloud, no telemetry, no network requests
-- SQLite database in your app data directory
-- You own your data completely
+- **Vision & spec** → [`context/vision.md`](context/vision.md)
+- **Decisions (ADR log)** → [`context/decisions.md`](context/decisions.md)
+- **Architecture** → [`context/architecture.md`](context/architecture.md)
+- **Design system** → [`context/design-system.md`](context/design-system.md)
+- **Plan** → [`context/plans/`](context/plans/)
+- **Agent contract** → [`CLAUDE.md`](CLAUDE.md)
 
 ## Contributing
 
