@@ -1,0 +1,80 @@
+# Decision Log (ADR-style)
+
+Each entry: the decision, why, and rejected alternatives. Append new decisions; don't rewrite. Locked decisions shouldn't be relitigated without a stated reason.
+
+_All decisions below: 2026-06-22, from the end-to-end vision interview._
+
+### D1 — Pure observer, not a coach
+The app never interrupts (except an opt-in evening recap ping). **Why:** a calm mirror is maximally trustworthy and a distinct identity from the sibling "Nudge" app. **Rejected:** opt-in nudges (reintroduces productivity-guilt we cut), live menubar HUD (rejected as noise).
+
+### D2 — Two-axis model: context × project
+**Why:** "you gave usage_os a 90-min block" needs the project axis; context alone is too coarse. **Rejected:** contexts-only (vague recaps), projects-only (no productive/distracting read).
+
+### D3 — The dial is the soul; ship order dial → categorization → recap
+**Why:** the dial is the signature and works with zero AI — lowest-risk path to a real product. **Rejected:** recap-first (depends on the riskiest piece), treating them as inseparable (bigger, riskier v1).
+
+### D4 — Capture: Accessibility + Automation; never Screen Recording
+**Why:** titles are empty today because the current crate falls back to CGWindowList (needs Screen Recording). AX (Accessibility) gets titles with a lighter, less-scary permission; AppleScript/Automation gets exact browser URLs. Screen Recording is the worst look for a privacy app. **Evidence:** DB inspection showed ~363/370 Chrome rows and ~100% of Cursor/iTerm rows with empty titles. **Rejected:** Accessibility-only (weaker browser data), app-level-only (guts the product), Screen Recording (toxic optics).
+
+### D5 — Event-driven capture + heartbeat
+**Why:** NSWorkspace activation + AX focus-change observers give second-accurate boundaries and near-zero idle CPU; a slow heartbeat handles idle + long-running windows. **Rejected:** 5s polling (blurry boundaries, constant wakeups).
+
+### D6 — Projects auto-inferred (+ correctable); needs a spike
+**Why:** low effort, gets smarter. **Risk:** inference accuracy is unproven — **Phase 0 spike required** before committing the pattern. **Rejected:** manual rules (upkeep forever), defer-to-AI (loses the axis early).
+
+### D7 — Pre-AI sorting: smart default rules + edits
+**Why:** real value day one (VS Code→Deep, Slack→Comms…), AI refines later. **Rejected:** blank cold-start, uncategorized-until-AI (kills the dial's colors).
+
+### D8 — Sensitive data: raw-local + exclusion list
+**Why:** all local, but a privacy product must let you exclude password managers/banking, mark private apps (time counts, no title), and never record incognito. **Rejected:** raw-no-filter (invasive on screen-share), categories-only (guts detail).
+
+### D9 — Smart runtime: Apple Foundation Models via Swift sidecar; template fallback always
+**Why:** on macOS 26 it's free, fully on-device, zero-install, structured output. Cost: a thin Swift bridge + Apple-Silicon/AI-on requirement (fallback covers the rest). **Rejected:** Ollama (install friction), embedded model (app bloat).
+
+### D10 — Categorization via embeddings + corrections
+**Why:** fast, stable, can't hallucinate a category; learns from each fix; NaturalLanguage gives on-device embeddings free. **Rejected:** nightly LLM classify (drift), rules+AI-suggestions only (too manual).
+
+### D11 — Recap: lazy + opt-in evening ping; model narrates only
+**Why:** computed on open keeps it an "open it to look" ritual; one optional bedtime notification is the sole sanctioned interruption. Numbers are computed in Rust; the model only phrases them. **Rejected:** never-notify (easy to forget), always-live (loses the end-of-day moment).
+
+### D12 — On-device only for v1 (cloud is a future maybe)
+**Why:** "nothing leaves this machine" is the moat and must be literally true + auditable. **Status:** BYO-key cloud is a deferred, opt-in-with-warnings possibility, not built.
+
+### D13 — App shape: menubar launcher + main window
+**Why:** always-running and one click to look, without a live HUD (rejected in D1). **Rejected:** popover-primary (cramps the dial), dock-only (easy to forget it runs).
+
+### D14 — Dial: fixed 24h, midnight top; idle = faint hollow arcs
+**Why:** consistent scale makes the week comparable (the whole point of the week view); the clock metaphor stays pure; empty arc = sleep is honest. A "day starts at 4am" offset is a later setting for night owls. **Rejected:** rolling 24h (breaks the clock + "your day"), auto-fit (every day looks identical — demonstrated in a mockup), per-user configurable scale (complexity).
+
+### D15 — Linear timeline in v1 (secondary), dark mode at launch
+**Why:** the timeline is the same event log rendered differently (cheap); dark mode is doable cleanly via token-based theming and many Mac users live in dark. **Note:** dark Bauhaus must be *designed*, not auto-derived — real design time.
+
+### D16 — Architecture: Rust core (objc2) + thin Swift AI sidecar
+**Why:** keep ~90% in one language; objc2 reaches NSWorkspace + AX from Rust directly; Swift is needed only for the Swift-only Foundation Models framework, kept to a minimal stdio sidecar. **Rejected:** bigger Swift core (splits codebase), pure-Rust-defer-AI (no smart recap).
+
+### D17 — IPC: tauri-specta generated bindings
+**Why:** the Rust↔TS boundary is where drift hides; generating the client+types makes a shape mismatch a compile error. The biggest "trust code you didn't read" lever. **Rejected:** hand-written wrappers (silent desync), ts-rs types-only (half the win).
+
+### D18 — Persistence: rusqlite + typed repository + integration tests
+**Why:** tiny schema + analytics-heavy queries where ORMs are weak; simplest, most auditable, no async footguns for a single-writer local DB. **Rejected:** ORM (Diesel/SeaORM — wrong fit, heavy magic, you drop to raw SQL anyway), sqlx (compile-checked SQL is nice but async + a stale-able offline-prepare cache isn't worth it here). _Open to sqlx if compile-time SQL checking becomes a priority._ **Confirmed by reality:** `main` already uses rusqlite + a versioned migration system (`schema_migrations`) + tests — this matches what's built.
+
+### D19 — Design system: Claude Design project + in-repo `design-system.md`, designed end-to-end first
+**Why:** a living visual source of truth + a machine-readable spec the coder obeys, fully designed (all components, both themes, all states) **before** any UI code, to eliminate drift. **Dependency:** pushing to Claude Design needs the claude.ai design login / `/design-login`.
+
+### D20 — Open source MIT day one; notarized direct distribution; free + sponsor
+**Why:** auditability is the privacy proof; MAS sandbox forbids our permissions; free maximizes trust/adoption. **Rejected:** closed source (undercuts the claim), MAS (impossible), paid-upfront (wrong for OSS v1).
+
+### D21 — Onboarding: primed first-run, run degraded
+**Why:** explain *why* each permission, deep-link to Settings, never wall the app; degraded (app-level) if declined. **Rejected:** hard gate (first-launch wall), silent native prompts (scary, unexplained).
+
+### D22 — First milestone: native capture spike (isolated) → then the real dial
+**Why:** prove the riskiest bit (AX titles + Automation URLs + NSWorkspace events) in isolation before product code, then wire to DB and render today's real dial. Design system proceeds as a parallel gating track.
+
+### D23 — Discard the uncommitted XP/goals WIP — but build ON existing `main`
+**Why:** the XP/goals/old-SettingsView work was uncommitted and off-direction → dropped. **Correction:** an earlier draft said "start clean from scratch" — that was based on a stale local clone ~10 commits behind origin. The real `main` is a healthy, tested, CI'd v0.1.0 + OSS-hygiene foundation; we build on it (see D24).
+
+### D24 — Evolve the existing codebase, don't rebuild
+**Why:** `main` already has the Tauri shell, rusqlite + migrations, the rules engine, 24 Rust + 28 TS tests, CI, retention, and OSS docs — all worth keeping. The redesign changes: **capture** (`active_win_pos_rs` → AX/Automation/NSWorkspace via objc2), the **data model** (new migrations for projects/sites/contexts/recaps/embeddings/exclusions), the **UI** (cyberpunk dashboard → Bauhaus dial), and adds the **Swift AI sidecar + tauri-specta**. Keep the migration system, tests, CI, and repo hygiene.
+
+### D25 — Follow the existing agent/PR workflow
+**Why:** the repo runs a structured workflow (`context/plans/` with dated, task/workflow-numbered docs; PR-based; a headless-Linux build box that can't launch the desktop GUI). The redesign plan slots into it; capture/AX work is validated on macOS only. _Lesson: always fetch before assuming local state — this session started ~10 commits stale._

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EEEBE1; --card:#F6F3EA; --ink:#161616; --backdrop:#DCD8CC;
+  --red:#E0241B; --blue:#1B45BE; --yel:#F2BC0C; --gray:#C7C4B9;
+  --mut:#6a6a66;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Jost',system-ui,sans-serif;color:var(--ink);background:var(--backdrop);padding:28px 18px;display:flex;justify-content:center;-webkit-font-smoothing:antialiased;}
+.app{width:100%;max-width:1000px;background:var(--paper);border:3px solid var(--ink);border-radius:5px;overflow:hidden;}
+button{font-family:inherit;cursor:pointer;}
+a{color:inherit;}
+
+/* window chrome */
+.tb{background:var(--ink);display:flex;align-items:center;gap:9px;padding:11px 16px;}
+.tbd{width:12px;height:12px;border-radius:50%;}
+.tbn{flex:1;text-align:center;color:var(--paper);font-weight:600;font-size:12px;letter-spacing:.34em;text-transform:uppercase;margin-left:-46px;}
+.tbs{color:rgba(255,255,255,.65);font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;display:flex;align-items:center;gap:6px;}
+.tbs .live{width:8px;height:8px;border-radius:50%;background:var(--yel);}
+
+/* header + tabs */
+.hd{display:flex;justify-content:space-between;align-items:flex-end;padding:18px 22px 0;}
+.brand{font-family:'Anton',sans-serif;font-size:34px;line-height:.85;text-transform:uppercase;letter-spacing:.01em;}
+.brand .o{color:var(--red);}
+.hd .date{text-align:right;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);line-height:1.5;}
+.tabs{display:flex;align-items:center;gap:0;margin:14px 22px 0;border-bottom:3px solid var(--ink);}
+.tabs button{background:transparent;border:none;font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:10px 16px;color:var(--mut);position:relative;top:3px;border-bottom:3px solid transparent;}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--ink);}
+.tabs .spacer{flex:1;}
+.tabs .ext{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;text-decoration:none;color:var(--blue);padding:10px 4px;}
+
+.panel{padding:22px;animation:fade .25s ease;}
+.panel.hide{display:none;}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* date nav */
+.dnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.dnav .lbl{font-family:'Anton',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.02em;}
+.dnav .ctrls{display:flex;gap:8px;align-items:center;}
+.nbtn{border:2px solid var(--ink);background:var(--paper);width:34px;height:32px;font-size:15px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;}
+.nbtn:disabled{opacity:.3;cursor:not-allowed;}
+.tbtn{border:2px solid var(--ink);background:var(--ink);color:var(--paper);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:0 12px;height:32px;}
+
+/* recap */
+.recap{background:var(--card);border:3px solid var(--ink);padding:15px 17px;margin-bottom:18px;}
+.recap .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
+.recap .eye{font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);}
+.recap .ai{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);border:2px solid var(--blue);padding:3px 8px;}
+.recap p{font-size:17px;line-height:1.45;font-weight:500;}
+.recap p .hl{color:var(--blue);}
+
+/* hero: dial + stats */
+.hero{display:grid;grid-template-columns:300px 1fr;gap:26px;align-items:center;}
+.dialc{position:relative;width:100%;max-width:300px;margin:0 auto;}
+.dialc svg{width:100%;display:block;}
+.cen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none;}
+.cen .b{font-family:'Anton',sans-serif;font-size:38px;line-height:.85;}
+.cen .l{font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;margin-top:4px;color:var(--mut);}
+.tip{position:absolute;background:var(--ink);color:var(--paper);font-size:11.5px;font-weight:500;line-height:1.4;padding:7px 9px;pointer-events:none;opacity:0;transition:opacity .12s;z-index:5;white-space:nowrap;}
+.tip .d{color:var(--yel);font-size:10.5px;}
+
+.stats{display:flex;border-top:3px solid var(--ink);}
+.stat{flex:1;padding:11px 0 3px;}
+.stat+.stat{border-left:1px solid var(--ink);padding-left:13px;}
+.stat .n{font-family:'Anton',sans-serif;font-size:26px;line-height:.9;}
+.stat .k{font-size:9.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--mut);margin-top:6px;}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
+.chip{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border:2px solid var(--ink);padding:5px 10px;background:var(--paper);transition:background .15s,color .15s;}
+.chip .sw{width:11px;height:11px;}
+.chip.on{background:var(--ink);color:var(--paper);}
+.chip:hover{background:var(--ink);color:var(--paper);}
+
+/* detail strip */
+.detail{margin-top:18px;border:2px dashed var(--ink);padding:13px 15px;min-height:58px;display:flex;align-items:center;gap:14px;}
+.detail .empty{font-size:13px;color:var(--mut);font-weight:500;}
+.detail .blk{width:30px;height:30px;flex-shrink:0;}
+.detail .info .a{font-weight:600;font-size:15px;}
+.detail .info .t{font-size:13px;color:var(--mut);}
+.detail .when{margin-left:auto;text-align:right;font-weight:600;}
+.detail .when .r{font-size:12px;color:var(--mut);font-weight:500;}
+
+/* ledger */
+.sec{font-family:'Anton',sans-serif;font-size:15px;letter-spacing:.04em;text-transform:uppercase;margin:24px 0 12px;display:flex;align-items:center;gap:10px;}
+.sec::after{content:"";flex:1;height:2px;background:var(--ink);}
+.lrow{display:grid;grid-template-columns:120px 1fr 120px;align-items:center;gap:13px;padding:9px 0;border-top:2px solid var(--ink);cursor:pointer;}
+.lrow:last-child{border-bottom:2px solid var(--ink);}
+.lrow .nm{display:flex;align-items:center;gap:9px;font-weight:600;text-transform:uppercase;font-size:13px;letter-spacing:.03em;}
+.lrow .nm .sw{width:16px;height:16px;flex-shrink:0;}
+.lrow .bar{height:8px;background:var(--gray);}
+.lrow .bar > div{height:100%;}
+.lrow .vl{text-align:right;font-family:'Anton',sans-serif;font-size:18px;}
+.lrow .vl .pc{font-family:'Jost';font-size:11px;color:var(--mut);font-weight:600;margin-left:5px;}
+.lrow.dim{opacity:.32;}
+
+/* week */
+.wsum{display:flex;border:3px solid var(--ink);margin-bottom:20px;}
+.wsum .s{flex:1;padding:14px 16px;}
+.wsum .s+.s{border-left:2px solid var(--ink);}
+.wsum .n{font-family:'Anton',sans-serif;font-size:30px;line-height:.85;}
+.wsum .k{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);margin-top:7px;}
+.wgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+.wd{text-align:center;cursor:pointer;border:2px solid transparent;padding:8px 4px;transition:border-color .15s,background .15s;}
+.wd:hover{border-color:var(--ink);background:var(--card);}
+.wd.tdy{border-color:var(--ink);background:var(--card);}
+.wd svg{width:100%;display:block;transition:transform .2s;}
+.wd:hover svg{transform:scale(1.05);}
+.wd .dl{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin-top:7px;}
+.wd.tdy .dl{color:var(--red);}
+.wd .dt{font-family:'Anton',sans-serif;font-size:15px;}
+.whint{text-align:center;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin-top:14px;}
+
+/* settings */
+.setgrp{border:3px solid var(--ink);margin-bottom:16px;}
+.setgrp h4{font-family:'Anton',sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:.04em;background:var(--ink);color:var(--paper);padding:9px 15px;}
+.setrow{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-top:2px solid var(--ink);}
+.setgrp .setrow:first-of-type{border-top:none;}
+.setrow .lab{font-weight:600;font-size:14px;}
+.setrow .des{font-size:12px;color:var(--mut);font-weight:500;margin-top:2px;max-width:46ch;}
+.sw-t{width:52px;height:28px;border:2px solid var(--ink);background:var(--paper);position:relative;flex-shrink:0;transition:background .18s;}
+.sw-t::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;background:var(--ink);transition:left .18s;}
+.sw-t.on{background:var(--blue);}
+.sw-t.on::after{left:28px;background:var(--paper);}
+.pill{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:2px solid var(--ink);padding:4px 10px;background:var(--paper);}
+.pill.ok{background:var(--ink);color:var(--paper);}
+.catlist .crow{display:flex;align-items:center;gap:12px;padding:11px 15px;border-top:2px solid var(--ink);}
+.catlist .crow .sw{width:18px;height:18px;flex-shrink:0;}
+.catlist .crow .cn{font-weight:600;font-size:14px;width:120px;}
+.catlist .crow .rule{font-size:12.5px;color:var(--mut);font-weight:500;}
+.catlist .crow .rule code{background:var(--card);border:1px solid var(--gray);padding:1px 5px;font-family:'Jost';font-weight:600;color:var(--ink);}
+.foot{background:var(--ink);color:var(--paper);font-size:10px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;text-align:center;padding:10px;}
+
+@media(max-width:680px){
+  .hero{grid-template-columns:1fr;}
+  .lrow{grid-template-columns:96px 1fr 92px;}
+  .wgrid{grid-template-columns:repeat(7,1fr);}
+  .brand{font-size:26px;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="tb">
+    <span class="tbd" style="background:var(--red)"></span>
+    <span class="tbd" style="background:var(--yel)"></span>
+    <span class="tbd" style="background:var(--blue)"></span>
+    <span class="tbn">UsageOS</span>
+    <span class="tbs"><span class="live"></span>Tracking</span>
+  </div>
+
+  <div class="hd">
+    <div class="brand">USAGE<span class="o">OS</span></div>
+    <div class="date" id="topDate"></div>
+  </div>
+
+  <div class="tabs">
+    <button data-tab="day" class="on">Day</button>
+    <button data-tab="week">Week</button>
+    <button data-tab="settings">Settings</button>
+    <span class="spacer" style="flex:1"></span>
+    <a class="ext" href="landing.html">Landing page ↗</a>
+  </div>
+
+  <!-- DAY -->
+  <section class="panel" id="panel-day">
+    <div class="dnav">
+      <div class="lbl" id="dayLbl">—</div>
+      <div class="ctrls">
+        <button class="nbtn" id="prevDay" aria-label="Previous day">‹</button>
+        <button class="tbtn" id="todayBtn">Today</button>
+        <button class="nbtn" id="nextDay" aria-label="Next day">›</button>
+      </div>
+    </div>
+
+    <div class="recap">
+      <div class="top"><span class="eye">Daily recap</span><span class="ai">⌁ Summarized on-device</span></div>
+      <p id="recapText"></p>
+    </div>
+
+    <div class="hero">
+      <div>
+        <div class="dialc">
+          <svg id="dayDial" viewBox="0 0 300 300" role="img" aria-label="24-hour activity dial">
+            <circle cx="150" cy="150" r="110" fill="none" stroke="var(--ink)" stroke-width="2"></circle>
+            <circle cx="150" cy="150" r="89" fill="none" stroke="var(--ink)" stroke-width="2"></circle>
+            <circle cx="150" cy="150" r="4" fill="var(--ink)"></circle>
+          </svg>
+          <div class="cen"><div class="b" id="cenBig">—</div><div class="l">Active</div></div>
+          <div class="tip" id="dayTip"><span class="t"></span><br><span class="d"></span></div>
+        </div>
+      </div>
+      <div>
+        <div class="stats">
+          <div class="stat"><div class="n" id="stActive">—</div><div class="k">Active</div></div>
+          <div class="stat"><div class="n" id="stDeep" style="color:var(--blue)">—</div><div class="k">Deep work</div></div>
+          <div class="stat"><div class="n" id="stFocus" style="color:var(--red)">—</div><div class="k">Focus</div></div>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div class="detail" id="detail"><span class="empty">Click any block on the dial to inspect it.</span></div>
+      </div>
+    </div>
+
+    <div class="sec">Where it went</div>
+    <div id="ledger"></div>
+  </section>
+
+  <!-- WEEK -->
+  <section class="panel hide" id="panel-week">
+    <div class="wsum" id="wsum"></div>
+    <div class="sec">This week</div>
+    <div class="wgrid" id="wgrid"></div>
+    <div class="whint">Click a day to open it ↑</div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="panel hide" id="panel-settings">
+    <div class="setgrp">
+      <h4>Tracking</h4>
+      <div class="setrow"><div><div class="lab">Background tracking</div><div class="des">Polls the active window every 5 seconds. Negligible CPU.</div></div><div class="sw-t on" data-toggle></div></div>
+      <div class="setrow"><div><div class="lab">Idle detection</div><div class="des">Marks you away after 3 minutes without input.</div></div><div class="sw-t on" data-toggle></div></div>
+      <div class="setrow"><div><div class="lab">Accessibility permission</div><div class="des">Required on macOS to read window titles.</div></div><span class="pill ok">Granted ✓</span></div>
+    </div>
+
+    <div class="setgrp">
+      <h4>Local intelligence</h4>
+      <div class="setrow"><div><div class="lab">On-device recap &amp; sorting</div><div class="des">A small model runs on your Mac to write the daily recap and auto-sort activity into contexts. Never leaves the device.</div></div><div class="sw-t on" data-toggle></div></div>
+      <div class="setrow"><div><div class="lab">Model</div><div class="des">Apple on-device foundation model · ~3B</div></div><span class="pill">Local</span></div>
+    </div>
+
+    <div class="setgrp catlist">
+      <h4>Contexts</h4>
+      <div id="catRows"></div>
+      <div class="setrow"><button class="tbtn" style="background:var(--paper);color:var(--ink)">+ Add context</button><span class="des" style="margin:0">Rules sort apps automatically.</span></div>
+    </div>
+
+    <div class="setgrp">
+      <h4>Your data</h4>
+      <div class="setrow"><div><div class="lab">Stored locally</div><div class="des">~/Library/Application Support/com.favour.usage-os/usage.db</div></div><span class="pill ok">On device</span></div>
+      <div class="setrow"><div><div class="lab">Export</div><div class="des">Take everything with you as CSV.</div></div><button class="pill">Export CSV</button></div>
+      <div class="setrow"><div><div class="lab" style="color:var(--red)">Delete all data</div><div class="des">Wipe the database. Cannot be undone.</div></div><button class="pill" style="border-color:var(--red);color:var(--red)">Delete</button></div>
+    </div>
+  </section>
+
+  <div class="foot">Your data never leaves this machine</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var NS="http://www.w3.org/2000/svg";
+var CATS={
+  deep:{name:"Deep work",color:"#1B45BE"},
+  research:{name:"Research",color:"#E0241B"},
+  comms:{name:"Comms",color:"#F2BC0C"},
+  breaks:{name:"Breaks",color:"#161616"}
+};
+var ORDER=["deep","research","comms","breaks"];
+function S(s,e,c,app,title){return {s:s,e:e,cat:c,app:app,title:title};}
+var DAYS=[
+ {dow:"Sun",num:15,label:"Sunday · 15 June",recap:"A light Sunday — a little reading, some messages, and a bit of late-night tinkering. Mostly offline.",segs:[
+   S(600,660,"research","Safari","side-project ideas"),S(840,900,"comms","Messages","Family"),S(1080,1140,"deep","VS Code","dotfiles — tinkering")]},
+ {dow:"Mon",num:16,label:"Monday · 16 June",recap:"Strong start to the week — six hours of building, bookended by standup and an evening of docs.",segs:[
+   S(540,720,"deep","VS Code","setup — usage_os"),S(720,780,"comms","Slack","#standup"),S(780,960,"deep","VS Code","schema — usage_os"),S(960,1080,"research","Safari","Tauri v2 guide")]},
+ {dow:"Tue",num:17,label:"Tuesday · 17 June",recap:"Quiet and productive — two long building blocks and a short research tail. Almost nothing distracting logged.",segs:[
+   S(510,540,"comms","Slack","#engineering"),S(540,720,"deep","VS Code","ingestion — usage_os"),S(750,900,"deep","VS Code","analytics — usage_os"),S(960,1050,"research","Safari","SQLite WAL mode")]},
+ {dow:"Wed",num:18,label:"Wednesday · 18 June",recap:"Your deepest day this week — nearly six hours building, with one long uninterrupted stretch before lunch. A rare clean run.",segs:[
+   S(480,540,"comms","Mail","Inbox"),S(540,750,"deep","VS Code","db.rs — usage_os"),S(810,960,"deep","VS Code","stats.ts — usage_os"),S(960,1110,"research","Safari","rusqlite docs"),S(1110,1140,"breaks","Safari","twitter.com")]},
+ {dow:"Thu",num:19,label:"Thursday · 19 June",recap:"A design-heavy day — two hours in Figma on dial concepts, an hour of research, then a focused evening in the editor.",segs:[
+   S(600,720,"deep","Figma","UsageOS — dial concepts"),S(720,750,"comms","Slack","#general"),S(780,870,"research","Safari","Bauhaus colour theory"),S(930,1050,"deep","VS Code","App.tsx — usage_os"),S(1050,1080,"breaks","Safari","reddit.com")]},
+ {dow:"Fri",num:20,label:"Friday · 20 June",recap:"Solid run on the tray-icon work — four and a half hours deep across the day, broken only by a short YouTube lapse before five.",segs:[
+   S(510,540,"comms","Slack","#design"),S(540,690,"deep","VS Code","watcher.rs — usage_os"),S(690,720,"research","Safari","Tauri tray docs"),S(780,840,"comms","Mail","Inbox"),S(840,960,"deep","VS Code","db.rs — usage_os"),S(960,990,"breaks","Safari","youtube.com"),S(990,1080,"deep","VS Code","lib.rs — usage_os")]},
+ {dow:"Sat",num:21,label:"Saturday · 21 June",today:true,now:930,recap:"A focused morning. You gave usage_os a clean 90-minute deep-work block before 9:30, and 4h 15m of building in all. The afternoon frayed — a 30-minute drift into Reddit just after lunch.",segs:[
+   S(450,480,"comms","Slack","#engineering"),S(480,570,"deep","VS Code","auth.rs — usage_os"),S(570,585,"breaks","Safari","r/programming"),S(585,675,"deep","VS Code","db.rs — usage_os"),S(675,705,"research","Safari","SQLite docs"),S(750,780,"comms","Mail","Inbox"),S(780,855,"deep","VS Code","lib.rs — usage_os"),S(855,885,"breaks","Safari","reddit.com"),S(885,930,"research","Safari","Tauri docs")]}
+];
+var TODAY=DAYS.length-1;
+var cur=TODAY, isolate=null;
+
+function pad(n){return (n<10?"0":"")+n;}
+function hm(t){return pad(Math.floor(t/60))+":"+pad(t%60);}
+function durM(d){var h=Math.floor(d/60),m=d%60;return h>0?(m>0?h+"h "+m+"m":h+"h"):m+"m";}
+function totals(segs){var t={active:0,deep:0,research:0,comms:0,breaks:0,by:{}};ORDER.forEach(function(c){t.by[c]=0;});
+  segs.forEach(function(s){var d=s.e-s.s;t.active+=d;t.by[s.cat]+=d;t[s.cat]+=d;});return t;}
+function polar(cx,cy,t,r){var a=t/1440*2*Math.PI;return [cx+r*Math.sin(a),cy-r*Math.cos(a)];}
+function arcPath(cx,cy,r,a,b){var lg=(b-a)>720?1:0,p0=polar(cx,cy,a,r),p1=polar(cx,cy,b,r);
+  return "M"+p0[0].toFixed(2)+" "+p0[1].toFixed(2)+" A"+r+" "+r+" 0 "+lg+" 1 "+p1[0].toFixed(2)+" "+p1[1].toFixed(2);}
+
+/* ---------- DAY ---------- */
+var dayDial=document.getElementById("dayDial"),dayTip=document.getElementById("dayTip");
+var tipT=dayTip.querySelector(".t"),tipD=dayTip.querySelector(".d"),dialc=dayDial.parentElement;
+var dayArcs=[];
+
+function applyDim(cat){dayArcs.forEach(function(o){o.path.style.opacity=(o.seg.cat===cat)?1:0.16;});
+  document.querySelectorAll("#ledger .lrow").forEach(function(r){r.classList.toggle("dim",r.dataset.cat!==cat);});}
+function clearDim(){if(isolate){applyDim(isolate);}else{dayArcs.forEach(function(o){o.path.style.opacity=1;});
+  document.querySelectorAll("#ledger .lrow").forEach(function(r){r.classList.remove("dim");});}}
+
+function drawDayDial(day){
+  // wipe everything except the two rings + hub
+  Array.prototype.slice.call(dayDial.querySelectorAll(".dyn")).forEach(function(n){n.remove();});
+  dayArcs=[];
+  // hour ticks + numerals
+  [0,6,12,18].forEach(function(h){var t=h*60,pi=polar(150,150,t,89),po=polar(150,150,t,110);
+    var ln=document.createElementNS(NS,"line");ln.setAttribute("class","dyn");ln.setAttribute("x1",pi[0].toFixed(1));ln.setAttribute("y1",pi[1].toFixed(1));ln.setAttribute("x2",po[0].toFixed(1));ln.setAttribute("y2",po[1].toFixed(1));ln.setAttribute("stroke","#161616");ln.setAttribute("stroke-width",2);dayDial.appendChild(ln);
+    var pl=polar(150,150,t,124),tx=document.createElementNS(NS,"text");tx.setAttribute("class","dyn");tx.setAttribute("x",pl[0].toFixed(1));tx.setAttribute("y",(pl[1]+5).toFixed(1));tx.setAttribute("text-anchor","middle");tx.setAttribute("font-family","'Anton',sans-serif");tx.setAttribute("font-size","13");tx.setAttribute("fill","#161616");tx.textContent=(h===0?"24":h);dayDial.appendChild(tx);});
+  // arcs
+  day.segs.forEach(function(seg,i){
+    var a=seg.s+4,b=(seg.e-4>seg.s+4)?seg.e-4:seg.e;
+    var p=document.createElementNS(NS,"path");p.setAttribute("class","dyn");
+    p.setAttribute("d",arcPath(150,150,99,a,b));p.setAttribute("stroke",CATS[seg.cat].color);
+    p.setAttribute("stroke-width",20);p.setAttribute("fill","none");p.style.cursor="pointer";
+    p.style.transition="stroke-dashoffset .5s cubic-bezier(.3,.9,.3,1) "+(0.06*i)+"s, opacity .18s, stroke-width .15s";
+    dayDial.appendChild(p);
+    var L=p.getTotalLength();p.style.strokeDasharray=L;p.style.strokeDashoffset=L;
+    p.addEventListener("mouseenter",function(){p.setAttribute("stroke-width",26);dayArcs.forEach(function(o){if(o.path!==p)o.path.style.opacity=.2;});
+      tipT.textContent=CATS[seg.cat].name+" · "+seg.app;tipD.textContent=hm(seg.s)+"–"+hm(seg.e)+" · "+durM(seg.e-seg.s);dayTip.style.opacity=1;});
+    p.addEventListener("mousemove",function(e){var r=dialc.getBoundingClientRect();dayTip.style.left=Math.min(r.width-140,Math.max(0,e.clientX-r.left+12))+"px";dayTip.style.top=(e.clientY-r.top-8)+"px";});
+    p.addEventListener("mouseleave",function(){p.setAttribute("stroke-width",20);clearDim();dayTip.style.opacity=0;});
+    p.addEventListener("click",function(){showDetail(seg);});
+    dayArcs.push({path:p,seg:seg});
+  });
+  // now pointer (today only)
+  if(day.now){var b1=polar(150,150,day.now,112),b2=polar(150,150,day.now-9,124),b3=polar(150,150,day.now+9,124);
+    var tri=document.createElementNS(NS,"polygon");tri.setAttribute("class","dyn");
+    tri.setAttribute("points",b1[0].toFixed(1)+","+b1[1].toFixed(1)+" "+b2[0].toFixed(1)+","+b2[1].toFixed(1)+" "+b3[0].toFixed(1)+","+b3[1].toFixed(1));
+    tri.setAttribute("fill","#161616");dayDial.appendChild(tri);}
+  requestAnimationFrame(function(){requestAnimationFrame(function(){dayArcs.forEach(function(o){o.path.style.strokeDashoffset=0;});});});
+}
+
+function showDetail(seg){var el=document.getElementById("detail");
+  el.innerHTML='<span class="blk" style="background:'+CATS[seg.cat].color+'"></span>'+
+    '<div class="info"><div class="a">'+seg.app+'</div><div class="t">'+seg.title+'</div></div>'+
+    '<div class="when">'+durM(seg.e-seg.s)+'<div class="r">'+hm(seg.s)+'–'+hm(seg.e)+'</div></div>';}
+
+function renderLegend(){var L=document.getElementById("legend");L.innerHTML="";
+  ORDER.forEach(function(c){var chip=document.createElement("button");chip.className="chip"+(isolate===c?" on":"");
+    chip.dataset.cat=c;chip.innerHTML='<span class="sw" style="background:'+CATS[c].color+'"></span>'+CATS[c].name;
+    chip.addEventListener("click",function(){isolate=(isolate===c)?null:c;renderLegend();clearDim();});
+    L.appendChild(chip);});}
+
+function renderLedger(day){var t=totals(day.segs),L=document.getElementById("ledger");L.innerHTML="";
+  var rows=ORDER.map(function(c){return {c:c,m:t.by[c]};}).filter(function(r){return r.m>0;}).sort(function(a,b){return b.m-a.m;});
+  rows.forEach(function(r){var pc=Math.round(r.m/t.active*100);
+    var row=document.createElement("div");row.className="lrow";row.dataset.cat=r.c;
+    row.innerHTML='<div class="nm"><span class="sw" style="background:'+CATS[r.c].color+'"></span>'+CATS[r.c].name+'</div>'+
+      '<div class="bar"><div style="width:'+pc+'%;background:'+CATS[r.c].color+'"></div></div>'+
+      '<div class="vl">'+durM(r.m)+'<span class="pc">'+pc+'%</span></div>';
+    row.addEventListener("mouseenter",function(){applyDim(r.c);});
+    row.addEventListener("mouseleave",function(){clearDim();});
+    row.addEventListener("click",function(){isolate=(isolate===r.c)?null:r.c;renderLegend();clearDim();});
+    L.appendChild(row);});}
+
+function renderDay(){var day=DAYS[cur],t=totals(day.segs);
+  document.getElementById("dayLbl").textContent=day.today?"Today":day.label;
+  document.getElementById("topDate").innerHTML=day.label.split(" · ")[0]+"<br>"+day.label.split(" · ")[1]+" 2026"+(day.today?'<br><span style="color:var(--red)">▸ Now '+hm(day.now)+'</span>':"");
+  document.getElementById("recapText").innerHTML=day.recap.replace(/usage_os/g,'<span class="hl">usage_os</span>');
+  var foc=Math.round((t.deep+t.research)/t.active*100);
+  document.getElementById("cenBig").textContent=durM(t.active);
+  document.getElementById("stActive").textContent=durM(t.active);
+  document.getElementById("stDeep").textContent=durM(t.deep);
+  document.getElementById("stFocus").textContent=foc+"%";
+  document.getElementById("detail").innerHTML='<span class="empty">Click any block on the dial to inspect it.</span>';
+  isolate=null;
+  renderLegend();renderLedger(day);drawDayDial(day);
+  document.getElementById("prevDay").disabled=(cur===0);
+  document.getElementById("nextDay").disabled=(cur===TODAY);
+  document.getElementById("todayBtn").style.display=(cur===TODAY)?"none":"inline-flex";
+}
+document.getElementById("prevDay").addEventListener("click",function(){if(cur>0){cur--;renderDay();}});
+document.getElementById("nextDay").addEventListener("click",function(){if(cur<TODAY){cur++;renderDay();}});
+document.getElementById("todayBtn").addEventListener("click",function(){cur=TODAY;renderDay();});
+
+/* ---------- WEEK ---------- */
+function miniSVG(day){var s=document.createElementNS(NS,"svg");s.setAttribute("viewBox","0 0 80 80");s.setAttribute("width","100%");s.setAttribute("role","img");s.setAttribute("aria-label",day.label);
+  var tr=document.createElementNS(NS,"circle");tr.setAttribute("cx",40);tr.setAttribute("cy",40);tr.setAttribute("r",29);tr.setAttribute("fill","none");tr.setAttribute("stroke","#D7D3C7");tr.setAttribute("stroke-width",6);s.appendChild(tr);
+  day.segs.forEach(function(seg){var a=seg.s+3,b=(seg.e-3>seg.s+3)?seg.e-3:seg.e;var p=document.createElementNS(NS,"path");p.setAttribute("d",arcPath(40,40,29,a,b));p.setAttribute("stroke",CATS[seg.cat].color);p.setAttribute("stroke-width",6);p.setAttribute("fill","none");s.appendChild(p);});
+  if(day.now){var nt=polar(40,40,day.now,33),nd=document.createElementNS(NS,"circle");nd.setAttribute("cx",nt[0].toFixed(1));nd.setAttribute("cy",nt[1].toFixed(1));nd.setAttribute("r",2.8);nd.setAttribute("fill","#E0241B");s.appendChild(nd);}
+  return s;}
+function renderWeek(){var totActive=0,best=0,bestDay="";
+  DAYS.forEach(function(d){var t=totals(d.segs);totActive+=t.active;if(t.deep>best){best=t.deep;bestDay=d.dow;}});
+  var ws=document.getElementById("wsum");ws.innerHTML=
+    '<div class="s"><div class="n">'+durM(totActive)+'</div><div class="k">Active this week</div></div>'+
+    '<div class="s"><div class="n">'+durM(Math.round(totActive/7))+'</div><div class="k">Avg / day</div></div>'+
+    '<div class="s"><div class="n">'+bestDay+'</div><div class="k">Deepest day</div></div>';
+  var g=document.getElementById("wgrid");g.innerHTML="";
+  DAYS.forEach(function(d,i){var t=totals(d.segs);var cell=document.createElement("div");cell.className="wd"+(d.today?" tdy":"");
+    cell.appendChild(miniSVG(d));
+    var dl=document.createElement("div");dl.className="dl";dl.textContent=d.dow+" "+d.num;cell.appendChild(dl);
+    var dt=document.createElement("div");dt.className="dt";dt.textContent=durM(t.active);cell.appendChild(dt);
+    cell.addEventListener("click",function(){cur=i;renderDay();switchTab("day");});
+    g.appendChild(cell);});}
+
+/* ---------- SETTINGS ---------- */
+function renderSettings(){var rows=document.getElementById("catRows");rows.innerHTML="";
+  var rules={deep:"VS Code, Figma → ",research:"Safari + docs → ",comms:"Slack, Mail, Messages → ",breaks:"reddit, youtube, twitter → "};
+  ORDER.forEach(function(c){var r=document.createElement("div");r.className="crow";
+    r.innerHTML='<span class="sw" style="background:'+CATS[c].color+'"></span><span class="cn">'+CATS[c].name+'</span>'+
+      '<span class="rule">'+rules[c]+'<code>'+CATS[c].name+'</code></span>';rows.appendChild(r);});}
+document.addEventListener("click",function(e){var t=e.target.closest("[data-toggle]");if(t){t.classList.toggle("on");}});
+
+/* ---------- TABS ---------- */
+function switchTab(name){
+  document.querySelectorAll(".tabs button").forEach(function(b){b.classList.toggle("on",b.dataset.tab===name);});
+  ["day","week","settings"].forEach(function(n){document.getElementById("panel-"+n).classList.toggle("hide",n!==name);});
+  if(name==="week")renderWeek();
+}
+document.querySelectorAll(".tabs button").forEach(function(b){b.addEventListener("click",function(){switchTab(b.dataset.tab);});});
+
+renderSettings();
+renderDay();
+})();
+</script>
+</body>
+</html>

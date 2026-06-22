@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — understand your days</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#EEEBE1;--card:#F6F3EA;--ink:#161616;--red:#E0241B;--blue:#1B45BE;--yel:#F2BC0C;--gray:#C7C4B9;--mut:#6a6a66;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Jost',system-ui,sans-serif;color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased;}
+.pg{max-width:1080px;margin:0 auto;border-left:3px solid var(--ink);border-right:3px solid var(--ink);}
+a{color:inherit;text-decoration:none;}
+.up{opacity:0;animation:up .6s cubic-bezier(.25,.85,.3,1) forwards;}
+@keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+.nav{display:flex;align-items:center;justify-content:space-between;padding:15px 28px;border-bottom:3px solid var(--ink);}
+.logo{font-family:'Anton',sans-serif;font-size:24px;letter-spacing:.02em;text-transform:uppercase;}
+.logo .o{color:var(--red);}
+.nl{display:flex;align-items:center;gap:18px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}
+.btn{font-family:'Jost';font-weight:600;font-size:12px;letter-spacing:.08em;text-transform:uppercase;background:var(--ink);color:var(--paper);border:2px solid var(--ink);padding:9px 16px;cursor:pointer;display:inline-block;}
+.btn.out{background:transparent;color:var(--ink);}
+
+.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:28px;padding:48px 28px;align-items:center;}
+.eye{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--blue);margin-bottom:16px;}
+.h1{font-family:'Anton',sans-serif;font-size:80px;line-height:.85;text-transform:uppercase;letter-spacing:.005em;}
+.h1 .r{color:var(--red);}
+.sub{font-size:18px;line-height:1.5;font-weight:500;margin:22px 0 26px;max-width:30em;}
+.cta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.fine{font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-top:15px;}
+.herovis{position:relative;display:flex;align-items:center;justify-content:center;min-height:320px;}
+.circ{position:absolute;width:270px;height:270px;border-radius:50%;background:var(--yel);z-index:0;}
+.quart{position:absolute;width:100px;height:100px;background:var(--red);border-radius:0 0 0 100px;top:6px;right:14px;z-index:0;}
+.dialc{position:relative;width:86%;max-width:300px;z-index:1;}
+.dialc svg{width:100%;display:block;}
+.cen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.cen .b{font-family:'Anton',sans-serif;font-size:40px;line-height:.85;}
+.cen .l{font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;margin-top:4px;color:var(--mut);}
+
+.marq{background:var(--ink);color:var(--paper);overflow:hidden;border-top:3px solid var(--ink);border-bottom:3px solid var(--ink);}
+.track{display:inline-flex;white-space:nowrap;animation:scroll 20s linear infinite;}
+@keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.track span{font-family:'Anton',sans-serif;font-size:20px;letter-spacing:.04em;text-transform:uppercase;padding:12px 0;}
+.mdot{display:inline-block;width:11px;height:11px;border-radius:50%;margin:0 20px;vertical-align:middle;}
+
+.sec{padding:48px 28px;}
+.seye{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--red);}
+.sh{font-family:'Anton',sans-serif;font-size:40px;line-height:.92;text-transform:uppercase;margin:9px 0 28px;}
+.feat{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.fc{background:var(--card);border:3px solid var(--ink);padding:22px 20px;}
+.fi{width:44px;height:44px;display:flex;align-items:center;justify-content:center;margin-bottom:15px;}
+.ft{font-family:'Anton',sans-serif;font-size:20px;text-transform:uppercase;line-height:.95;margin-bottom:9px;}
+.fb{font-size:14.5px;line-height:1.45;color:#33332f;}
+
+.week{background:var(--blue);padding:42px 28px;}
+.week .seye{color:var(--yel);}.week .sh{color:var(--paper);}
+.wgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+.wd{text-align:center;}
+.wd svg{width:100%;display:block;}
+.wd .dl{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.72);margin-top:6px;}
+.wd.tdy .dl{color:var(--yel);}
+.wd .dt{font-family:'Anton',sans-serif;font-size:15px;color:var(--paper);}
+
+.nums{display:grid;grid-template-columns:repeat(4,1fr);background:var(--ink);}
+.num{padding:30px 14px;text-align:center;}
+.num+.num{border-left:1px solid rgba(255,255,255,.18);}
+.num .n{font-family:'Anton',sans-serif;font-size:44px;line-height:.85;color:var(--paper);}
+.num .n.r{color:var(--red);}.num .n.y{color:var(--yel);}
+.num .k{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-top:10px;}
+
+.man{background:var(--ink);color:var(--paper);padding:60px 28px;text-align:center;}
+.man .dot{display:inline-block;width:24px;height:24px;border-radius:50%;background:var(--red);margin-bottom:20px;}
+.man h3{font-family:'Anton',sans-serif;font-size:58px;line-height:.9;text-transform:uppercase;}
+.man p{font-size:15px;font-weight:500;color:rgba(255,255,255,.7);max-width:36em;margin:18px auto 0;line-height:1.5;}
+
+.final{padding:56px 28px;text-align:center;border-bottom:3px solid var(--ink);}
+.final h3{font-family:'Anton',sans-serif;font-size:62px;line-height:.88;text-transform:uppercase;margin-bottom:24px;}
+.final h3 .y{color:var(--yel);-webkit-text-stroke:2px var(--ink);}
+.foot{display:flex;justify-content:space-between;align-items:center;padding:18px 28px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}
+
+@media(max-width:680px){.hero{grid-template-columns:1fr;}.h1{font-size:54px;}.feat{grid-template-columns:1fr;}.nl a{display:none;}}
+</style>
+</head>
+<body>
+<div class="pg">
+  <div class="nav up">
+    <div class="logo">USAGE<span class="o">OS</span></div>
+    <div class="nl"><a href="#feat">Features</a><a href="#priv">Privacy</a><a href="index.html">Open the app</a><a class="btn" href="index.html">Open app ↗</a></div>
+  </div>
+
+  <div class="hero">
+    <div class="up" style="animation-delay:.08s">
+      <div class="eye">Understand your days · for Mac</div>
+      <div class="h1">Where did your <span class="r">day</span> go?</div>
+      <div class="sub">UsageOS quietly keeps track of what you're working on, then each evening tells you the story of your day — where you focused, what pulled you away, and where the hours actually went. All of it stays on your Mac.</div>
+      <div class="cta"><a class="btn" href="index.html">↓ Open the app</a><a class="btn out" href="index.html">★ Star on GitHub</a></div>
+      <div class="fine">Free · open source · MIT</div>
+    </div>
+    <div class="herovis up" style="animation-delay:.16s">
+      <div class="quart"></div><div class="circ"></div>
+      <div class="dialc">
+        <svg id="heroDial" viewBox="0 0 300 300" role="img" aria-label="24-hour day dial">
+          <circle cx="150" cy="150" r="110" fill="none" stroke="var(--ink)" stroke-width="2"></circle>
+          <circle cx="150" cy="150" r="89" fill="none" stroke="var(--ink)" stroke-width="2"></circle>
+          <circle cx="150" cy="150" r="4" fill="var(--ink)"></circle>
+        </svg>
+        <div class="cen"><div class="b">7<span style="font-size:22px">:</span>15</div><div class="l">Active today</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="marq"><div class="track" id="track"></div></div>
+
+  <div class="sec" id="feat">
+    <div class="seye">What it does</div>
+    <div class="sh">Built to show you the truth</div>
+    <div class="feat">
+      <div class="fc"><div class="fi" style="color:var(--blue)"><svg width="42" height="42" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="3"/><circle cx="20" cy="20" r="8" stroke="currentColor" stroke-width="3"/><line x1="20" y1="20" x2="32" y2="11" stroke="var(--red)" stroke-width="3"/></svg></div><div class="ft">The whole day, one dial</div><div class="fb">Your last 24 hours as a chronometer. See the shape of your day at a glance — focus, drift, and everything between.</div></div>
+      <div class="fc"><div class="fi" style="color:var(--red)"><svg width="42" height="42" viewBox="0 0 40 40"><rect x="5" y="9" width="30" height="4" fill="currentColor"/><rect x="5" y="18" width="24" height="4" fill="currentColor"/><rect x="5" y="27" width="18" height="4" fill="var(--blue)"/></svg></div><div class="ft">A recap, not a spreadsheet</div><div class="fb">Every evening, a few honest sentences about where your time actually went — written for you, on your machine.</div></div>
+      <div class="fc"><div class="fi" style="color:var(--yel)"><svg width="42" height="42" viewBox="0 0 40 40" fill="none"><rect x="10" y="10" width="20" height="20" stroke="currentColor" stroke-width="3"/><rect x="16" y="16" width="8" height="8" fill="var(--ink)"/><line x1="14" y1="6" x2="14" y2="10" stroke="currentColor" stroke-width="3"/><line x1="26" y1="6" x2="26" y2="10" stroke="currentColor" stroke-width="3"/><line x1="14" y1="30" x2="14" y2="34" stroke="currentColor" stroke-width="3"/><line x1="26" y1="30" x2="26" y2="34" stroke="currentColor" stroke-width="3"/></svg></div><div class="ft">Smart, but local</div><div class="fb">Optional on-device AI sorts your time and writes the recap. The model runs on your Mac — never on a server.</div></div>
+      <div class="fc"><div class="fi" style="color:var(--ink)"><svg width="42" height="42" viewBox="0 0 40 40" fill="none"><rect x="9" y="18" width="22" height="16" fill="currentColor"/><path d="M13 18 v-4 a7 7 0 0 1 14 0 v4" stroke="currentColor" stroke-width="3"/><circle cx="20" cy="25" r="2.5" fill="var(--red)"/></svg></div><div class="ft">Private by design</div><div class="fb">No cloud sync. No telemetry. No network calls for your data. You own every single second of it.</div></div>
+    </div>
+  </div>
+
+  <div class="week">
+    <div class="seye">Zoom out</div>
+    <div class="sh">Your week, at a glance</div>
+    <div class="wgrid" id="wgrid"></div>
+  </div>
+
+  <div class="nums">
+    <div class="num"><div class="n y">100%</div><div class="k">On device</div></div>
+    <div class="num"><div class="n">0</div><div class="k">Servers</div></div>
+    <div class="num"><div class="n r">&lt;1%</div><div class="k">CPU idle</div></div>
+    <div class="num"><div class="n">MIT</div><div class="k">Open source</div></div>
+  </div>
+
+  <div class="man" id="priv">
+    <span class="dot"></span>
+    <h3>Nothing leaves<br>this machine.</h3>
+    <p>UsageOS has no backend. There's nothing to leak, sell, or subpoena — and the source is right there for you to read.</p>
+  </div>
+
+  <div class="final">
+    <h3>Own your <span class="y">time.</span></h3>
+    <a class="btn" style="font-size:14px;padding:13px 26px;" href="index.html">↓ Open the app</a>
+    <div class="fine" style="margin-top:16px;">Free for macOS · Windows soon</div>
+  </div>
+
+  <div class="foot"><span>USAGEOS</span><span style="color:var(--mut)">Made for people who own their time</span><span>MIT © 2026</span></div>
+</div>
+
+<script>
+(function(){
+var NS="http://www.w3.org/2000/svg",B="#1B45BE",R="#E0241B",Y="#F2BC0C",K="#161616";
+function pol(cx,cy,t,r){var x=t/1440*2*Math.PI;return[cx+r*Math.sin(x),cy-r*Math.cos(x)];}
+function arc(svg,cx,cy,Rr,sw,s,e,c){var lg=(e-s)>720?1:0,p0=pol(cx,cy,s,Rr),p1=pol(cx,cy,e,Rr),p=document.createElementNS(NS,"path");p.setAttribute("d","M"+p0[0].toFixed(2)+" "+p0[1].toFixed(2)+" A"+Rr+" "+Rr+" 0 "+lg+" 1 "+p1[0].toFixed(2)+" "+p1[1].toFixed(2));p.setAttribute("stroke",c);p.setAttribute("stroke-width",sw);p.setAttribute("fill","none");svg.appendChild(p);return p;}
+var hs=document.getElementById("heroDial");
+[0,6,12,18].forEach(function(h){var t=h*60,pi=pol(150,150,t,89),po=pol(150,150,t,110),ln=document.createElementNS(NS,"line");ln.setAttribute("x1",pi[0].toFixed(1));ln.setAttribute("y1",pi[1].toFixed(1));ln.setAttribute("x2",po[0].toFixed(1));ln.setAttribute("y2",po[1].toFixed(1));ln.setAttribute("stroke",K);ln.setAttribute("stroke-width",2);hs.appendChild(ln);var pl=pol(150,150,t,124),tx=document.createElementNS(NS,"text");tx.setAttribute("x",pl[0].toFixed(1));tx.setAttribute("y",(pl[1]+5).toFixed(1));tx.setAttribute("text-anchor","middle");tx.setAttribute("font-family","'Anton',sans-serif");tx.setAttribute("font-size","13");tx.setAttribute("fill",K);tx.textContent=(h===0?"24":h);hs.appendChild(tx);});
+var hseg=[[450,480,Y],[480,570,B],[570,585,K],[585,675,B],[675,705,R],[750,780,Y],[780,855,B],[855,885,K],[885,930,R]],hp=[];
+hseg.forEach(function(s){var p=arc(hs,150,150,99,20,s[0]+4,(s[1]-4>s[0]+4?s[1]-4:s[1]),s[2]);var L=p.getTotalLength();p.style.strokeDasharray=L;p.style.strokeDashoffset=L;p.style.transition="stroke-dashoffset .55s cubic-bezier(.3,.9,.3,1) "+(0.3+hp.length*0.06)+"s";hp.push(p);});
+var b1=pol(150,150,930,112),b2=pol(150,150,921,124),b3=pol(150,150,939,124),tri=document.createElementNS(NS,"polygon");tri.setAttribute("points",b1[0].toFixed(1)+","+b1[1].toFixed(1)+" "+b2[0].toFixed(1)+","+b2[1].toFixed(1)+" "+b3[0].toFixed(1)+","+b3[1].toFixed(1));tri.setAttribute("fill",K);hs.appendChild(tri);
+requestAnimationFrame(function(){requestAnimationFrame(function(){hp.forEach(function(p){p.style.strokeDashoffset=0;});});});
+var items=[["See your time",R],["Own your data",Y],["Run it local",B],["No telemetry",K]],tk=document.getElementById("track"),html="";
+for(var rep=0;rep<2;rep++){items.forEach(function(it){html+='<span>'+it[0]+'<span class="mdot" style="background:'+it[1]+'"></span></span>';});}
+tk.innerHTML=html;
+var week=[{d:"Mon",t:"8:00",s:[[540,720,B],[720,780,Y],[780,960,B],[960,1080,R]]},{d:"Tue",t:"7:00",s:[[510,540,Y],[540,720,B],[750,900,B],[960,1050,R]]},{d:"Wed",t:"9:00",s:[[480,540,Y],[540,750,B],[810,960,B],[960,1110,R],[1110,1140,K]]},{d:"Thu",t:"6:30",s:[[600,720,B],[780,870,R],[930,1050,B],[1050,1080,Y]]},{d:"Fri",t:"7:30",s:[[510,540,Y],[540,690,B],[750,840,R],[900,1020,B]]},{d:"Sat",t:"7:15",now:930,today:true,s:[[450,480,Y],[480,570,B],[585,675,B],[675,705,R],[750,780,Y],[780,855,B],[885,930,R]]},{d:"Sun",t:"2:30",s:[[600,660,R],[840,900,Y],[1080,1140,B]]}];
+var wk=document.getElementById("wgrid");
+week.forEach(function(day){var cell=document.createElement("div");cell.className="wd"+(day.today?" tdy":"");var ms=document.createElementNS(NS,"svg");ms.setAttribute("viewBox","0 0 80 80");ms.setAttribute("width","100%");ms.setAttribute("role","img");ms.setAttribute("aria-label",day.d);var tr=document.createElementNS(NS,"circle");tr.setAttribute("cx",40);tr.setAttribute("cy",40);tr.setAttribute("r",29);tr.setAttribute("fill","none");tr.setAttribute("stroke","rgba(255,255,255,.25)");tr.setAttribute("stroke-width",6);ms.appendChild(tr);if(day.today){var rg=document.createElementNS(NS,"circle");rg.setAttribute("cx",40);rg.setAttribute("cy",40);rg.setAttribute("r",37);rg.setAttribute("fill","none");rg.setAttribute("stroke",Y);rg.setAttribute("stroke-width",2);ms.appendChild(rg);}day.s.forEach(function(seg){arc(ms,40,40,29,6,seg[0]+3,(seg[1]-3>seg[0]+3?seg[1]-3:seg[1]),seg[2]);});if(day.now){var nt=pol(40,40,day.now,33),nd=document.createElementNS(NS,"circle");nd.setAttribute("cx",nt[0].toFixed(1));nd.setAttribute("cy",nt[1].toFixed(1));nd.setAttribute("r",2.8);nd.setAttribute("fill",Y);ms.appendChild(nd);}cell.appendChild(ms);var dl=document.createElement("div");dl.className="dl";dl.textContent=day.d;cell.appendChild(dl);var dt=document.createElement("div");dt.className="dt";dt.textContent=day.t;cell.appendChild(dt);wk.appendChild(cell);});
+})();
+</script>
+</body>
+</html>
