@@ -1,7 +1,7 @@
+use crate::db::{self, DbConnection};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::time::interval;
-use crate::db::{self, DbConnection};
 
 const POLL_INTERVAL_SECS: u64 = 5;
 const IDLE_THRESHOLD_SECS: u64 = 180;
@@ -57,10 +57,13 @@ pub fn is_user_idle() -> bool {
 }
 
 /// Get current Unix timestamp in seconds.
+///
+/// If the system clock is before the Unix epoch (clock skew), this falls back
+/// to `Duration::ZERO` rather than panicking, yielding a timestamp of 0.
 fn get_current_timestamp() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
+        .unwrap_or_default()
         .as_secs() as i64
 }
 
@@ -71,8 +74,12 @@ fn get_current_timestamp() -> i64 {
 pub async fn start_watcher(db_conn: DbConnection) {
     println!("[Watcher] Starting background watcher...");
     println!("[Watcher] Polling interval: {} seconds", POLL_INTERVAL_SECS);
-    println!("[Watcher] Idle threshold: {} seconds ({} minutes)", IDLE_THRESHOLD_SECS, IDLE_THRESHOLD_SECS / 60);
-    
+    println!(
+        "[Watcher] Idle threshold: {} seconds ({} minutes)",
+        IDLE_THRESHOLD_SECS,
+        IDLE_THRESHOLD_SECS / 60
+    );
+
     let mut interval = interval(Duration::from_secs(POLL_INTERVAL_SECS));
     let mut tick_count = 0;
 
@@ -87,7 +94,7 @@ pub async fn start_watcher(db_conn: DbConnection) {
         if let Some(info) = get_active_window() {
             CONSECUTIVE_ERRORS.store(0, Ordering::Relaxed);
             let timestamp = get_current_timestamp();
-            
+
             if let Err(e) = db::log_activity_safe(
                 &db_conn,
                 &info.process_name,
@@ -122,4 +129,3 @@ mod tests {
         assert!(ts < 1_893_456_000, "Timestamp should be before 2030");
     }
 }
-

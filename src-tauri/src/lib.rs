@@ -1,9 +1,14 @@
-mod watcher;
-mod db;
+#![cfg_attr(
+    not(test),
+    deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
+)]
 
-use tauri::{State, Manager};
-use std::sync::{Arc, Mutex};
+mod db;
+mod watcher;
+
 use rusqlite::Connection;
+use std::sync::{Arc, Mutex};
+use tauri::{Manager, State};
 
 type DbState = Arc<Mutex<Connection>>;
 
@@ -22,9 +27,10 @@ fn get_activity_stats(
     start_time: i64,
     end_time: i64,
 ) -> Result<Vec<db::ActivityLog>, String> {
-    let conn = db.lock().map_err(|e| format!("Failed to lock database: {}", e))?;
-    db::get_activity_logs(&conn, start_time, end_time)
-        .map_err(|e| format!("Database error: {}", e))
+    let conn = db
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {}", e))?;
+    db::get_activity_logs(&conn, start_time, end_time).map_err(|e| format!("Database error: {}", e))
 }
 
 #[tauri::command]
@@ -34,11 +40,7 @@ fn get_categories(db: State<DbState>) -> Result<Vec<db::Category>, String> {
 }
 
 #[tauri::command]
-fn create_category(
-    db: State<DbState>,
-    name: String,
-    color: String,
-) -> Result<i64, String> {
+fn create_category(db: State<DbState>, name: String, color: String) -> Result<i64, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
     db::create_category(&conn, &name, &color).map_err(|e| e.to_string())
 }
@@ -64,8 +66,14 @@ fn create_rule(
     ignore_title: Option<bool>,
 ) -> Result<i64, String> {
     let conn = db.lock().map_err(|e| e.to_string())?;
-    db::create_rule(&conn, category_id, &match_field, &pattern, ignore_title.unwrap_or(false))
-        .map_err(|e| e.to_string())
+    db::create_rule(
+        &conn,
+        category_id,
+        &match_field,
+        &pattern,
+        ignore_title.unwrap_or(false),
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -103,7 +111,7 @@ fn update_setting(db: State<DbState>, key: String, value: String) -> Result<(), 
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let result = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             get_activity_stats,
@@ -119,33 +127,38 @@ pub fn run() {
             update_setting
         ])
         .setup(|app| {
-            let db_path = db::get_db_path(&app.handle())
-                .expect("Failed to get database path");
-            
-            let db_conn = db::init_database(&db_path)
-                .expect("Failed to initialize database");
-            
-            // Run data retention cleanup before starting the watcher
-            {
-                let conn = db_conn.lock().expect("Failed to lock db for cleanup");
-                if let Ok(Some(days_str)) = db::get_setting(&conn, "data_retention_days") {
-                    if let Ok(days) = days_str.parse::<i64>() {
-                        match db::cleanup_old_data(&conn, days) {
-                            Ok(deleted) if deleted > 0 => {
-                                println!("[Startup] Cleaned up {} old activity logs", deleted);
+            let db_path = db::get_db_path(app.handle())?;
+
+            let db_conn = db::init_database(&db_path)?;
+
+            // Run data retention cleanup before starting the watcher.
+            // A poisoned lock here is non-fatal: skip cleanup and continue startup.
+            match db_conn.lock() {
+                Ok(conn) => {
+                    if let Ok(Some(days_str)) = db::get_setting(&conn, "data_retention_days") {
+                        if let Ok(days) = days_str.parse::<i64>() {
+                            match db::cleanup_old_data(&conn, days) {
+                                Ok(deleted) if deleted > 0 => {
+                                    println!("[Startup] Cleaned up {} old activity logs", deleted);
+                                }
+                                Err(e) => eprintln!("[Startup] Cleanup failed: {}", e),
+                                _ => {}
                             }
-                            Err(e) => eprintln!("[Startup] Cleanup failed: {}", e),
-                            _ => {}
                         }
                     }
                 }
+                Err(e) => eprintln!("[Startup] Skipping cleanup, db lock poisoned: {}", e),
             }
-            
+
             app.manage(db_conn.clone());
-            
+
             tauri::async_runtime::spawn(watcher::start_watcher(db_conn));
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    if let Err(e) = result {
+        eprintln!("[Fatal] Error while running tauri application: {}", e);
+        std::process::exit(1);
+    }
 }

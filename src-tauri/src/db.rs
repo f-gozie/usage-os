@@ -1,10 +1,21 @@
 use rusqlite::{Connection, Result};
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
-use serde::{Deserialize, Serialize};
 
 pub type DbConnection = Arc<Mutex<Connection>>;
+
+/// Current Unix timestamp in seconds.
+///
+/// If the system clock is before the Unix epoch (clock skew), this falls back
+/// to `Duration::ZERO` rather than panicking, yielding a timestamp of 0.
+fn now_unix() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as i64
+}
 
 /// Activity log entry representing a time block of app usage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,19 +130,18 @@ fn ensure_migrations_table(conn: &Connection) -> Result<()> {
             version INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             applied_at INTEGER NOT NULL
-        );"
+        );",
     )?;
     Ok(())
 }
 
 /// Get the highest applied migration version, or 0 if none.
 fn get_current_version(conn: &Connection) -> Result<i64> {
-    let version: i64 = conn
-        .query_row(
-            "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
-            [],
-            |row| row.get(0),
-        )?;
+    let version: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+        [],
+        |row| row.get(0),
+    )?;
     Ok(version)
 }
 
@@ -150,10 +160,7 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         );
         conn.execute_batch(migration.sql)?;
 
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("Time went backwards")
-            .as_secs() as i64;
+        let now = now_unix();
 
         conn.execute(
             "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?1, ?2, ?3)",
@@ -180,7 +187,7 @@ pub fn get_last_activity_log(conn: &Connection) -> Result<Option<ActivityLog>> {
         "SELECT id, process_name, window_title, start_time, end_time, is_idle, category_id
          FROM activity_logs 
          ORDER BY id DESC 
-         LIMIT 1"
+         LIMIT 1",
     )?;
 
     let mut rows = stmt.query([])?;
@@ -255,12 +262,12 @@ pub fn log_activity(
     match get_last_activity_log(conn)? {
         Some(last_log) => {
             let time_gap = timestamp - last_log.end_time;
-            // We also check if category changed? 
+            // We also check if category changed?
             // Ideally yes, if rules change mid-stream or dynamic categorization happens.
-            // But usually category depends on process/title. 
+            // But usually category depends on process/title.
             // If process/title are same, category should be same given same rules.
             // So checking process/title/idle is sufficient.
-            
+
             let is_same_activity = last_log.process_name == process_name
                 && last_log.window_title == window_title
                 && last_log.is_idle == is_idle;
@@ -268,7 +275,14 @@ pub fn log_activity(
             if is_same_activity && time_gap <= MAX_GAP_SECONDS {
                 update_last_activity_end_time(conn, last_log.id, timestamp)?;
             } else {
-                insert_activity_log(conn, process_name, window_title, is_idle, timestamp, category_id)?;
+                insert_activity_log(
+                    conn,
+                    process_name,
+                    window_title,
+                    is_idle,
+                    timestamp,
+                    category_id,
+                )?;
                 if time_gap > MAX_GAP_SECONDS {
                     println!(
                         "[Database] Gap detected ({} seconds), starting new entry",
@@ -282,7 +296,14 @@ pub fn log_activity(
             }
         }
         None => {
-            insert_activity_log(conn, process_name, window_title, is_idle, timestamp, category_id)?;
+            insert_activity_log(
+                conn,
+                process_name,
+                window_title,
+                is_idle,
+                timestamp,
+                category_id,
+            )?;
             println!(
                 "[Database] First activity: {} - {} (idle: {}) [Category: {:?}]",
                 process_name, window_title, is_idle, category_id
@@ -300,7 +321,9 @@ pub fn log_activity_safe(
     is_idle: bool,
     timestamp: i64,
 ) -> Result<(), String> {
-    let conn = db_conn.lock().map_err(|e| format!("Failed to lock database: {}", e))?;
+    let conn = db_conn
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {}", e))?;
     log_activity(&conn, process_name, window_title, is_idle, timestamp)
         .map_err(|e| format!("Database error: {}", e))
 }
@@ -323,7 +346,7 @@ pub fn get_activity_logs(
         "SELECT id, process_name, window_title, start_time, end_time, is_idle, category_id
          FROM activity_logs 
          WHERE start_time >= ?1 AND start_time <= ?2
-         ORDER BY start_time ASC"
+         ORDER BY start_time ASC",
     )?;
 
     let logs = stmt.query_map([start_time, end_time], |row| {
@@ -364,7 +387,10 @@ pub fn create_category(conn: &Connection, name: &str, color: &str) -> Result<i64
 }
 
 pub fn delete_category(conn: &Connection, id: i64) -> Result<()> {
-    conn.execute("UPDATE activity_logs SET category_id = NULL WHERE category_id = ?1", [id])?;
+    conn.execute(
+        "UPDATE activity_logs SET category_id = NULL WHERE category_id = ?1",
+        [id],
+    )?;
     conn.execute("DELETE FROM categories WHERE id = ?1", [id])?;
     Ok(())
 }
@@ -372,7 +398,9 @@ pub fn delete_category(conn: &Connection, id: i64) -> Result<()> {
 // --- Rule CRUD ---
 
 pub fn get_rules(conn: &Connection) -> Result<Vec<Rule>> {
-    let mut stmt = conn.prepare("SELECT id, category_id, match_field, pattern, ignore_title FROM rules ORDER BY id ASC")?;
+    let mut stmt = conn.prepare(
+        "SELECT id, category_id, match_field, pattern, ignore_title FROM rules ORDER BY id ASC",
+    )?;
     let rows = stmt.query_map([], |row| {
         Ok(Rule {
             id: row.get(0)?,
@@ -406,7 +434,11 @@ pub fn delete_rule(conn: &Connection, id: i64) -> Result<()> {
 
 // --- Categorization Logic ---
 
-pub fn find_category(conn: &Connection, process_name: &str, window_title: &str) -> Result<Option<i64>> {
+pub fn find_category(
+    conn: &Connection,
+    process_name: &str,
+    window_title: &str,
+) -> Result<Option<i64>> {
     let rules = get_rules(conn)?;
     for rule in rules {
         let match_target = if rule.match_field == "process" {
@@ -414,8 +446,11 @@ pub fn find_category(conn: &Connection, process_name: &str, window_title: &str) 
         } else {
             window_title
         };
-        
-        if match_target.to_lowercase().contains(&rule.pattern.to_lowercase()) {
+
+        if match_target
+            .to_lowercase()
+            .contains(&rule.pattern.to_lowercase())
+        {
             return Ok(Some(rule.category_id));
         }
     }
@@ -425,28 +460,28 @@ pub fn find_category(conn: &Connection, process_name: &str, window_title: &str) 
 pub fn reprocess_logs(conn: &Connection) -> Result<()> {
     // 1. Reset all categories
     conn.execute("UPDATE activity_logs SET category_id = NULL", [])?;
-    
+
     // 2. Get all rules (ordered by ID, so first rule created = higher priority if we assume ID order)
     // To support re-ordering, we'd need a 'priority' column, but for now ID order is fine.
     // Logic: First rule that matches wins.
     let rules = get_rules(conn)?;
-    
+
     // 3. Apply rules
     for rule in rules {
         let pattern = format!("%{}%", rule.pattern);
         if rule.match_field == "process" {
-             conn.execute(
+            conn.execute(
                 "UPDATE activity_logs SET category_id = ?1 WHERE category_id IS NULL AND lower(process_name) LIKE lower(?2)",
                 (rule.category_id, pattern),
             )?;
         } else {
-             conn.execute(
+            conn.execute(
                 "UPDATE activity_logs SET category_id = ?1 WHERE category_id IS NULL AND lower(window_title) LIKE lower(?2)",
                 (rule.category_id, pattern),
             )?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -457,17 +492,13 @@ pub fn cleanup_old_data(conn: &Connection, retention_days: i64) -> Result<usize>
     if retention_days <= 0 {
         return Ok(0);
     }
-    let cutoff = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_secs() as i64
-        - (retention_days * 86400);
-    let deleted = conn.execute(
-        "DELETE FROM activity_logs WHERE end_time < ?1",
-        [cutoff],
-    )?;
+    let cutoff = now_unix() - (retention_days * 86400);
+    let deleted = conn.execute("DELETE FROM activity_logs WHERE end_time < ?1", [cutoff])?;
     if deleted > 0 {
-        println!("[Database] Cleaned up {} old activity logs (retention: {} days)", deleted, retention_days);
+        println!(
+            "[Database] Cleaned up {} old activity logs (retention: {} days)",
+            deleted, retention_days
+        );
     }
     Ok(deleted)
 }
@@ -548,7 +579,9 @@ mod tests {
     #[test]
     fn test_migration_versions_recorded() {
         let conn = setup_test_db();
-        let mut stmt = conn.prepare("SELECT version, name FROM schema_migrations ORDER BY version").unwrap();
+        let mut stmt = conn
+            .prepare("SELECT version, name FROM schema_migrations ORDER BY version")
+            .unwrap();
         let migrations: Vec<(i64, String)> = stmt
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
             .unwrap()
@@ -714,8 +747,15 @@ mod tests {
         reprocess_logs(&conn).unwrap();
 
         let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs[0].category_id, Some(cat_id), "firefox should be categorized");
-        assert_eq!(logs[1].category_id, None, "code should remain uncategorized");
+        assert_eq!(
+            logs[0].category_id,
+            Some(cat_id),
+            "firefox should be categorized"
+        );
+        assert_eq!(
+            logs[1].category_id, None,
+            "code should remain uncategorized"
+        );
     }
 
     // --- Category CRUD tests ---
@@ -762,7 +802,10 @@ mod tests {
         delete_category(&conn, cat_id).unwrap();
 
         let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs[0].category_id, None, "category_id should be NULL after category deletion");
+        assert_eq!(
+            logs[0].category_id, None,
+            "category_id should be NULL after category deletion"
+        );
     }
 
     // --- Rule CRUD tests ---
@@ -815,7 +858,8 @@ mod tests {
         conn.execute(
             "UPDATE activity_logs SET end_time = ?1 WHERE process_name = 'old-app'",
             [now - 100 * 86400],
-        ).unwrap();
+        )
+        .unwrap();
 
         // Recent log (1 day ago)
         insert_activity_log(&conn, "new-app", "New", false, now - 86400, None).unwrap();
@@ -851,11 +895,17 @@ mod tests {
 
         // Set
         set_setting(&conn, "retention_days", "30").unwrap();
-        assert_eq!(get_setting(&conn, "retention_days").unwrap(), Some("30".to_string()));
+        assert_eq!(
+            get_setting(&conn, "retention_days").unwrap(),
+            Some("30".to_string())
+        );
 
         // Upsert
         set_setting(&conn, "retention_days", "60").unwrap();
-        assert_eq!(get_setting(&conn, "retention_days").unwrap(), Some("60".to_string()));
+        assert_eq!(
+            get_setting(&conn, "retention_days").unwrap(),
+            Some("60".to_string())
+        );
     }
 
     #[test]
