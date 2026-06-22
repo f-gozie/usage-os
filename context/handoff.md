@@ -1,134 +1,103 @@
 # Handoff — start here for the next session
 
-_Updated 2026-06-22 at the end of the **Spike ② session**. Read this, then `CLAUDE.md`, then `context/feasibility/2026-06-22-feasibility-audit.md`, then the redesign plan. Supersedes the prior (Phase-0 spike) handoff._
+_Updated 2026-06-22 at the end of the **native-spikes + tauri-specta session**. Read this, then `CLAUDE.md`, then the redesign plan (`context/plans/2026-06-22-product-redesign.md`), then `context/feasibility/2026-06-22-feasibility-audit.md`. Supersedes the prior (Spike ②) handoff._
 
 ## 1. Where we are (TL;DR)
 
-**The native capture gate is COMPLETE — all four spikes PASS** on the real Apple-Silicon Mac:
-- **Spike #1** (merged, PR #6): AX returns real focused-window titles with **Accessibility only, Screen Recording OFF**, for every app class. R4 retired.
-- **Spike ②** (this session, **uncommitted**): the **event-driven capture model** — NSWorkspace activation + per-PID AXObserver on the main run loop, marshaled to Tokio over a `Send` channel. R6/R8/R9/R10/R11/R13.
-- **Spike ③** (this session, **uncommitted**): **browser URL + incognito exclusion** — Chromium active-tab URL via Apple Events; `mode of front window` read **first** excludes incognito (D8 enforced live). R15/R17/R21. Safari/Arc/-1743 = documented residual checks.
-- **Spike ④** (this session, **uncommitted**): **`proc_pidinfo` cwd read** — a non-root, unsandboxed process reads another process's cwd, no `EPERM`, matching `lsof` (shell in `…/usage_os` → that path). R22 resolved; no TCC grant; R24 fallbacks not needed.
+**Phase 0 is COMPLETE and Phase 1 has started.** The whole native capture gate plus project inference passed, and the first Phase-1 plumbing (generated IPC) is wired and green. Feasibility verdict moved from GO-WITH-CAVEATS → **GO** for the capture layer.
 
-The feasibility verdict was **GO-WITH-CAVEATS**; with the whole native gate passed it now **leans GO**. The three capture signals — title (①), URL (③), cwd (④) — are all proven, on the proven event-driven model (②).
+Capture is fully de-risked — all three project signals proven, on a proven event-driven model:
+- **Spike #1** — AX window **titles**, Accessibility only / Screen Recording OFF (merged earlier, PR #6).
+- **Spike ②** — **event-driven capture model**: NSWorkspace activation + per-PID AXObserver on the main run loop → Tokio over a `Send` channel (R6/R8–R11/R13).
+- **Spike ③** — browser **URL** + incognito exclusion via Apple Events; `mode` read first (D8 enforced live) (R15/R17/R21).
+- **Spike ④** — terminal **cwd** via `proc_pidinfo`, no `EPERM`, no TCC grant (R22).
+- **Project-inference spike** — zero false assignments on real signals; abstain threshold set (R23/R26/R27).
+- **tauri-specta IPC** — the Rust↔TS boundary is now **generated** (hard rule 2), all gates green.
 
-The **project-inference spike** also ran (snapshot): zero false assignments on real signals, abstain threshold set, and it surfaced D30 (canonicalize project identity on the git remote). **Phase 0 is essentially complete; Phase 1 is next.**
+## 2. PR / branch state — READ THIS FIRST
 
-`origin/main` is at `a2f2a7f` (3 PRs from last session). **This session's work (Spikes ②+③+④ + the project-inference spike + doc updates) is uncommitted** — see §8.
+- **`main`** (`origin/main` → `34318af`) now contains **PR #7** (merged this session): the 4 spike crates (`spikes/ax-observer`, `browser-url`, `proc-cwd`, `project-inference`) + the Phase-0 doc updates (D29/D30, plan check-offs, standards).
+- **[PR #9](https://github.com/f-gozie/usage-os/pull/9) is OPEN against `main`** — the tauri-specta IPC migration (branch `phase1/tauri-specta-ipc`), CI running at handoff time. **This handoff is committed on that branch.** _(PR #8 was the same work but GitHub auto-closed it when the stacked base branch was deleted on #7's merge; #9 supersedes it.)_
+- **Next session: confirm #9's CI is green and merge it**, then continue Phase 1 from `main`.
 
-## 2. The headline result — Spike ② PASSED (R6, R8–R11, R13)
+## 3. Decisions locked this session (`context/decisions.md`)
 
-`spikes/ax-observer/` (isolated crate, mirrors `ax-titles`) proves the **real** capture architecture the Phase-1 `capture` trait impl will use — the polling/run-loop-pump in Spike #1 was a stopgap. Driven by automated `open -a` app switches plus a smoke run; full results + protocol in `spikes/ax-observer/README.md`:
+- **D29** — Event-driven capture model: `AXObserver` from **`objc2-application-services`** (not `accessibility-sys`) on the **main run loop**, NSWorkspace activation via `block2::RcBlock`, marshaled to async over a `Send` channel; no `NSApplication`.
+- **D30** — Project identity canonicalized on the **git remote** (`owner/repo`) with folder/title/URL aliases; **abstain threshold** (assign only on HIGH/MED unambiguous signals, else `unassigned`); `ambiguous` (localhost/dashboards) is a distinct third state for Phase-2 temporal correlation.
+- **D27 RESOLVED** — the tauri-specta trio is **`rc.20`, NOT the standard's provisional `rc.24`** (see §5).
 
-| Risk | Proven |
-|---|---|
-| **R8** | NSWorkspace `didActivateApplication` block fires on **every** switch (Finder→Cursor→Brave→…), correct pid/name/bundle. |
-| **R9** | The observer is a `block2::RcBlock` Rust closure; fired across 6 switches, token retained, no UAF. |
-| **R10** | A fresh per-PID `AXObserver` per app; `AXFocusedWindowChanged` delivered through the run-loop source; title observer re-pointed on window change. |
-| **R11** | Dedupe debounce coalesced chatty title duplicates (observed `coalesced 3`); idle **0.0% CPU**. |
-| **R6**  | Every event marshaled to a Tokio consumer thread over an unbounded `Send` channel; run loop never blocked. |
-| **R13** | `arm64` Mach-O, ran on Apple Silicon. |
+## 4. What's in the IPC migration (PR #9)
 
-**Three findings that shaped decisions (now in `context/decisions.md` D29):**
-1. **`AXObserver` lives in `objc2-application-services` 0.3.2** (`create` / `add_notification` / `run_loop_source`) → the whole AX surface stays in one objc2 family; **`accessibility-sys` is dropped**. Corrects `architecture.md` + the capture standard.
-2. **No `NSApplication` needed** — a bare `CFRunLoop` delivers activation events. In the app, register sources into **Tauri's main run loop** during `setup` (don't call `run()`). Tauri's loop is a strict superset.
-3. **`AXTitleChanged` must be registered on the focused *window*** (re-pointed on window change), not the app element, or in-app title changes never fire.
+Full generated Rust↔TS boundary (D17/hard rule 2). All gates green locally: `cargo build`, **26 Rust tests**, `clippy -D warnings`, `fmt --check`, `tsc --noEmit`, **28 TS tests**, freshness gate md5-deterministic.
+- All 11 commands `#[specta::specta]` + a typed `AppError` (`thiserror`+`Serialize`+`specta::Type`) replacing `Result<_, String>`.
+- `get_watcher_status` (`serde_json::Value`→`WatcherStatus`) + `get_settings` (tuples→`Setting`) → named structs; `db.rs` boundary structs derive `specta::Type`.
+- `tauri_specta::Builder` replaces `generate_handler!`; `export_bindings` `#[test]` emits **`src/bindings.ts`** (`BigIntExportBehavior::Number` → timestamps are `number`; header carries `// @ts-nocheck` because the generated file's events/channel boilerplate trips the app's `noUnusedLocals`).
+- Frontend `src/lib/tauri.ts` delegates to the generated `commands`, unwraps the typed `Result`, and **re-exports the generated types as the single source**. Consumers fixed for new shapes (`Setting[]`, `category_id: number | null`).
+- **Linux-only binding-freshness CI gate** (`.github/workflows/ci.yml`): regenerate + `git diff --exit-code src/bindings.ts`.
+- Events deferred (commands-only) — tauri-specta #211 `never` bug stands; the dial/recap are pull-based so this costs nothing.
 
-**One residual manual check:** pure in-place `AXTitleChanged` delivery (a browser-navigation pass — change a tab/page title while the app stays frontmost and confirm `TITLE` events). The machinery is in place and `AXFocusedWindowChanged` delivery is proven; this just exercises the last notification type.
+## 5. The rc.20 finding (important — don't relearn this the hard way)
 
-## 3. Decisions made this session (in `context/decisions.md`)
+The standard's provisional **rc.24 pin does NOT build**: specta rc.24 removed `#[specta(rename)]` on containers, but the current tauri (**2.9.3**, the newest 2.x) still uses it in `ipc/channel.rs`. Cargo's resolver *allows* the combo; compilation fails. Bumping tauri doesn't help. **Verified building pins:** `tauri-specta = "=2.0.0-rc.20"`, `specta = "=2.0.0-rc.20"`, `specta-typescript = "=0.0.7"`, `thiserror = "2"` (transitively `specta-macros 2.0.0-rc.17`). Revisit rc.24 only when tauri ships a release built against newer specta. Recorded in D27 + `context/standards/tauri-ipc.md` (which now also closes open questions #1–#7,#9).
 
-- **D29** — Event-driven capture model: `objc2-application-services` `AXObserver` on the **main run loop**, NSWorkspace activation via `block2::RcBlock`, marshaled to async over a `Send` channel; `accessibility-sys` dropped; no `NSApplication`. Refines D5; proven by Spike ②.
-- **D30** — Project identity canonicalized on the **git remote** (`owner/repo`), with folder/title/URL as aliases; **abstain threshold** = assign only on HIGH/MED unambiguous signals else `unassigned`; `ambiguous` (localhost/dashboards) is a distinct third state for Phase-2 correlation. Refines D6; from the project-inference spike.
+## 6. NEXT — the full sequence to v1 (critical path + parallel tracks)
 
-## 4. What changed on disk this session (read order for next session)
+**Recommended immediate next: Phase 1.1 — the data model** (CI-friendly, no Mac, foundational; makes D30 real schema).
 
-New / edited (all **uncommitted**):
-- `spikes/ax-observer/{Cargo.toml,src/main.rs,README.md,.gitignore}` — Spike ②. README has the results table, architecture diagram, Tauri port path, run/test protocol.
-- `spikes/browser-url/{Cargo.toml,src/main.rs,README.md,.gitignore}` — Spike ③. Zero-dep pure-std crate shelling osascript; README has the fallback ladder + protocol.
-- `spikes/proc-cwd/{Cargo.toml,src/main.rs,README.md,.gitignore}` — Spike ④. `libc`-only crate; README has the `lsof`-verified results + the pid-selection note.
-- `spikes/project-inference/{Cargo.toml,src/main.rs,README.md,.gitignore}` — Spike #5. Pure-std crate (shells `git`); README has the precision/abstain results + the canonicalization finding.
-- `context/decisions.md` — added **D29** (event-driven capture model) + **D30** (project identity canonicalized on git remote; abstain threshold).
-- `context/plans/2026-06-22-product-redesign.md` — Spikes ② + ③ checked off ✅ with summaries; status line refreshed.
-- `context/architecture.md` — corrected the AX observer crate (objc2, not accessibility-sys) + marked the title/event model proven.
-- `context/standards/capture-and-permissions.md` — resolved open questions #1–#5 + #7 (observer crate, Electron titles, run-loop model, aarch64, Chromium `mode` readability, osascript latency); #6 (Safari private) stays open; refined the AXObserver registration note; updated the crate table.
+**Phase 1 — Capture → the dial** (in order):
+1. **Data model / migrations v5+** — `projects` (keyed on git remote + aliases, D30), `sites`, richer `contexts`, event columns (`url`, `site`, `project_id`, `is_private`), `exclusions`; typed repository fns + tests. _Pure Rust + SQLite._
+2. **The real `capture` trait** — fold spikes ①–④ behind a mockable `Fake`, `#[cfg(target_os="macos")]`-gated; replace the polling watcher. Includes terminal pid-*selection* (front-tab shell pid via `proc_listchildpids`+tty/recency, or iTerm2 `path`). _Mac._
+3. **Sensitive handling** — exclusion list, per-app Private (time, no title), incognito never recorded (D8). _Mac._
+4. **The fixed-24h dial** from real data, click-to-inspect. _Gated on the design system._
 
-Still the map: `context/feasibility/2026-06-22-feasibility-audit.md` (risk register **R1–R83**, spike plan **§4**). Per the Spike-#1 precedent, the dated audit table is left as a point-in-time snapshot — spike results are tracked in the plan + spike READMEs, not edited into the audit.
+**Phase 2 — Enrichment**: embedding categorization (NLEmbedding) + corrections memory; contexts/rules editor; week view (7 mini-dials) + linear timeline.
 
-## 5. Code / build state
+**Phase 3 — The recap**: `RecapFacts` in Rust → deterministic `TemplateRecap` → Swift Foundation Models sidecar + availability/fallback (audit spike #6). _Needs the Apple Developer cert._
 
-- Both new spikes build clean for **aarch64**, `cargo clippy -D warnings` + `cargo fmt --check` green, crate roots carry the hard-rule-3 `deny`. `ax-observer` re-signed ad-hoc (`codesign --force --sign -`) so the AX grant sticks (R14). `browser-url` is **zero-dependency** (pure std + osascript).
-- AX trust is **already granted** for `ax-observer` (smoke run printed "already granted"). Automation grants for `browser-url` were given to the **terminal** during testing (TCC attributes to the responsible process) — Chrome + Brave; the binary used them.
-- Nothing in `src-tauri` changed — the app is untouched; both spikes are fully isolated (`[workspace]` table, not members).
-- Existing app: ~25 Rust + 28 TS tests, CI green (Linux/macOS/Windows) with the clippy/fmt/tsc gates from PR #5.
+**Phase 4 — Shell & polish**: menubar launcher; primed onboarding/permission priming (run degraded if declined); dark-mode parity; idle-CPU perf pass.
 
-## 6. NEXT SESSION — do these, in order, thoroughly
+**Phase 5 — Launch**: notarized DMG + auto-update + Homebrew cask; README rewrite for the new product; sponsor link; finalize name/domain.
 
-**Phase 0 is essentially COMPLETE** — the native gate (spikes ①–④) plus the project-inference spike (snapshot) all PASS. What's next is Phase 1:
+**Parallel tracks (start early):**
+- **Design system** — gates the dial (1.4). Full Bauhaus, both themes, all states; **fix the R77 blocker first** (Comms-yellow `#F2BC0C` fails WCAG non-text contrast 1.47:1; fix palette / add a non-color cue). Needs `/design-login` (not available in this CLI env) or in-repo design against `context/design-system.md`.
+- **Apple Developer Program ($99/yr)** — hard external dependency with **enrollment lead time**; needed for the FM sidecar (Phase 3) AND distribution (Phase 5). Enroll now so it's never the blocker.
 
-1. **Wire `tauri-specta`** into the existing app (D27) — exact-pin the RC trio, migrate `get_watcher_status` + the `Result<_, String>` commands → `AppError`, add the binding-freshness gate. The first Phase-1-enabling plumbing; unrelated to the Mac, so it's CI-friendly.
-2. **Phase 1 capture impl** — fold the four proven spikes into the real `capture` trait behind a `Fake` (hard rule 5), `#[cfg(target_os="macos")]`-gated. Includes the terminal pid-*selection* step (front-tab shell pid via `proc_listchildpids`+tty/recency, or iTerm2 `path`) that Spike ④ left as mechanism.
-3. **Data model for projects** (D30) — `projects` table keyed on the **git remote** with folder/title/URL aliases; persist `unassigned` + the abstain *kind* (`no-signal` vs `ambiguous`) so Phase 2 can correlate ambiguous tooling.
-4. **Re-measure project-inference recall** once capture persists multi-day data (the spike measured precision + the abstain threshold on a snapshot, not longitudinal recall).
+**Recommended near-term, off the critical path:**
+- **Standards consolidation pass** — promote the spike-validated standards (`capture-and-permissions.md`, `tauri-ipc.md`) to authoritative (per-doc "Validated by Spikes …" status header), and **quarantine** the still-unproven parts (`foundation-models.md`; Safari private-detection R18; distribution R37/R65–R69) into a small explicit "Pending verification" block — so the docs read as standards, not perpetual drafts. Cheap, high-leverage for future sessions. (User asked for this; do it before/around Phase 1.1.)
 
-**Residual manual checks (small, optional, owner = you):**
+## 7. Residual manual checks (small, optional, owner = Favour, all on the Mac)
 - Spike ②: in-place `AXTitleChanged` (navigate a browser tab while it stays frontmost; confirm `TITLE` lines). Machinery proven.
-- Spike ③: **Safari** URL + private-detection (R16/R18 — Safari wasn't running; safe-default = never emit an unprovable-non-private Safari URL), **Arc** (R17 window/space model), and the **`-1743` deny** fallback (toggle a browser off in Automation settings to see it).
+- Spike ③: **Safari** URL + private-window safe-default (R16/R18 — Safari wasn't running), **Arc** (R17), and the **`-1743` deny** fallback (toggle a browser off in Automation settings).
 
-## 7. Re-run the spikes (reference)
+## 8. Gotchas / environment
 
-**Spike ② (`ax-observer`):**
+- **rustc was bumped 1.87 → 1.96** locally (via `rustup update stable`) — a transitive `darling 0.23` (from specta-macros) needs ≥ 1.88. CI uses `dtolnay/rust-toolchain@stable` (unpinned) so it already has it. If a fresh machine fails the specta build, check `rustc --version` ≥ 1.88.
+- **zsh does NOT word-split unquoted `$vars`** (unlike bash) — `./bin $PIDS` passes the whole string as one arg. Use `xargs` or a zsh array. (Bit me twice this session; cost a couple of confusing reruns.)
+- **`gh pr edit` is broken** here — it hits the deprecated Projects-classic GraphQL field and errors. Use the REST API: `gh api repos/f-gozie/usage-os/pulls/<n> -X PATCH -f base=main`. (But you can't change the base of a *closed* PR — see the #8→#9 saga in §2.)
+- **Deleting a stacked PR's base branch auto-CLOSES the dependent PR** (doesn't retarget). For future stacks, retarget the child to `main` *before* deleting the parent's branch.
+- A **Chrome incognito window** I opened during Spike ③ testing may still be open — close it.
+- Disk was fine this session (~18 GB free); the spike `target/` dirs add a few hundred MB. `cargo clean` in `spikes/*/target` reclaims space if needed.
+- **objc2 / AXObserver specifics** (validated, Spike ②): `AXObserver` is in `objc2-application-services` 0.3.2; notification names aren't re-exported (build CFStrings); keep the `block2::RcBlock` token alive; remove the run-loop source in `Drop` before the boxed `refcon` frees. Pins held: `objc2` 0.6.4, `objc2-*` 0.3.2, `block2` 0.6.2.
+
+## 9. Re-run references
+
 ```sh
-cargo build --manifest-path spikes/ax-observer/Cargo.toml
-codesign --force --sign - spikes/ax-observer/target/debug/ax-observer   # R14: re-sign so the AX grant sticks
-./spikes/ax-observer/target/debug/ax-observer                            # switch apps + change titles; Ctrl-C to stop
+# Spikes (all isolated crates under spikes/, on main):
+cargo build --manifest-path spikes/ax-observer/Cargo.toml      # Spike ② — switch apps; needs codesign --force --sign - for AX grant
+cargo build --manifest-path spikes/browser-url/Cargo.toml      # Spike ③ — switch browser tabs; click Automation Allow prompts
+pgrep -x zsh | sort -n | head -6 | xargs \
+  ./spikes/proc-cwd/target/debug/proc-cwd                      # Spike ④ — no TCC grant; compare to lsof
+./spikes/project-inference/target/debug/project-inference      # inference heuristic over the real corpus
+
+# App (on phase1/tauri-specta-ipc, or main after #9 merges):
+cd src-tauri && cargo build && cargo test && cargo clippy --all-targets --all-features -- -D warnings && cargo fmt --all -- --check
+cargo test --manifest-path src-tauri/Cargo.toml export_bindings   # regenerate src/bindings.ts (then it's git-clean)
+npx tsc --noEmit && npm test                                      # frontend (run npm install first if node_modules is incomplete)
 ```
-Idle wakeups: `sudo powermetrics --samplers tasks -i 1000 -n 5 | grep -i ax-observer` while not touching the machine.
+Each spike has a `README.md` with results + protocol. `tccutil reset Accessibility` for a clean AX grant slate.
 
-**Spike ③ (`browser-url`):**
-```sh
-cargo build --manifest-path spikes/browser-url/Cargo.toml
-./spikes/browser-url/target/debug/browser-url   # switch browser tabs / open incognito|private windows; Ctrl-C to stop
-```
-First query per browser prompts for Automation — click Allow (per-browser). Reads only, never stores.
+## 10. Read order for the next session
+1. This file → 2. `CLAUDE.md` (rules) → 3. `context/plans/2026-06-22-product-redesign.md` (the roadmap; Phase 0 ✅, Phase 1 underway) → 4. `context/decisions.md` (D1–D30) → 5. `context/standards/{capture-and-permissions,tauri-ipc}.md` (now largely validated) → 6. the spike READMEs / `context/feasibility/2026-06-22-feasibility-audit.md` as needed.
 
-**Spike ④ (`proc-cwd`):**
-```sh
-cargo build --manifest-path spikes/proc-cwd/Cargo.toml
-pgrep -x zsh | sort -n | head -6 | xargs ./spikes/proc-cwd/target/debug/proc-cwd   # zsh doesn't word-split $vars — use xargs
-```
-No TCC grant needed. Compare against `lsof -a -p <pid> -d cwd`.
-
-**Project-inference spike (`project-inference`):**
-```sh
-cargo build --manifest-path spikes/project-inference/Cargo.toml
-./spikes/project-inference/target/debug/project-inference   # runs the heuristic on the real corpus
-```
-Pure std + shelled `git`. The corpus is editable in `main.rs` to re-test with other signals.
-
-**Spike #1 (`ax-titles`):** same pattern; see `spikes/ax-titles/README.md`. `tccutil reset Accessibility` for a clean grant slate (both READMEs).
-
-## 8. Blockers / open logistics
-
-- **No blockers** for spikes ③/④ — all runnable on the Mac.
-- **This session's work (Spikes ② + ③ + doc updates) is uncommitted on `main`'s working tree.** Per the dev workflow (branch from `main`, PR + review before merge), it should land like Spike #1 did (PR #6) — e.g. a `spike/native-capture-events` branch (or one branch per spike), commit, open PR(s). _Not done automatically — confirm before pushing._
-- **Leftover test windows:** a Chrome **incognito** window was opened during Spike ③ testing — close it when convenient.
-- **Design track** still needs `/design-login` (**not available here**) — or design in-repo against `context/design-system.md`. The audit's design blocker stands: Comms yellow `#F2BC0C` fails WCAG non-text contrast (1.47:1) with color as the only context channel — fix the palette / add a non-color cue before locking (R77).
-- **Deletable stale remote branches:** `origin/claude/frontend-design-TwfKi`, `origin/feat/tier1-oss-hygiene` (merged). Still in place.
-
-## 9. Gotchas / environment (important)
-
-- **Disk:** was critically full earlier this redesign; this session it was fine (~18 GB free). The `ax-observer` target adds a few hundred MB. Keep an eye on it; `cargo clean` in `spikes/*/target` reclaims space.
-- **objc2 AXObserver specifics (validated in Spike ②):**
-  - `AXObserver::create(pid, Some(callback), NonNull<*mut AXObserver>) -> AXError`; the result follows the **Create rule** → `CFRetained::from_raw`. Callback type is `AXObserverCallback = Option<unsafe extern "C-unwind" fn(NonNull<AXObserver>, NonNull<AXUIElement>, NonNull<CFString>, *mut c_void)>`.
-  - `observer.add_notification(element, &CFString, refcon)` / `remove_notification(...)`; `observer.run_loop_source() -> CFRetained<CFRunLoopSource>` → `CFRunLoop::add_source(.., kCFRunLoopCommonModes)`.
-  - Notification **names** are not re-exported either — build CFStrings from `"AXFocusedWindowChanged"` / `"AXTitleChanged"` / `"AXMainWindowChanged"` / `"AXFocusedUIElementChanged"`.
-  - Activation observer: `objc2-foundation` features `NSNotification` + `NSOperation` + `NSString` + `block2`; `addObserverForName_object_queue_usingBlock(.., &block2::DynBlock<dyn Fn(NonNull<NSNotification>)>)`; **keep the returned token alive**.
-  - The `refcon` pattern: heap-`Box` the callback context, pass `addr_of!(*ctx)` as `refcon`, reconstruct a **shared** `&Context` in the callback and mutate via `RefCell`/`Cell` (no `&mut` aliasing). Remove the run-loop source in `Drop` **before** the box frees.
-  - Provisional pins all held: `objc2` 0.6.4, the `objc2-*` crates 0.3.2, `block2` 0.6.2.
-- **R14 rebuild footgun** still applies — re-sign + re-grant after a rebuild that starts erroring `AXERR(CannotComplete/APIDisabled)`. See `spikes/ax-titles/README.md`.
-
-## 10. Testing status
-
-- 25 Rust + 28 TS tests pass; **CI green (Linux/macOS/Windows)** on the merged PRs.
-- The native spikes (①②③) are **verified on the real Mac**, not in CI (hosted runners can't grant TCC or run a GUI). Plan unchanged: Phase-1 native code lives behind the `capture` trait with a `Fake` for CI; `#[cfg(target_os = "macos")]`-gate the objc2/osascript impl so non-mac legs stay green (R80).
+## 11. Testing / CI status
+25→**26 Rust** + **28 TS** tests pass; CI green (Linux/macOS/Windows) on #7; #9 CI running at handoff. Native spikes verified manually on-device (hosted CI can't grant TCC / run a GUI) — Phase-1 native code lives behind the `capture` trait with a `Fake` for CI, `#[cfg(target_os="macos")]`-gated (R80). The IPC migration + binding-freshness gate run fine on headless Linux.
