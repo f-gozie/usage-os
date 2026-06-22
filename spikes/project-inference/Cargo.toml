@@ -1,0 +1,21 @@
+# project-inference — Phase-0 measurement spike (R23, R26, R27)
+#
+# ISOLATED standalone crate. NOT a member of the src-tauri workspace.
+# Encodes the project-inference heuristic and runs it on a corpus of REAL
+# signals captured from this machine (terminal cwds, browser tab URLs), so the
+# precision / abstain behaviour can be measured before any product code commits
+# to a "project" column. Pure std + `git` shelled for cwd→repo resolution.
+[workspace]
+
+[package]
+name = "project-inference"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Spike: measure project-inference precision + set the abstain threshold from real cwd/URL/title signals."
+
+[[bin]]
+name = "project-inference"
+path = "src/main.rs"
+
+[dependencies]
