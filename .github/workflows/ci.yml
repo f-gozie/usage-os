@@ -83,6 +83,18 @@ jobs:
         working-directory: src-tauri
         run: cargo test
 
+      # Binding-freshness gate (hard rules 2 + 8): the generated src/bindings.ts
+      # must match what the export test produces. Linux-only — pure codegen, no
+      # macOS APIs, and a single OS avoids line-ending false positives.
+      - name: Regenerate IPC bindings
+        if: runner.os == 'Linux'
+        working-directory: src-tauri
+        run: cargo test export_bindings
+
+      - name: Assert IPC bindings are fresh
+        if: runner.os == 'Linux'
+        run: git diff --exit-code -- src/bindings.ts
+
       - name: Build Rust (validate compilation)
         working-directory: src-tauri
         run: cargo build
