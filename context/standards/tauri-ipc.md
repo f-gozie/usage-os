@@ -47,27 +47,28 @@ domain / store             (numbers computed here — rule 6)
 
 The whole specta v2 stack is **release-candidate** (`specta` v2 has had no stable release since the 2022 1.x line). Maintainers advise locking with `=` because RC releases carry breaking changes. Pin the trio and move them together; never float.
 
+> ✅ **RESOLVED (2026-06-22 wiring spike).** The provisional **rc.24 pin does NOT build** with the current tauri (2.9.3, the latest 2.x). specta **rc.24 removed `#[specta(rename)]` on containers**, but tauri 2.9.3's own specta-integration code (`ipc/channel.rs`) still uses it — Cargo's resolver *allows* the combo but it fails to compile. tauri 2.9.3 declares `specta = "^2.0.0-rc.16"`, so the highest set that actually compiles is the **rc.20 trio** (specta rc.20 still supports container `rename`). These are the verified, building pins:
+
 ```toml
-# src-tauri/Cargo.toml  — PROVISIONAL pins, confirm against Cargo.lock in the spike
+# src-tauri/Cargo.toml  — VERIFIED building pins (cargo build + cargo test green)
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-specta = { version = "=2.0.0-rc.24", features = ["derive", "typescript"] }
-specta = "=2.0.0-rc.24"
-specta-typescript = "=0.0.11"
-# optional, for thiserror-based AppError:
+tauri = { version = "2", features = [] }            # resolves to 2.9.3
+tauri-specta = { version = "=2.0.0-rc.20", features = ["derive", "typescript"] }
+specta = "=2.0.0-rc.20"
+specta-typescript = "=0.0.7"
 thiserror = "2"
 ```
 
-| Crate | Pin (provisional) | Rationale |
+| Crate | Pin (verified) | Rationale |
 |---|---|---|
-| `tauri-specta` | `=2.0.0-rc.24` | Typesafe Tauri v2 commands. `rc.24` is the version the docs/issues reference; latest available is `rc.25`. Exact-pin: RC API can break. |
-| `specta` | `=2.0.0-rc.24` | Provides the `Type` trait/derive. Must match `tauri-specta`'s RC or builds break. |
-| `specta-typescript` | `=0.0.11` | The TS exporter (`Typescript`, `BigIntExportBehavior`, formatter). Versioned independently; `0.0.11` pairs with the `rc.24` trio. |
-| `tauri` | `2.x` (repo already on `"2"`) | `tauri-specta` v2 targets Tauri v2. No conflict expected; confirm in spike. |
+| `tauri-specta` | `=2.0.0-rc.20` | Highest rc whose pinned `specta` still compiles against tauri 2.9.3's specta integration. (rc.24 forces specta rc.24 → breaks.) |
+| `specta` | `=2.0.0-rc.20` | Pinned by `tauri-specta` rc.20; still allows container `rename` (what tauri 2.9.3 needs). |
+| `specta-typescript` | `=0.0.7` | The TS exporter (`Typescript::new()`, `.bigint(BigIntExportBehavior::Number)`, `.header()`); pairs with the rc.20 trio. |
+| `tauri` | `2.9.3` (latest 2.x) | Bumping tauri does **not** help — 2.9.3 is the newest and still uses the old specta syntax. Revisit the rc.24 trio only when tauri ships a release built against newer specta. |
 
-Rationale (one line): the stack is pre-1.0 RC, so an exact, recorded pin is the only thing that keeps a `cargo update` from silently breaking the IPC contract.
+Transitively resolved: `specta-macros 2.0.0-rc.17`, `tauri-specta-macros 2.0.0-rc.16`. Toolchain: needs rustc ≥ 1.88 (a transitive `darling 0.23` floor); CI's `stable` covers this.
 
-> rc.24 vs rc.25, and the exact `specta` version `tauri-specta` actually resolves to, are **open questions** — see below. Do not assert a pin in `decisions.md` until the spike reads it back from `Cargo.lock`.
+Rationale (one line): the stack is pre-1.0 RC *and* tauri's specta integration lags specta's API, so the working pin is whatever compiles end-to-end, not whatever is newest.
 
 ---
 
@@ -273,7 +274,9 @@ The repo currently wires commands by hand. This is mechanical but repo-wide.
 
 ## ⚠️ Open questions / verify in the Phase-0 spike
 
-The research pass had **no independent verification**. Treat all of the below as unconfirmed until the spike proves them. Capture the answers and the exact resolved versions in `context/decisions.md`.
+> ✅ **Mostly RESOLVED by the 2026-06-22 wiring spike** (on the `phase1/tauri-specta-ipc` branch). Confirmed: **#1/#10** the rc.20 trio (not rc.24) resolves *and* compiles against tauri 2.9.3 (see the corrected version table above); **#2** `specta-typescript 0.0.7` pairs with the rc.20 trio; **#3** `features = ["derive","typescript"]` compiles and `specta::Type` + `specta_typescript::Typescript` are both in scope (specta + specta-typescript added as direct deps); **#4** the Builder API (`Builder::new().commands(collect_commands![...])`, `.invoke_handler()`, `.export(Typescript::new()…, path)`) is correct for rc.20; **#5** `thiserror` + `serde::Serialize` + `specta::Type` co-derive cleanly (`AppError` → `{ kind: "Db"; message: string } | { kind: "LockPoisoned" }`); **#6** `State<DbState>` is omitted from the generated TS signatures; **#7** `BigIntExportBehavior::Number` makes `i64`/`u64` export as `number` (timestamps confirmed); **#9** the export is byte-deterministic (md5-stable), so the freshness gate is reliable with no external formatter. **Still open: #8** (events `never` bug #211) — deferred, we ship **commands-only**. One new finding: the generated file emits unused events/channel boilerplate that trips the app's `noUnusedLocals`, so the export header carries `// @ts-nocheck` (it's generated, not authored; the freshness gate is its check).
+
+The original research pass had **no independent verification**; the items below are kept for history.
 
 1. **Exact RC pins.** rc.24 (documented-together trio) vs rc.25 (newest)? And which `specta` version does `tauri-specta` actually resolve to — one source showed `rc.12`, the trio doc says `rc.24`. Read it back from `Cargo.lock`.
 2. **`specta-typescript` pairing.** Confirm `=0.0.11` pairs with whichever `tauri-specta` rc is chosen.
