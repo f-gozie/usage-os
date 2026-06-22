@@ -1,0 +1,22 @@
+# proc-cwd — Spike ④
+#
+# ISOLATED standalone crate. Deliberately NOT a member of the src-tauri
+# workspace. Build it from inside this directory (`cd spikes/proc-cwd`).
+# The empty `[workspace]` table makes Cargo treat this as its own workspace root.
+[workspace]
+
+[package]
+name = "proc-cwd"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Spike: can a non-root, unsandboxed process read another process's cwd via proc_pidinfo(PROC_PIDVNODEPATHINFO)? (Terminal-cwd branch of project inference, R22.)"
+
+[[bin]]
+name = "proc-cwd"
+path = "src/main.rs"
+
+[dependencies]
+# libc exposes proc_pidinfo + the PROC_PIDVNODEPATHINFO flavor + the
+# proc_vnodepathinfo / vnode_info_path structs + proc_pidpath. No other deps.
+libc = "0.2"

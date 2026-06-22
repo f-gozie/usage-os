@@ -1,0 +1,26 @@
+# browser-url — Spike ③
+#
+# ISOLATED standalone crate. Deliberately NOT a member of the src-tauri
+# workspace. Build it from inside this directory (`cd spikes/browser-url`).
+# The empty `[workspace]` table makes Cargo treat this as its own workspace
+# root even though an ancestor directory contains the app's workspace manifest.
+#
+# Zero dependencies on purpose: this spike's whole subject is the Apple Events /
+# osascript browser-query mechanism (C7 says shell out to /usr/bin/osascript with
+# static scripts), so it is pure std + osascript. Frontmost-app detection is NOT
+# needed — each browser's `front window` is queried directly, so there is no
+# objc2/NSWorkspace dependency and no run-loop staleness to work around.
+[workspace]
+
+[package]
+name = "browser-url"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Spike: prove browser front-tab URL capture + incognito/private exclusion via Apple Events (osascript), with a privacy-safe fallback ladder."
+
+[[bin]]
+name = "browser-url"
+path = "src/main.rs"
+
+[dependencies]
