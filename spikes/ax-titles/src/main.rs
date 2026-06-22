@@ -15,8 +15,11 @@
 //!
 //! What it does, once per ~1.5s tick:
 //!   1. Ensure the process is AX-trusted (prompt + poll if not).
-//!   2. Ask NSWorkspace for the frontmost NSRunningApplication (pid, name, bundle id).
-//!   3. Build an AXUIElement for that pid, copy "AXFocusedWindow", copy "AXTitle".
+//!   2. Ask the system-wide AX element for "AXFocusedApplication" — the app with
+//!      keyboard focus RIGHT NOW. This is a synchronous AX query, so it tracks app
+//!      switches without a running run loop (unlike NSWorkspace::frontmostApplication,
+//!      which goes stale in a CLI that never pumps its run loop).
+//!   3. From that app element, copy "AXFocusedWindow", then "AXTitle".
 //!   4. Print one classified line: REAL("...") / EMPTY / NIL / AXERR(<variant>).
 //!
 //! Hard rules honored:
@@ -29,7 +32,7 @@ use std::ptr::NonNull;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use objc2_app_kit::NSWorkspace;
+use objc2_app_kit::NSRunningApplication;
 use objc2_application_services::{AXError, AXUIElement};
 use objc2_core_foundation::{
     kCFBooleanTrue, CFBoolean, CFDictionary, CFRetained, CFString, CFType,
@@ -47,26 +50,49 @@ fn main() {
     // ── Steps 2–4: poll forever, one classified line per tick ──────────────
     loop {
         let trusted = is_trusted();
-        match frontmost() {
-            Some(app) => {
-                let title = focused_window_title(app.pid);
+
+        // Ask the Accessibility server directly which application has focus right
+        // now. The system-wide element + "AXFocusedApplication" is a synchronous
+        // query, so it tracks app switches without a running run loop — the reason
+        // NSWorkspace::frontmostApplication stayed frozen on the launching app.
+        // SAFETY: plain FFI; returns an owned system-wide AXUIElement.
+        let system = unsafe { AXUIElement::new_system_wide() };
+
+        match copy_attr(&system, "AXFocusedApplication") {
+            AttrValue::Object(app_obj) => {
+                // The focused application is itself an AXUIElement.
+                let app_el: &AXUIElement = {
+                    let ptr = CFRetained::as_ptr(&app_obj).cast::<AXUIElement>();
+                    // SAFETY: AXFocusedApplication yields a valid AXUIElementRef,
+                    // valid for the lifetime of `app_obj`.
+                    unsafe { ptr.as_ref() }
+                };
+
+                let pid = focused_pid(app_el);
+                let (name, bundle) = app_identity(pid);
+                let title = focused_window_title(app_el);
+
                 println!(
                     "{ts}  trusted={trusted}  app={name:<22} bundle={bundle:<34} pid={pid:<7} title={title}",
                     ts = now_hms(),
                     trusted = trusted,
-                    name = truncate(&app.name, 22),
-                    bundle = truncate(&app.bundle_id, 34),
-                    pid = app.pid,
+                    name = truncate(&name, 22),
+                    bundle = truncate(&bundle, 34),
+                    pid = pid,
                     title = title.describe(),
                 );
             }
-            None => {
-                println!(
-                    "{ts}  trusted={trusted}  app=<none: no frontmost application>",
-                    ts = now_hms(),
-                    trusted = trusted,
-                );
-            }
+            AttrValue::Absent => println!(
+                "{ts}  trusted={trusted}  <no focused application (AXFocusedApplication absent)>",
+                ts = now_hms(),
+                trusted = trusted,
+            ),
+            AttrValue::Err(name) => println!(
+                "{ts}  trusted={trusted}  AXFocusedApplication AXERR({name})",
+                ts = now_hms(),
+                trusted = trusted,
+                name = name,
+            ),
         }
         sleep(TICK);
     }
@@ -148,33 +174,43 @@ fn prompt_for_trust() {
     let _ = unsafe { objc2_application_services::AXIsProcessTrustedWithOptions(Some(untyped)) };
 }
 
-// ── Frontmost application ────────────────────────────────────────────────────
+// ── Focused application identity ─────────────────────────────────────────────
 
-struct FrontApp {
-    name: String,
-    bundle_id: String,
-    pid: i32,
+/// Pid of the focused-application AX element, or -1 if AX can't report it.
+fn focused_pid(app_el: &AXUIElement) -> i32 {
+    let mut pid: libc::pid_t = 0;
+    // SAFETY: `app_el` is valid; the call writes the pid into our local.
+    let err = unsafe { app_el.pid(NonNull::from(&mut pid)) };
+    if err == AXError::Success {
+        pid
+    } else {
+        -1
+    }
 }
 
-fn frontmost() -> Option<FrontApp> {
-    // These AppKit accessors are safe in objc2-app-kit 0.3.2 — no `unsafe` needed.
-    let app = NSWorkspace::sharedWorkspace().frontmostApplication()?;
-
-    let name = app
-        .localizedName()
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| "<unknown>".to_string());
-    let bundle_id = app
-        .bundleIdentifier()
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| "<none>".to_string());
-    let pid = app.processIdentifier();
-
-    Some(FrontApp {
-        name,
-        bundle_id,
-        pid,
-    })
+/// Resolve a pid to (localized name, bundle id) via a direct per-pid
+/// NSRunningApplication lookup — NOT NSWorkspace::frontmostApplication — so it
+/// stays fresh without a run loop. Returns placeholders if the pid isn't a
+/// running app or AX couldn't report it.
+fn app_identity(pid: i32) -> (String, String) {
+    if pid <= 0 {
+        return ("<unknown>".to_string(), "<none>".to_string());
+    }
+    // Safe accessor in objc2-app-kit 0.3.2; None if the pid isn't a running app.
+    match NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
+        Some(app) => {
+            let name = app
+                .localizedName()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "<unknown>".to_string());
+            let bundle = app
+                .bundleIdentifier()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "<none>".to_string());
+            (name, bundle)
+        }
+        None => ("<unknown>".to_string(), "<none>".to_string()),
+    }
 }
 
 // ── AX focused-window title read ─────────────────────────────────────────────
@@ -203,16 +239,9 @@ impl TitleResult {
     }
 }
 
-fn focused_window_title(pid: i32) -> TitleResult {
-    // `AXUIElement::new_application(pid)` wraps AXUIElementCreateApplication and
-    // hands back an owned `CFRetained<AXUIElement>` (released on drop). The
-    // framework returns a valid top-level element for any pid; an out-of-AX pid
-    // surfaces later as an AXError on the attribute read, which we classify.
-    // SAFETY: plain FFI; `pid` comes from a live NSRunningApplication.
-    let app_el: CFRetained<AXUIElement> = unsafe { AXUIElement::new_application(pid) };
-
+fn focused_window_title(app_el: &AXUIElement) -> TitleResult {
     // app element → AXFocusedWindow
-    let focused = match copy_attr(&app_el, "AXFocusedWindow") {
+    let focused = match copy_attr(app_el, "AXFocusedWindow") {
         AttrValue::Object(obj) => obj,
         AttrValue::Absent => return TitleResult::Nil,
         AttrValue::Err(name) => return TitleResult::AxErr(name),
