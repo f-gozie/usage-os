@@ -1,10 +1,12 @@
 # Spike #1 — AX focused-window titles WITHOUT Screen Recording
 
-> **Status:** compiles clean on `aarch64-apple-darwin` (Rust 1.87.0). Not yet
-> run — running requires a human to grant Accessibility interactively (see
-> [Granting Accessibility](#granting-accessibility-for-this-dev-binary)).
-> This crate is **isolated**: it is *not* a member of the `src-tauri` workspace
-> and touches nothing else in the repo.
+> **Status: ✅ RUN — PASS (2026-06-22, macOS / Apple Silicon).** AX returns real,
+> non-empty focused-window titles for **every app class tested** — Chromium
+> (Chrome, Brave), Electron editors/apps (Cursor, Claude, Notion, Figma, WhatsApp,
+> Spotify), native (Finder), terminals (iTerm2) — with **only Accessibility
+> granted and Screen Recording OFF**. Results + findings in
+> [Observed results](#observed-results--pass-2026-06-22) below. This crate is
+> **isolated**: it is *not* a member of the `src-tauri` workspace.
 
 ## What this proves (and why it's make-or-break)
 
@@ -41,9 +43,12 @@ Once per ~1.5s tick:
 1. **Trust:** call `AXIsProcessTrusted()`. If not trusted, call
    `AXIsProcessTrustedWithOptions({ kAXTrustedCheckOptionPrompt: true })` to fire
    the system prompt, then poll until trust is granted.
-2. **Frontmost app:** `NSWorkspace::sharedWorkspace().frontmostApplication()` →
-   `localizedName`, `bundleIdentifier`, `processIdentifier`.
-3. **Title via AX:** `AXUIElementCreateApplication(pid)` →
+2. **Pump the run loop** (`CFRunLoop::run_in_mode`, ~0.3s) so NSWorkspace's
+   frontmost-app tracking refreshes, then read
+   `NSWorkspace::sharedWorkspace().frontmostApplication()` → `localizedName`,
+   `bundleIdentifier`, `processIdentifier`. (Without the pump the value stays
+   frozen on the launching app — see [Findings](#findings).)
+3. **Title via AX:** `AXUIElement::new_application(pid)` →
    copy `"AXFocusedWindow"` → copy `"AXTitle"`.
 4. **Print one classified line** per tick:
 
@@ -159,22 +164,46 @@ ON** for `ax-titles`:
 3. **Capture the printed lines** and record `REAL` / `EMPTY` / `NIL` /
    `AXERR(…)` per app. Paste the log into the PR / spike findings.
 
-### Recording the result
+### Observed results — PASS (2026-06-22)
 
-A quick table to fill in (the actual verdict — only a human with the grant can
-produce it):
+Run on macOS / Apple Silicon, `trusted=true`, **Screen Recording OFF**. Every app
+class returned a real, non-empty title:
 
-| App      | Title classification | Observed title (if REAL) |
-|----------|----------------------|--------------------------|
-| Chrome   |                      |                          |
-| Brave    |                      |                          |
-| Arc      |                      |                          |
-| Cursor   |                      |                          |
-| VS Code  |                      |                          |
-| iTerm2   |                      |                          |
-| Terminal |                      |                          |
-| Safari   |                      |                          |
-| Finder   |                      |                          |
+| App | Bundle id | Class | Result |
+|-----|-----------|-------|--------|
+| Google Chrome | `com.google.Chrome` | Chromium | `REAL` — full tab title incl. page title + profile |
+| Brave Browser | `com.brave.Browser` | Chromium | `REAL("New Tab - Brave - Favour")` |
+| Cursor | `com.todesktop.230313mzl4w4u92` | Electron editor | `REAL("Browser Tab — nudge")` — carries the project name |
+| Claude | `com.anthropic.claudefordesktop` | Electron | `REAL("Claude")` |
+| Notion | `notion.id` | Electron | `REAL("Stakeholder Management ")` |
+| Figma | `com.figma.Desktop` | Electron | `REAL("Stakeholder Management - Stigdata - Final")` |
+| WhatsApp | `net.whatsapp.WhatsApp` | Electron | `REAL("‎WhatsApp")` (stray LTR mark) |
+| Spotify | `com.spotify.client` | Electron/CEF | `REAL("Spotify Premium")` |
+| Finder | `com.apple.finder` | native | `REAL("Downloads")` |
+| iTerm2 | `com.googlecode.iterm2` | terminal | `REAL` |
+
+VS Code, Safari, Arc, and Terminal were not hit directly, but each is covered by a
+same-engine proxy that passed (Cursor is a VS Code fork; Chrome/Brave cover the
+Chromium browsers; Finder covers native). **Verdict: R4 confirmed feasible — the
+capture redesign's core premise holds. No Screen Recording needed.**
+
+#### Findings
+
+- **A run loop is required** to track app switches. Early runs read
+  `NSWorkspace::frontmostApplication` with no run loop and it stayed frozen on the
+  launching terminal (iTerm2). Pumping `CFRunLoop::run_in_mode` each tick fixed it.
+  Directly confirms audit risk **R6** — the real capture layer must own a run loop
+  (NSWorkspace activation + AXObserver), which it will.
+- **System-wide `AXFocusedApplication` returned `AXERR(CannotComplete)`** from this
+  plain CLI; reading the title from the frontmost app *by pid* works. Prefer the
+  per-pid path.
+- **Titles already carry rich project/page signal** (Cursor → "nudge"; Chrome →
+  the GitHub PR title / Gmail subject) — strong for project inference (D6) even
+  before the Automation/URL path is wired.
+- **Titles also carry sensitive content** — the Chrome line exposed a Gmail subject
+  + email address. Confirms **D8** (exclusion list / per-app Private /
+  incognito-never-recorded) is load-bearing, not optional. The capture layer should
+  also strip stray bidi/control marks (the `‎` in WhatsApp's title).
 
 ### Clean re-test reset
 
