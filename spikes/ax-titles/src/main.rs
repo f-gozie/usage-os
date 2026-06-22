@@ -13,13 +13,13 @@
 //! read the focused window title with Accessibility ALONE. This binary proves
 //! (or disproves) that.
 //!
-//! What it does, once per ~1.5s tick:
+//! What it does, once per tick:
 //!   1. Ensure the process is AX-trusted (prompt + poll if not).
-//!   2. Ask the system-wide AX element for "AXFocusedApplication" — the app with
-//!      keyboard focus RIGHT NOW. This is a synchronous AX query, so it tracks app
-//!      switches without a running run loop (unlike NSWorkspace::frontmostApplication,
-//!      which goes stale in a CLI that never pumps its run loop).
-//!   3. From that app element, copy "AXFocusedWindow", then "AXTitle".
+//!   2. Pump the main run loop briefly so `NSWorkspace::frontmostApplication`
+//!      refreshes — it's notification/KVO-driven, so a CLI that never runs its
+//!      run loop sees a frozen value (stuck on the launching app, e.g. iTerm2).
+//!   3. Build an AXUIElement for the frontmost pid, copy "AXFocusedWindow",
+//!      then "AXTitle".
 //!   4. Print one classified line: REAL("...") / EMPTY / NIL / AXERR(<variant>).
 //!
 //! Hard rules honored:
@@ -32,13 +32,17 @@ use std::ptr::NonNull;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use objc2_app_kit::NSRunningApplication;
+use objc2_app_kit::NSWorkspace;
 use objc2_application_services::{AXError, AXUIElement};
 use objc2_core_foundation::{
-    kCFBooleanTrue, CFBoolean, CFDictionary, CFRetained, CFString, CFType,
+    kCFBooleanTrue, kCFRunLoopDefaultMode, CFBoolean, CFDictionary, CFRetained, CFRunLoop,
+    CFString, CFType,
 };
 
-const TICK: Duration = Duration::from_millis(1500);
+/// Pause between ticks (on top of the run-loop pump below).
+const TICK: Duration = Duration::from_millis(1200);
+/// Seconds to run the run loop each tick so frontmost-app notifications deliver.
+const PUMP_SECS: f64 = 0.3;
 
 fn main() {
     println!("ax-titles spike — proving AX focused-window titles work without Screen Recording");
@@ -47,55 +51,46 @@ fn main() {
     // ── Step 1: make sure we are AX-trusted ────────────────────────────────
     ensure_trusted();
 
-    // ── Steps 2–4: poll forever, one classified line per tick ──────────────
+    // ── Steps 2–4: poll, one classified line per tick ──────────────────────
     loop {
+        // Pump the main run loop briefly so NSWorkspace's frontmost-app tracking
+        // refreshes (it's notification/KVO-driven; without a running loop it
+        // stays frozen on the launching app).
+        pump_run_loop();
+
         let trusted = is_trusted();
-
-        // Ask the Accessibility server directly which application has focus right
-        // now. The system-wide element + "AXFocusedApplication" is a synchronous
-        // query, so it tracks app switches without a running run loop — the reason
-        // NSWorkspace::frontmostApplication stayed frozen on the launching app.
-        // SAFETY: plain FFI; returns an owned system-wide AXUIElement.
-        let system = unsafe { AXUIElement::new_system_wide() };
-
-        match copy_attr(&system, "AXFocusedApplication") {
-            AttrValue::Object(app_obj) => {
-                // The focused application is itself an AXUIElement.
-                let app_el: &AXUIElement = {
-                    let ptr = CFRetained::as_ptr(&app_obj).cast::<AXUIElement>();
-                    // SAFETY: AXFocusedApplication yields a valid AXUIElementRef,
-                    // valid for the lifetime of `app_obj`.
-                    unsafe { ptr.as_ref() }
-                };
-
-                let pid = focused_pid(app_el);
-                let (name, bundle) = app_identity(pid);
-                let title = focused_window_title(app_el);
-
+        match frontmost() {
+            Some(app) => {
+                let title = focused_window_title(app.pid);
                 println!(
                     "{ts}  trusted={trusted}  app={name:<22} bundle={bundle:<34} pid={pid:<7} title={title}",
                     ts = now_hms(),
                     trusted = trusted,
-                    name = truncate(&name, 22),
-                    bundle = truncate(&bundle, 34),
-                    pid = pid,
+                    name = truncate(&app.name, 22),
+                    bundle = truncate(&app.bundle_id, 34),
+                    pid = app.pid,
                     title = title.describe(),
                 );
             }
-            AttrValue::Absent => println!(
-                "{ts}  trusted={trusted}  <no focused application (AXFocusedApplication absent)>",
-                ts = now_hms(),
-                trusted = trusted,
-            ),
-            AttrValue::Err(name) => println!(
-                "{ts}  trusted={trusted}  AXFocusedApplication AXERR({name})",
-                ts = now_hms(),
-                trusted = trusted,
-                name = name,
-            ),
+            None => {
+                println!(
+                    "{ts}  trusted={trusted}  app=<none: no frontmost application>",
+                    ts = now_hms(),
+                    trusted = trusted,
+                );
+            }
         }
         sleep(TICK);
     }
+}
+
+/// Run the default run-loop mode for a short slice so pending app-activation
+/// notifications are delivered (refreshing `NSWorkspace::frontmostApplication`).
+fn pump_run_loop() {
+    // SAFETY: reading the framework-provided run-loop-mode constant.
+    let mode = unsafe { kCFRunLoopDefaultMode };
+    // `false` → run the whole slice processing sources, don't return early.
+    let _ = CFRunLoop::run_in_mode(mode, PUMP_SECS, false);
 }
 
 // ── Trust handling ─────────────────────────────────────────────────────────
@@ -117,7 +112,7 @@ fn ensure_trusted() {
 
     println!("AX trust: NOT granted yet — requesting (a system prompt should appear).");
     println!("Grant this binary under System Settings → Privacy & Security → Accessibility,");
-    println!("then return here. Polling every 1.5s until trust is granted...\n");
+    println!("then return here. Polling until trust is granted...\n");
 
     prompt_for_trust();
 
@@ -125,7 +120,6 @@ fn ensure_trusted() {
     while !is_trusted() {
         sleep(TICK);
         waited += TICK;
-        // Gentle heartbeat so the dev knows we are still waiting.
         if waited.as_secs() % 6 == 0 {
             println!(
                 "  ...still waiting for Accessibility ({}s)",
@@ -137,80 +131,65 @@ fn ensure_trusted() {
 }
 
 /// `AXIsProcessTrustedWithOptions({ kAXTrustedCheckOptionPrompt: true })`.
-/// Building the options dictionary by hand because the attribute-name and
-/// option-key handling lives in CoreFoundation, not in safe re-exports.
+/// Building the options dictionary by hand because the option-key handling lives
+/// in CoreFoundation, not in safe re-exports.
 fn prompt_for_trust() {
-    // kAXTrustedCheckOptionPrompt is a `&'static CFString` static.
-    // SAFETY: it is a constant string the framework guarantees to exist.
+    // SAFETY: framework-guaranteed constant string.
     let key: &CFString = unsafe { objc2_application_services::kAXTrustedCheckOptionPrompt };
 
-    // kCFBooleanTrue is `Option<&'static CFBoolean>`.
     let value: &CFBoolean = match unsafe { kCFBooleanTrue } {
         Some(b) => b,
         None => {
-            // Should never happen, but per project rules we do not unwrap/panic
-            // in logic. Fall back to the no-options check (no prompt).
+            // Per project rules we do not unwrap/panic; fall back to a silent check.
             println!("  (could not obtain kCFBooleanTrue; falling back to silent trust check)");
             let _ = is_trusted();
             return;
         }
     };
 
-    // Typed dictionary, then hand the AX call a base `&CFDictionary`.
     let options: CFRetained<CFDictionary<CFString, CFBoolean>> =
         CFDictionary::from_slices(&[key], &[value]);
 
-    // `CFDictionary<K, V>` and the untyped `CFDictionary` share an identical
-    // layout (the generics are PhantomData), so reborrowing the pointer as the
-    // untyped base type is sound.
+    // `CFDictionary<K, V>` and the untyped `CFDictionary` share a layout (generics
+    // are PhantomData), so reborrowing as the untyped base type is sound.
     let untyped: &CFDictionary = {
         let ptr = CFRetained::as_ptr(&options).cast::<CFDictionary>();
-        // SAFETY: same layout; `options` (and thus the allocation) outlives this borrow.
+        // SAFETY: same layout; `options` outlives this borrow.
         unsafe { ptr.as_ref() }
     };
 
-    // SAFETY: `untyped` is a valid CFDictionary whose key/value types match what
-    // the option expects (CFString → CFBoolean).
+    // SAFETY: a valid CFDictionary whose key/value types match the option.
     let _ = unsafe { objc2_application_services::AXIsProcessTrustedWithOptions(Some(untyped)) };
 }
 
-// ── Focused application identity ─────────────────────────────────────────────
+// ── Frontmost application ────────────────────────────────────────────────────
 
-/// Pid of the focused-application AX element, or -1 if AX can't report it.
-fn focused_pid(app_el: &AXUIElement) -> i32 {
-    let mut pid: libc::pid_t = 0;
-    // SAFETY: `app_el` is valid; the call writes the pid into our local.
-    let err = unsafe { app_el.pid(NonNull::from(&mut pid)) };
-    if err == AXError::Success {
-        pid
-    } else {
-        -1
-    }
+struct FrontApp {
+    name: String,
+    bundle_id: String,
+    pid: i32,
 }
 
-/// Resolve a pid to (localized name, bundle id) via a direct per-pid
-/// NSRunningApplication lookup — NOT NSWorkspace::frontmostApplication — so it
-/// stays fresh without a run loop. Returns placeholders if the pid isn't a
-/// running app or AX couldn't report it.
-fn app_identity(pid: i32) -> (String, String) {
-    if pid <= 0 {
-        return ("<unknown>".to_string(), "<none>".to_string());
-    }
-    // Safe accessor in objc2-app-kit 0.3.2; None if the pid isn't a running app.
-    match NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
-        Some(app) => {
-            let name = app
-                .localizedName()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "<unknown>".to_string());
-            let bundle = app
-                .bundleIdentifier()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| "<none>".to_string());
-            (name, bundle)
-        }
-        None => ("<unknown>".to_string(), "<none>".to_string()),
-    }
+fn frontmost() -> Option<FrontApp> {
+    // Safe accessors in objc2-app-kit 0.3.2. After `pump_run_loop()` the workspace
+    // has processed activation notifications, so this reflects the current app.
+    let app = NSWorkspace::sharedWorkspace().frontmostApplication()?;
+
+    let name = app
+        .localizedName()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "<unknown>".to_string());
+    let bundle_id = app
+        .bundleIdentifier()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| "<none>".to_string());
+    let pid = app.processIdentifier();
+
+    Some(FrontApp {
+        name,
+        bundle_id,
+        pid,
+    })
 }
 
 // ── AX focused-window title read ─────────────────────────────────────────────
@@ -221,8 +200,8 @@ enum TitleResult {
     Real(String),
     /// AXTitle resolved to an empty string ("").
     Empty,
-    /// The focused window or its title was present but the value was not a
-    /// CFString (or was absent where the call still "succeeded").
+    /// The focused window or its title was present but not a CFString (or absent
+    /// where the call still "succeeded").
     Nil,
     /// An AX error code at some step. Carries the human name of the variant.
     AxErr(&'static str),
@@ -239,19 +218,23 @@ impl TitleResult {
     }
 }
 
-fn focused_window_title(app_el: &AXUIElement) -> TitleResult {
+fn focused_window_title(pid: i32) -> TitleResult {
+    // `AXUIElement::new_application(pid)` wraps AXUIElementCreateApplication and
+    // hands back an owned `CFRetained<AXUIElement>` (released on drop).
+    // SAFETY: plain FFI; `pid` comes from a live NSRunningApplication.
+    let app_el: CFRetained<AXUIElement> = unsafe { AXUIElement::new_application(pid) };
+
     // app element → AXFocusedWindow
-    let focused = match copy_attr(app_el, "AXFocusedWindow") {
+    let focused = match copy_attr(&app_el, "AXFocusedWindow") {
         AttrValue::Object(obj) => obj,
         AttrValue::Absent => return TitleResult::Nil,
         AttrValue::Err(name) => return TitleResult::AxErr(name),
     };
 
-    // The focused window is itself an AXUIElement. Reinterpret the CFType as one.
-    // SAFETY: AXFocusedWindow always yields an AXUIElementRef when present; the
-    // pointer is valid for the lifetime of `focused`.
+    // The focused window is itself an AXUIElement.
     let window_el: &AXUIElement = {
         let ptr = CFRetained::as_ptr(&focused).cast::<AXUIElement>();
+        // SAFETY: AXFocusedWindow yields a valid AXUIElementRef, valid for `focused`.
         unsafe { ptr.as_ref() }
     };
 
@@ -266,7 +249,6 @@ fn focused_window_title(app_el: &AXUIElement) -> TitleResult {
                     TitleResult::Real(s)
                 }
             }
-            // AXTitle existed but wasn't a string — treat as NIL.
             None => TitleResult::Nil,
         },
         AttrValue::Absent => TitleResult::Nil,
@@ -305,8 +287,7 @@ fn copy_attr(element: &AXUIElement, attr: &str) -> AttrValue {
         return AttrValue::Absent;
     };
 
-    // SAFETY: AX returned a +1-retained CF object (Copy semantics). Taking
-    // ownership means it is released when the CFRetained is dropped.
+    // SAFETY: AX returned a +1-retained CF object (Copy semantics); take ownership.
     let value: CFRetained<CFType> = unsafe { CFRetained::from_raw(ptr) };
     AttrValue::Object(value)
 }
@@ -347,8 +328,7 @@ fn truncate(s: &str, max: usize) -> String {
     }
 }
 
-/// HH:MM:SS in local-ish terms — we only need a relative clock for the log, so
-/// derive it from the Unix timestamp without pulling in a date crate.
+/// HH:MM:SS derived from the Unix timestamp — only a relative clock for the log.
 fn now_hms() -> String {
     let secs = match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(d) => d.as_secs(),

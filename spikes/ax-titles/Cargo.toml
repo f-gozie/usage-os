@@ -50,6 +50,10 @@ objc2-core-foundation = { version = "0.3.2", features = [
     "CFString",
     "CFDictionary",
     "CFNumber",
+    # CFRunLoop + CFDate: pump the run loop each tick so NSWorkspace's
+    # frontmost-app tracking refreshes (CFRunLoop::run_in_mode is CFDate-gated).
+    "CFRunLoop",
+    "CFDate",
 ] }
 
 libc = "0.2"
