@@ -16,19 +16,20 @@ This file is the contract every agent (and human) reads first. If something here
 4. `context/architecture.md` — system shape, layer boundaries, data model.
 5. `context/plans/` — the active redesign plan (latest dated file) and prior plans.
 6. `context/design-system.md` — the visual contract (mirrored in the Claude Design project).
-7. `context/standards/*` — detailed conventions (generated in Phase 0; grounded in a real spike).
+7. `context/standards/*` — detailed conventions (drafted in Phase 0 from grounded desk research; native/version claims are **provisional until the spike confirms them**).
+8. `context/feasibility/` — the whole-project feasibility audit (verdict, the R1–R83 risk register, and the spike plan).
 
 ---
 
 ## Stack
 
 - **Shell:** Tauri v2 (Rust backend + web frontend), macOS-first.
-- **Backend:** Rust. Native macOS access via `objc2` (NSWorkspace activation events, Accessibility/AX window titles). SQLite via `rusqlite` (WAL, dedicated writer thread) behind a typed repository.
+- **Backend:** Rust. Native macOS access via `objc2` (NSWorkspace activation events, Accessibility/AX window titles; on-device embeddings via `objc2-natural-language`/NaturalLanguage stay in Rust, keeping Swift = Foundation-Models-only — D26). SQLite via `rusqlite` behind a typed repository. _(WAL + a dedicated writer thread are the Phase-1 target — R57; the current code uses `Arc<Mutex<Connection>>` with `foreign_keys` only.)_
 - **AI sidecar:** a small Swift helper binary — **Foundation Models only** (a Swift-only framework). Talks to Rust over stdio. This is the only Swift in the project.
 - **IPC:** `tauri-specta` generates the TypeScript client + types from Rust commands. The frontend cannot call a command with the wrong shape.
 - **Frontend:** React + TypeScript + Vite + Tailwind. Custom SVG for the dial (no chart library). Bauhaus design system.
 
-**Already in place** (shipped v0.1.0 + Tier-1 hygiene — keep, don't rebuild): rusqlite + versioned migrations (`schema_migrations`), 24 Rust + 28 TS tests, GitHub Actions CI (Linux/macOS/Windows), data retention, the category rules engine. **New in the redesign:** tauri-specta IPC, objc2 event-driven capture, the Swift Foundation Models sidecar, the Bauhaus dial UI. **We evolve this codebase — we do not restart it.**
+**Already in place** (shipped v0.1.0 + Tier-1 hygiene — keep, don't rebuild): rusqlite + versioned migrations (`schema_migrations`), ~25 Rust + 28 TS tests (the TS suite is pure-logic; React Testing Library is net-new for the redesign UI), GitHub Actions CI (Linux/macOS/Windows), data retention, the category rules engine. **New in the redesign:** tauri-specta IPC, objc2 event-driven capture, the Swift Foundation Models sidecar, the Bauhaus dial UI. **We evolve this codebase — we do not restart it.**
 
 ## Hard rules (non-negotiable — drift here is a build failure, not a judgment call)
 

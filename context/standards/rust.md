@@ -1,0 +1,252 @@
+# Rust standards — conventions + persistence
+
+_Last updated: 2026-06-22. Scope: Rust core (Tauri v2) conventions and the SQLite persistence layer. Grounded in the Phase-0 research (`/tmp/usageos_research/rust-conventions.json`, `persistence-datamodel.json`) read against the shipped `src-tauri/` code. This document is **boring, explicit, and auditable on purpose** — the open-source promise depends on it._
+
+> **Provisional warning.** The research behind this document had **no independent verification pass**. Confirmed claims below carry a pinned version + citation. Anything not yet confirmed by a cited authoritative source lives under [⚠️ Open questions / verify in the Phase-0 spike](#-open-questions--verify-in-the-phase-0-spike) — do not treat those as settled.
+
+---
+
+## How this maps to the hard rules
+
+This file is where four of the `CLAUDE.md` hard rules get their concrete Rust form:
+
+- **Hard rule 3** — _"No `unwrap()` / `expect()` / `panic!` in production paths. Errors are typed and propagated (`Result`). Panics are for truly-impossible invariants only, with a comment proving it."_ → [Errors](#1-errors--typed-and-propagated).
+- **Hard rule 4** — _"All SQL lives in the repository layer. No raw SQL or DB handles leak into command handlers or business logic. Repository functions are typed in, typed out."_ → [The store layer](#3-the-store-layer-repository-pattern).
+- **Hard rule 5** — _"The native + AI surface stays minimal and isolated. Capture lives behind a `capture` trait; the Swift AI sidecar behind an `ai` trait. Both must be mockable."_ → [Trait isolation](#4-trait-isolation-capture--ai).
+- **Hard rule 2** — _"The IPC contract is generated, never hand-written."_ → [IPC + error types](#2-ipc-tauri-specta).
+
+The research is explicit that **hard rule 3 is violated in the code today** and the **single-writer / non-blocking-executor model is not yet implemented**. Those are tracked as carry-over fixes below, not aspirational nice-to-haves.
+
+---
+
+## 1. Errors — typed and propagated
+
+**Convention: define one `AppError` enum with `thiserror`; every command returns `Result<T, AppError>`; map foreign errors at the boundary they cross.** _Rationale: hard rule 3 forbids stringly-typed errors and panics; Tauri serializes the `Err` variant to the frontend, so the type must be `Serialize`, and to appear in the generated TS it must also derive `specta::Type`._
+
+The code today returns `Result<_, String>` from every `#[tauri::command]` and maps with ad-hoc `.map_err(|e| e.to_string())`. That works (Tauri only needs `Serialize`) but produces no typed union on the TS side and risks leaking SQL/PII into the string. Replace it.
+
+```rust
+// error.rs
+#[derive(Debug, thiserror::Error, serde::Serialize, specta::Type)]
+#[serde(tag = "kind", content = "message")]
+pub enum AppError {
+    #[error("database error")]
+    Db(String),
+    #[error("capture unavailable")]
+    Capture,
+    #[error("ai unavailable")]
+    Ai,
+}
+
+// rusqlite::Error is NOT Serialize — map it at the repository boundary.
+// Note: e.to_string() must not carry SQL text or PII into the message (privacy product).
+impl From<rusqlite::Error> for AppError {
+    fn from(e: rusqlite::Error) -> Self {
+        AppError::Db(e.to_string())
+    }
+}
+```
+
+```rust
+#[tauri::command]
+#[specta::specta]
+fn get_categories(repo: tauri::State<Store>) -> Result<Vec<Category>, AppError> {
+    repo.get_categories() // `?`-propagated; no .unwrap(), no String mapping
+}
+```
+
+**Rules**
+
+- No `unwrap()` / `expect()` / `panic!` in production paths. _Rationale: hard rule 3._ Enforce via clippy (the merge gate `cargo clippy -D warnings` already runs):
+
+  ```rust
+  // lib.rs / main.rs crate root, non-test only
+  #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
+  ```
+
+- Panics allowed **only** for truly-impossible invariants, each with a comment proving why it cannot fire. _Rationale: hard rule 3's narrow carve-out._
+- `AppError` `Display`/`Serialize` output must contain **no SQL strings and no PII** (titles, URLs). _Rationale: hard rule 1's privacy promise extends to error messages surfaced to the UI._
+
+**Carry-over fixes (research flagged these as live hard-rule-3 violations):**
+
+- `lib.rs` `run()` setup closure uses `.expect()` five times (get_db_path, init_database, cleanup lock, final `.run(...)`). Convert the setup closure to return `Result` and propagate (Tauri's `setup` accepts `Box<dyn Error>`).
+- `db.rs` (`run_migrations`, `cleanup_old_data`) and `watcher.rs` (`get_current_timestamp`) use `.expect("Time went backwards")` on `SystemTime`. Replace with a non-panicking helper (e.g. `unwrap_or_default()` or a typed error). This is a real, if astronomically unlikely, panic path.
+
+Citation: <https://v2.tauri.app/develop/calling-rust/>
+
+---
+
+## 2. IPC (tauri-specta)
+
+**Convention: all Rust↔TS types and the client are generated by `tauri-specta`; the generated file is never hand-edited; CI fails if it drifts.** _Rationale: hard rule 2 + architecture boundary — the frontend cannot call a command with the wrong shape._
+
+```rust
+let builder = tauri_specta::Builder::<tauri::Wry>::new()
+    .commands(tauri_specta::collect_commands![get_categories, create_category]);
+
+// Run inside a #[test] and assert `git diff --exit-code` on the output file (freshness gate).
+builder.export(specta_typescript::Typescript::default(), "../src/bindings.ts")?;
+```
+
+**Rules**
+
+- Every command is `#[tauri::command] #[specta::specta]` and is listed in `collect_commands!`. _Rationale: a command outside the macro is invisible to the generated client._
+- Domain types crossing the boundary derive `serde::{Serialize, Deserialize}` + `specta::Type`. _Rationale: the generator reads `specta::Type`._
+- A binding-freshness check (regenerate → assert no `git diff`) is a merge gate. _Rationale: architecture.md "Build & gates" + hard rule 8._
+- **Pin `tauri-specta` with `=`.** _Rationale: there is no stable 2.x release (see versions); the Tauri↔tauri-specta coupling means a Tauri minor bump can break compilation, so treat the pair as one unit._
+
+Citations: <https://v2.tauri.app/develop/calling-rust/> · <https://github.com/specta-rs/tauri-specta>
+
+---
+
+## 3. The store layer (repository pattern)
+
+**Convention: all SQL lives in `store/`; a `Store`/repository type owns the connection; methods are typed in, typed out; nothing above `store/` sees a `Connection` or a SQL string.** _Rationale: hard rule 4 + architecture.md "store owns all SQL"._
+
+The code today is already a typed repository (`db.rs`: every fn takes `&Connection`, returns `Result<DomainType>`, no SQL escapes the module). The one soft violation: the Tauri `State` is `Arc<Mutex<Connection>>` and handlers call `db.lock()` directly, so the command layer touches a `Connection` handle. Wrap it.
+
+```rust
+// store/mod.rs — the State the command layer holds
+pub struct Store { /* owns the writer channel / connection internally */ }
+
+impl Store {
+    pub fn get_activity_logs(&self, range: TimeRange) -> Result<Vec<Event>, AppError> { /* ... */ }
+}
+// Commands call repo.get_activity_logs(...) and NEVER touch a Connection or a lock.
+```
+
+### Concurrency: WAL + single dedicated writer, never block the executor
+
+**Convention: enable WAL at open; one dedicated writer thread owns the writer `Connection` and processes a typed job queue; the Tokio executor never runs a synchronous SQLite call.** _Rationale: `CLAUDE.md` ("WAL, dedicated writer thread") + architecture.md "never block the Tokio executor on SQLite"._
+
+The code today does **neither**: only `PRAGMA foreign_keys=ON` is set (no WAL), and `log_activity_safe` runs synchronous `rusqlite` inside the spawned watcher Tokio task, blocking the executor. Prefer the dedicated-thread model over `spawn_blocking` + `Mutex` because `rusqlite::Connection` is `Send` but **`!Sync`** — a thread that owns the connection removes both the mutex and the `!Sync` problem.
+
+```rust
+let (tx, rx) = std::sync::mpsc::channel::<DbJob>();
+std::thread::spawn(move || -> Result<(), AppError> {
+    let conn = rusqlite::Connection::open(path)?;
+    conn.pragma_update(None, "journal_mode", "WAL")?;       // persists across reopen
+    conn.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL;")?;
+    for job in rx { job.run(&conn); } // single writer; results returned via oneshot
+    Ok(())
+});
+```
+
+**Rules**
+
+- `PRAGMA foreign_keys=ON` is per-connection — set it on **every** connection (writer and any read connection), or FK `ON DELETE` actions silently won't fire. _Rationale: research gotcha confirmed against `db.rs`._ The existing defensive nullify-before-delete pattern in `delete_category` is the belt-and-braces complement.
+- WAL produces `-wal` and `-shm` sidecar files next to `usage.db` in the app data dir — packaging/backup/uninstall must account for them. _Rationale: WAL semantics._
+- The single `Arc<Mutex<Connection>>` serializes reads behind writes, negating WAL's concurrent-reader benefit; to exploit WAL, reads use a separate read-only connection. _Rationale: research gotcha._
+
+### Migrations
+
+**Convention: forward-only versioned migrations (`schema_migrations`); the redesign adds v5+, it never recreates the schema; each migration is wrapped in a transaction.** _Rationale: architecture.md D18 + the shipped runner._
+
+The shipped runner (`db.rs`) is idempotent and version-recorded and is the right mechanism. **The gap:** it does **not** wrap a migration + its `schema_migrations` insert in a single transaction, so a multi-statement v5 migration that fails midway leaves partially-applied DDL (SQLite auto-commits DDL). Wrap it.
+
+```rust
+let tx = conn.transaction()?;
+tx.execute_batch(migration.sql)?;
+tx.execute("INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)", params)?;
+tx.commit()?; // atomic: either the whole migration lands or nothing does
+```
+
+**Rules**
+
+- New columns are **nullable or have a CONSTANT default**. _Rationale: `ALTER TABLE ADD COLUMN` is O(1) metadata-only in that case; a `NOT NULL`-without-default or a non-constant default errors on a populated table._
+- `project_id` / `context_id` are derived in the **batch enrichment pass off the hot path**, so they are `Option<i64>` and the dial must render rows where they are `NULL`. _Rationale: architecture.md smart-pipeline + D7 "never blank cold-start"._
+- **Exclusion / `is_private` is a write-path concern, not a query filter.** For excluded/private apps the title is omitted **at INSERT**, never stored-then-filtered; incognito browser windows are never recorded at all. _Rationale: D8 + hard rule 1._
+- No network/sync columns ever (`remote_id`, `synced_at`, `upload_*`). _Rationale: hard rule 1; architecture.md "no sync state — there is no server."_ A grep-the-migration-SQL CI check makes this auditable.
+- `recaps.generated_by` uses `CHECK(generated_by IN ('template','fm'))` — SQLite has no native enum. _Rationale: cheap + auditable._
+
+Citations: <https://www.sqlite.org/lang_altertable.html> · <https://www.sqlite.org/lang_transaction.html> · <https://www.sqlite.org/wal.html> · <https://docs.rs/rusqlite/0.31.0/rusqlite/struct.Connection.html>
+
+---
+
+## 4. Trait isolation (capture + ai)
+
+**Convention: capture lives behind a `Capture` trait and AI behind an `Ai` trait; each has a real impl and a `Fake`; the rest of the crate never imports `objc2` and tests run without macOS permissions or a model.** _Rationale: hard rule 5 + architecture.md boundaries._
+
+```rust
+#[async_trait::async_trait]
+pub trait Capture: Send + Sync {
+    async fn current(&self) -> Result<WindowInfo, AppError>;
+}
+pub struct FakeCapture(pub WindowInfo); // used in tests + non-macOS CI
+```
+
+**Rules**
+
+- The `objc2` capture impl is gated `#[cfg(target_os = "macos")]`; a `Fake` is compiled elsewhere. _Rationale: CI builds Linux/macOS/Windows; an ungated objc2 import breaks the non-mac jobs._
+- Native callbacks (NSWorkspace notifications, AX reads) run on the **main thread / live run loop**; results are marshaled into plain `Send` structs (like the existing `WindowInfo`) and handed to the async core over a channel. Never move `!Send` objc2 objects into the async layer. _Rationale: objc2 types wrap Obj-C pointers and are `!Send`/`!Sync`; the watcher runs on a Tokio worker._
+- AX reads are gated on `AXIsProcessTrusted()`. _Rationale: architecture.md native layer._
+- The `Ai` trait has two impls — `FoundationModelsAi` (Swift sidecar over stdio) and `TemplateRecap` (deterministic, always available) — selected at runtime. _Rationale: architecture.md + hard rule 6 ("a deterministic template recap is always available as fallback")._
+- The model **narrates, it never counts**: the `Ai` trait receives a pre-computed `RecapFacts` struct and returns prose only. _Rationale: hard rule 6; numbers are computed in `domain/`._
+- Use the `async-trait` crate for these traits. _Rationale: dyn-dispatched async fns are not yet dyn-safe natively even on Rust 1.75+, and the architecture needs runtime impl selection (trait objects)._
+
+Citations: <https://docs.rs/objc2-app-kit/latest/objc2_app_kit/struct.NSWorkspace.html> · <https://docs.rs/accessibility-sys/latest/accessibility_sys/fn.AXUIElementCopyAttributeValue.html>
+
+---
+
+## 5. Module layout
+
+**Convention: `commands/ domain/ capture/ enrich/ ai/ store/ error.rs` within the single `usage_os_lib` crate.** _Rationale: architecture.md layer map; the split is mechanical from today's flat `lib.rs` / `db.rs` / `watcher.rs` and needs no new dependency._
+
+- `commands/` — thin handlers, no SQL, no business logic. (Today `get_watcher_status` builds JSON inline; that belongs in `domain/`.)
+- `domain/` — contexts, projects, sessions, recap building, **all number-crunching**.
+- `capture/` — the only module that imports `objc2`.
+- `store/` — the only module with SQL or a `Connection`.
+
+---
+
+## 6. Dependencies (pinned)
+
+| Crate | Pin | Note |
+|---|---|---|
+| `tauri` | `2.9.3` (`= "2"` in Cargo.toml) | async_runtime is tokio-backed. |
+| `tauri-specta` | `="2.0.0-rc.25"` | **No stable 2.x exists** — RC only; pin with `=`; couple bumps with Tauri. |
+| `specta-typescript` | match what rc.25 pins (do not free-float) | mismatches cause build failures. |
+| `rusqlite` | `0.31`, `features = ["bundled"]` | bundles SQLite 3.45.1; sync API; `Connection` is `Send` + `!Sync`. |
+| `tokio` | `1.x`, `features = ["rt","time","sync"]` | add `process`/`io-util` only if sidecar uses `tokio::process` (else prefer `tauri-plugin-shell`). |
+| `thiserror` | `1.x` (not yet in Cargo.toml) | for `AppError`; must coexist with `serde::Serialize` + `specta::Type`. |
+| `async-trait` | latest | for the `Capture`/`Ai` traits. |
+| `objc2` | `0.6.4` | macOS-only, cfg-gated. |
+| `objc2-app-kit` | `0.3.2` | NSWorkspace; types are `!Send`/`!Sync`. |
+| `accessibility-sys` | latest | AX FFI (`AXIsProcessTrusted`, `AXUIElementCopyAttributeValue`); main-thread only. |
+
+`bundled` SQLite compiles SQLite in, supporting the offline / no-network promise (hard rule 1). 3.45.1 already has every feature the data model needs (WAL 3.7, partial indexes 3.8, generated columns 3.31, STRICT 3.37, UPSERT 3.24).
+
+---
+
+## ⚠️ Open questions / verify in the Phase-0 spike
+
+These were **not confirmed by an independent authoritative source** in the research. Prove them in the spike before relying on them.
+
+1. **`tauri-specta` RC stability.** Build a merge-gating contract on an RC (`2.0.0-rc.25`, dated 2026-05-08) — confirm it compiles against `tauri 2.9.3`, that the freshness `git diff` gate works, and that rusqlite-backed domain types derive `specta::Type` without orphan-rule issues. RC-to-RC API churn is a documented risk.
+2. **`AppError` across the boundary.** Prove the enum (a) derives `Serialize` + `specta::Type`, (b) has `#[from]` for `rusqlite::Error` + trait errors, (c) appears in generated TS as a discriminated union, (d) leaks no SQL/PII in `Display`.
+3. **Single-writer + non-blocking executor.** Prove WAL is set and persists; a dedicated writer thread owns the connection and processes a typed queue; a test shows the Tokio runtime is not blocked under write load. (Decide dedicated-thread vs `spawn_blocking` + the tokio feature surface that implies.)
+4. **objc2 main-thread bridge.** Prove a real `Capture` impl gets `didActivateApplicationNotification` on the main run loop + an AX title via `AXUIElementCopyAttributeValue` gated on `AXIsProcessTrusted`, marshals to a `Send` struct over a channel, and that the crate compiles/tests with the `Fake` on non-macOS CI.
+5. **Migration safety on a real populated DB.** All current tests use fresh in-memory DBs — zero coverage for migrating a populated v4 user DB. Add a test that migrates real-shaped data, asserts integrity + new columns, and simulates a failing migration left at the prior clean version (requires the per-migration transaction wrap).
+6. **Embedding storage + KNN.** `NLEmbedding.sentenceEmbedding` returns 512-d vectors (Double). Decide **float32 vs float64** storage; prove a pure-Rust top-k cosine scan over ~2k–5k exemplar BLOBs is sub-ms→low-ms and bit-exact on round-trip. `sqlite-vec` (vec0) is the documented upgrade path only if the brute-force scan disappoints — and it adds C native surface to vet.
+7. **Sidecar transport.** Decide `tauri-plugin-shell` sidecar vs raw `tokio::process` (the latter needs `process`/`io-util` tokio features). Confirm whatever DB-offloading model is chosen works under the Tauri-provided runtime.
+8. **Full-history reprocessing.** Embedding-based recategorization after a correction is per-event KNN, potentially seconds at millions of events. Prove it runs incrementally / in the background, never on a synchronous UI command. (D6 — project-inference accuracy is itself unproven and requires its own spike.)
+
+---
+
+## Citations
+
+- Tauri v2 — calling Rust, command error serialization: <https://v2.tauri.app/develop/calling-rust/>
+- Tauri v2 — sidecar guidance: <https://v2.tauri.app/develop/sidecar/>
+- tauri-specta (no stable 2.x; pin with `=`; rc.25): <https://github.com/specta-rs/tauri-specta>
+- tauri-specta version timeline: <https://crates.io/crates/tauri-specta/versions>
+- specta version-mismatch breakage (motivates strict pinning): <https://github.com/specta-rs/specta/issues/305>
+- objc2-app-kit / NSWorkspace: <https://docs.rs/objc2-app-kit/latest/objc2_app_kit/struct.NSWorkspace.html>
+- accessibility-sys / AX FFI: <https://docs.rs/accessibility-sys/latest/accessibility_sys/fn.AXUIElementCopyAttributeValue.html>
+- rusqlite 0.31 Connection (`Send` + `!Sync`): <https://docs.rs/rusqlite/0.31.0/rusqlite/struct.Connection.html>
+- rusqlite 0.31 release (bundles SQLite 3.45.1): <https://github.com/rusqlite/rusqlite/releases/tag/v0.31.0>
+- SQLite feature/version history: <https://www.sqlite.org/changes.html>
+- SQLite ALTER TABLE (O(1) ADD COLUMN): <https://www.sqlite.org/lang_altertable.html>
+- SQLite WAL: <https://www.sqlite.org/wal.html>
+- SQLite transactional DDL: <https://www.sqlite.org/lang_transaction.html>
+- sqlite-vec (optional KNN upgrade path): <https://github.com/asg017/sqlite-vec>
+- Apple NLEmbedding (512-d sentence vectors, WWDC20): <https://developer.apple.com/videos/play/wwdc2020/10657/>
