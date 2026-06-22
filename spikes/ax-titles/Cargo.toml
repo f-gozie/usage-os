@@ -1,0 +1,55 @@
+# ax-titles — Spike #1
+#
+# ISOLATED standalone crate. Deliberately NOT a member of the src-tauri
+# workspace. Build it from inside this directory (`cd spikes/ax-titles`).
+# `package.workspace = false` + the empty `[workspace]` table below make Cargo
+# treat this as its own workspace root even though an ancestor directory may
+# contain another workspace manifest — so it never pulls in or perturbs the app.
+[workspace]
+
+[package]
+name = "ax-titles"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Spike: prove macOS AX focused-window titles work with Accessibility-only (no Screen Recording)."
+
+[[bin]]
+name = "ax-titles"
+path = "src/main.rs"
+
+[dependencies]
+# objc2 runtime (Retained<T> smart pointers, msg_send, etc.)
+objc2 = "0.6"
+
+# NSWorkspace + NSRunningApplication: who is frontmost, its pid/name/bundle id.
+# `libc` feature is required for NSRunningApplication::processIdentifier (pid_t).
+objc2-app-kit = { version = "0.3.2", features = [
+    "NSWorkspace",
+    "NSRunningApplication",
+    "libc",
+] }
+objc2-foundation = { version = "0.3.2", features = ["NSString"] }
+
+# Accessibility API: AXIsProcessTrusted(WithOptions), AXUIElementCreateApplication,
+# AXUIElementCopyAttributeValue, AXError variants.
+# `libc` gives us AXUIElement::new_application(pid_t); `AXError` gates
+# copy_attribute_value (it returns AXError).
+objc2-application-services = { version = "0.3.2", features = [
+    "AXUIElement",
+    "AXError",
+    "libc",
+] }
+
+# Core Foundation: build CFStrings for the attribute names ("AXFocusedWindow",
+# "AXTitle") — the AX attribute-name constants are NOT re-exported by
+# objc2-application-services — plus the prompt-options CFDictionary and
+# CFType downcasting of returned values. CFNumber feature pulls in CFBoolean
+# (kCFBooleanTrue) for kAXTrustedCheckOptionPrompt.
+objc2-core-foundation = { version = "0.3.2", features = [
+    "CFString",
+    "CFDictionary",
+    "CFNumber",
+] }
+
+libc = "0.2"
