@@ -1,44 +1,51 @@
 //! Capture: the boundary that observes the active app/window (hard rule 5, D22).
 //!
-//! [`CaptureSource`] produces [`FocusEvent`]s; [`run`] drains them into the
-//! repository via [`process_focus_event`]. All platform/native code lives behind
-//! this trait — nothing above `capture/` imports objc2. Tests use [`FakeCapture`];
-//! production uses [`PollingCapture`] today and the event-driven macOS impl (1.2b).
+//! [`CaptureSource`] produces [`FocusEvent`]s; [`consume`] drains them into the
+//! repository via [`process_focus_event`], applying D8 sensitive handling and D30
+//! project inference. All platform/native code lives behind this trait — nothing
+//! above `capture/` imports objc2. Tests use [`FakeCapture`]; production uses the
+//! event-driven [`macos::MacosCapture`] on macOS, else [`PollingCapture`].
 
 mod fake;
+#[cfg(target_os = "macos")]
+mod macos;
 mod polling;
 
 pub use fake::FakeCapture;
 pub use polling::PollingCapture;
 
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, Sender};
 
 use rusqlite::Connection;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
-use crate::db::{self, DbConnection, ExclusionMode};
+use crate::db::{self, DbConnection, ExclusionMode, NewEvent};
+use crate::enrich::{self, ProjectAssignment, ProjectSignals};
 
-/// A focus change marshaled from the capture side to the async consumer. All
-/// fields are owned/`Send` (D29). `url` is `None` until the macOS impl (1.2b);
-/// `site`/project are filled by the later enrichment pass.
-#[derive(Debug, Clone)]
+/// A focus change marshaled from the capture side to the consumer thread. All
+/// fields are owned/`Send` (D29). The signals are filled by whichever source is
+/// active: polling sets app + idle only; the macOS impl adds title, url, and cwd.
+#[derive(Debug, Clone, Default)]
 pub struct FocusEvent {
     pub app_name: String,
     pub bundle_id: Option<String>,
     pub pid: i32,
     pub window_title: Option<String>,
+    /// Browser front-tab URL (never set for incognito/private — D8).
     pub url: Option<String>,
+    /// Terminal shell cwd — the ephemeral project signal, resolved at capture time.
+    pub cwd: Option<String>,
     pub is_idle: bool,
     pub timestamp: i64,
 }
 
 /// A producer of [`FocusEvent`]s. Each impl owns its execution model: polling
-/// spawns a task; the macOS impl registers run-loop observers. Capture runs for
-/// the whole process — there is no stop (the app captures while it is open).
+/// spawns a thread; the macOS impl registers run-loop observers. `start` is called
+/// on the **main thread** during Tauri setup (the macOS impl attaches its observers
+/// to the main `CFRunLoop`); the impl keeps whatever it needs alive for the process
+/// lifetime.
 pub trait CaptureSource: Send {
-    /// Begin producing events into `tx`. Consumes `self`; the impl keeps whatever
-    /// it needs alive for the process lifetime.
-    fn start(self: Box<Self>, tx: UnboundedSender<FocusEvent>);
+    fn start(self: Box<Self>, tx: Sender<FocusEvent>);
 }
 
 // ── Health (drives the get_watcher_status command) ───────────────────────────
@@ -68,24 +75,30 @@ pub fn note_capture_failure() {
     }
 }
 
-// ── Source selection (1.2b swaps in the event-driven macOS impl) ─────────────
+// ── Source selection ─────────────────────────────────────────────────────────
 
-/// The production capture source for this platform. Today: polling everywhere;
-/// 1.2b returns the event-driven `MacosCapture` under `#[cfg(target_os = "macos")]`.
+/// The production capture source for this platform: the event-driven macOS impl
+/// where available, else the cross-platform polling fallback.
 pub fn default_source() -> Box<dyn CaptureSource> {
-    Box::new(PollingCapture::default())
+    #[cfg(target_os = "macos")]
+    {
+        Box::new(macos::MacosCapture::new())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Box::new(PollingCapture::default())
+    }
 }
 
-// ── Consumer ─────────────────────────────────────────────────────────────────
+// ── Consumer (runs on a dedicated thread — SQLite + git shell are blocking) ───
 
-/// Run capture: start `source`, then drain its events into the repository until
-/// the channel closes. Spawned on the Tokio runtime during Tauri setup.
-pub async fn run(db_conn: DbConnection, source: Box<dyn CaptureSource>) {
-    println!("[Capture] starting capture runner");
-    let (tx, mut rx) = unbounded_channel::<FocusEvent>();
-    source.start(tx);
-
-    while let Some(ev) = rx.recv().await {
+/// Drain capture events into the repository until the channel closes. Runs on its
+/// own `std::thread` (R57 direction): per-event processing does blocking SQLite
+/// writes and a `git` shell (project inference), neither of which may run on the
+/// async executor.
+pub fn consume(db_conn: DbConnection, rx: Receiver<FocusEvent>) {
+    println!("[Capture] consumer thread up");
+    for ev in rx {
         match db_conn.lock() {
             Ok(conn) => {
                 if let Err(e) = process_focus_event(&conn, &ev) {
@@ -95,40 +108,63 @@ pub async fn run(db_conn: DbConnection, source: Box<dyn CaptureSource>) {
             Err(e) => eprintln!("[Capture] db lock poisoned, dropping event: {}", e),
         }
     }
-    println!("[Capture] channel closed; capture runner stopped");
+    println!("[Capture] channel closed; consumer stopped");
 }
 
-/// Turn one [`FocusEvent`] into a stored span. Applies sensitive handling (D8)
-/// before writing: an `Exclude` match is dropped entirely; a `Private` match
-/// records time + app but omits the title/url (R58). The normal path coalesces.
+/// Turn one [`FocusEvent`] into a stored span. Order matters: sensitive handling
+/// (D8) is applied first — an `Exclude` match is dropped entirely; a `Private`
+/// match records time + app but omits title/url/site and skips project inference.
+/// Otherwise the url is parsed to a site and the live signals are resolved to a
+/// project (D30) before the coalescing write.
 pub fn process_focus_event(conn: &Connection, ev: &FocusEvent) -> rusqlite::Result<()> {
     let title = ev.window_title.as_deref().unwrap_or("");
-    // No site in 1.2a (polling carries no url); 1.2b parses url→site and passes it.
-    let site: Option<&str> = None;
+    let site = ev.url.as_deref().and_then(enrich::parse_site);
 
-    match db::match_exclusion(conn, &ev.app_name, title, site)? {
-        Some(ExclusionMode::Exclude) => Ok(()), // D8: never written
-        Some(ExclusionMode::Private) => db::log_focus(
-            conn,
-            &ev.app_name,
-            None, // omit title (D8)
-            None, // omit url
-            None,
-            ev.is_idle,
-            true,
-            ev.timestamp,
-        ),
-        None => db::log_focus(
-            conn,
-            &ev.app_name,
-            ev.window_title.as_deref(),
-            ev.url.as_deref(),
-            site,
-            ev.is_idle,
-            false,
-            ev.timestamp,
-        ),
+    match db::match_exclusion(conn, &ev.app_name, title, site.as_deref())? {
+        Some(ExclusionMode::Exclude) => return Ok(()), // D8: never written
+        Some(ExclusionMode::Private) => {
+            return db::log_focus(
+                conn,
+                &NewEvent {
+                    process_name: &ev.app_name,
+                    window_title: "", // D8: omit title
+                    is_private: true,
+                    is_idle: ev.is_idle,
+                    timestamp: ev.timestamp,
+                    ..Default::default()
+                },
+            );
+        }
+        None => {}
     }
+
+    let (project_id, project_abstain_reason) = match enrich::infer_project(
+        conn,
+        &ProjectSignals {
+            cwd: ev.cwd.as_deref(),
+            url: ev.url.as_deref(),
+            title: ev.window_title.as_deref(),
+        },
+    )? {
+        ProjectAssignment::Assigned(id) => (Some(id), None),
+        ProjectAssignment::Abstain(reason) => (None, Some(reason)),
+    };
+
+    db::log_focus(
+        conn,
+        &NewEvent {
+            process_name: &ev.app_name,
+            window_title: title,
+            url: ev.url.as_deref(),
+            site: site.as_deref(),
+            project_id,
+            project_abstain_reason,
+            is_private: false,
+            is_idle: ev.is_idle,
+            category_id: None,
+            timestamp: ev.timestamp,
+        },
+    )
 }
 
 #[cfg(test)]
@@ -147,12 +183,10 @@ mod tests {
     fn focus(app: &str, title: Option<&str>, ts: i64) -> FocusEvent {
         FocusEvent {
             app_name: app.to_string(),
-            bundle_id: None,
             pid: 1,
             window_title: title.map(|s| s.to_string()),
-            url: None,
-            is_idle: false,
             timestamp: ts,
+            ..Default::default()
         }
     }
 
@@ -213,21 +247,60 @@ mod tests {
     }
 
     #[test]
+    fn browser_event_sets_site_and_project() {
+        let conn = test_db();
+        let ev = FocusEvent {
+            app_name: "Google Chrome".to_string(),
+            pid: 2,
+            window_title: Some("usenudgeai/nudge".to_string()),
+            url: Some("https://github.com/usenudgeai/nudge".to_string()),
+            timestamp: 1000,
+            ..Default::default()
+        };
+        process_focus_event(&conn, &ev).unwrap();
+        let logs = all_logs(&conn);
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].site.as_deref(), Some("github.com"));
+        assert!(
+            logs[0].project_id.is_some(),
+            "github url should resolve a project"
+        );
+        assert_eq!(logs[0].project_abstain_reason, None);
+    }
+
+    #[test]
+    fn ambiguous_url_persists_abstain_reason() {
+        let conn = test_db();
+        let ev = FocusEvent {
+            app_name: "Google Chrome".to_string(),
+            pid: 2,
+            window_title: Some("Grafana".to_string()),
+            url: Some("https://acme.grafana.net/d/x".to_string()),
+            timestamp: 1000,
+            ..Default::default()
+        };
+        process_focus_event(&conn, &ev).unwrap();
+        let logs = all_logs(&conn);
+        assert_eq!(logs[0].project_id, None);
+        assert_eq!(logs[0].project_abstain_reason.as_deref(), Some("ambiguous"));
+    }
+
+    #[test]
     fn fake_source_feeds_the_spine() {
         // The whole capture spine, exercised without a Mac (hard rule 5).
         let conn = test_db();
         let events = vec![
             focus("Code", Some("main.rs"), 1000),
-            focus("Chrome", Some("GitHub"), 1100),
+            focus("Slack", Some("general"), 1100),
         ];
-        let (tx, mut rx) = unbounded_channel::<FocusEvent>();
+        let (tx, rx) = std::sync::mpsc::channel::<FocusEvent>();
         Box::new(FakeCapture::new(events)).start(tx);
-        while let Ok(ev) = rx.try_recv() {
+        for ev in rx {
             process_focus_event(&conn, &ev).unwrap();
         }
         let logs = all_logs(&conn);
         assert_eq!(logs.len(), 2);
         assert_eq!(logs[0].process_name, "Code");
-        assert_eq!(logs[1].process_name, "Chrome");
+        assert_eq!(logs[1].process_name, "Slack");
     }
 }

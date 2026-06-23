@@ -10,6 +10,9 @@ pub mod db;
 // `capture` is the observation boundary (hard rule 5): all native/objc2 code lives
 // behind the `CaptureSource` trait; tests use a fake. `pub` for the same reason as `db`.
 pub mod capture;
+// `enrich` turns raw capture signals into stored facts (site, project — D30).
+// Cross-platform and CI-testable; consumed by `capture::process_focus_event`.
+mod enrich;
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -204,7 +207,13 @@ pub fn run() {
 
             app.manage(db_conn.clone());
 
-            tauri::async_runtime::spawn(capture::run(db_conn, capture::default_source()));
+            // Capture: the source registers on THIS (main) thread — the macOS impl
+            // attaches its observers to the main CFRunLoop (D29) — while the
+            // consumer drains on a dedicated thread (SQLite + git-shell enrichment
+            // block, so they must stay off the async executor; R57).
+            let (tx, rx) = std::sync::mpsc::channel();
+            capture::default_source().start(tx);
+            std::thread::spawn(move || capture::consume(db_conn, rx));
             Ok(())
         })
         .run(tauri::generate_context!());

@@ -429,23 +429,13 @@ const MAX_COALESCE_GAP_SECONDS: i64 = 30;
 ///
 /// If the last entry matches this one (app/title/idle/private/url) and the gap is
 /// `<= MAX_COALESCE_GAP_SECONDS`, extends its `end_time`; otherwise inserts a new
-/// span. `site`/project are left for the enrichment pass. Callers are responsible
-/// for sensitive handling (D8) — for a private span, pass `is_private = true` with
-/// `title`/`url` already omitted (this fn does not filter).
-#[allow(clippy::too_many_arguments)]
-pub fn log_focus(
-    conn: &Connection,
-    app: &str,
-    title: Option<&str>,
-    url: Option<&str>,
-    site: Option<&str>,
-    is_idle: bool,
-    is_private: bool,
-    timestamp: i64,
-) -> Result<()> {
-    let title = title.unwrap_or("");
-
-    let category_id = match find_category(conn, app, title) {
+/// span. The category is (re)computed from app+title here, so callers leave
+/// `ev.category_id` unset. Callers own sensitive handling (D8): for a private span
+/// pass `is_private = true` with `window_title`/`url` already omitted — this fn
+/// does not filter. `project_id`/`project_abstain_reason`/`site` flow through from
+/// the enrichment pass.
+pub fn log_focus(conn: &Connection, ev: &NewEvent) -> Result<()> {
+    let category_id = match find_category(conn, ev.process_name, ev.window_title) {
         Ok(id) => id,
         Err(e) => {
             eprintln!("[Capture] category lookup failed: {}", e);
@@ -454,14 +444,14 @@ pub fn log_focus(
     };
 
     if let Some(last) = get_last_activity_log(conn)? {
-        let gap = timestamp - last.end_time;
-        let is_same = last.process_name == app
-            && last.window_title == title
-            && last.is_idle == is_idle
-            && last.is_private == is_private
-            && last.url.as_deref() == url;
+        let gap = ev.timestamp - last.end_time;
+        let is_same = last.process_name == ev.process_name
+            && last.window_title == ev.window_title
+            && last.is_idle == ev.is_idle
+            && last.is_private == ev.is_private
+            && last.url.as_deref() == ev.url;
         if is_same && gap <= MAX_COALESCE_GAP_SECONDS {
-            update_last_activity_end_time(conn, last.id, timestamp)?;
+            update_last_activity_end_time(conn, last.id, ev.timestamp)?;
             return Ok(());
         }
     }
@@ -469,16 +459,8 @@ pub fn log_focus(
     insert_event(
         conn,
         &NewEvent {
-            process_name: app,
-            window_title: title,
-            url,
-            site,
-            project_id: None,
-            project_abstain_reason: None,
-            is_private,
-            is_idle,
             category_id,
-            timestamp,
+            ..ev.clone()
         },
     )?;
     Ok(())
@@ -496,13 +478,13 @@ pub fn log_activity(
 ) -> Result<()> {
     log_focus(
         conn,
-        process_name,
-        Some(window_title),
-        None,
-        None,
-        is_idle,
-        false,
-        timestamp,
+        &NewEvent {
+            process_name,
+            window_title,
+            is_idle,
+            timestamp,
+            ..Default::default()
+        },
     )
 }
 

@@ -2,7 +2,7 @@
 //! standard C4): the rest of the app builds and the capture spine runs without
 //! macOS, objc2, or any permission.
 
-use tokio::sync::mpsc::UnboundedSender;
+use std::sync::mpsc::Sender;
 
 use super::{CaptureSource, FocusEvent};
 
@@ -19,7 +19,7 @@ impl FakeCapture {
 }
 
 impl CaptureSource for FakeCapture {
-    fn start(self: Box<Self>, tx: UnboundedSender<FocusEvent>) {
+    fn start(self: Box<Self>, tx: Sender<FocusEvent>) {
         for ev in self.events {
             if tx.send(ev).is_err() {
                 break;
