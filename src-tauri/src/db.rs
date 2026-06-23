@@ -769,11 +769,14 @@ mod tests {
     use super::*;
     use rusqlite::Connection;
 
-    /// Create an in-memory database using the migration system.
+    /// Create an in-memory database using the migration system. The starter rules
+    /// (migration 3) are cleared so rules-engine tests control their own rule set;
+    /// the seed itself is verified in `crate::migrations`.
     fn setup_test_db() -> Connection {
         let mut conn = Connection::open_in_memory().expect("Failed to open in-memory db");
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
         crate::migrations::run_migrations(&mut conn).expect("Migrations should succeed");
+        conn.execute("DELETE FROM rules", []).unwrap();
         conn
     }
 

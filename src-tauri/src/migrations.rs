@@ -30,6 +30,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "seed_canonical_contexts",
         sql: include_str!("../migrations/0002_seed_canonical_contexts.sql"),
     },
+    Migration {
+        version: 3,
+        name: "seed_default_rules",
+        sql: include_str!("../migrations/0003_seed_default_rules.sql"),
+    },
 ];
 
 /// FNV-1a (64-bit): a small, stable, dependency-free hash. Not cryptographic — its only
@@ -186,5 +191,18 @@ mod tests {
         .unwrap();
         let err = run_migrations(&mut conn).unwrap_err();
         assert!(err.to_string().contains("changed after it was applied"));
+    }
+
+    #[test]
+    fn seeds_starter_rules_that_categorize_known_apps() {
+        let conn = fresh();
+        let deep: i64 = conn
+            .query_row("SELECT id FROM categories WHERE slug = 'deep'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        // A starter rule maps the Cursor editor to Deep work.
+        let matched = crate::db::find_category(&conn, "Cursor", "").unwrap();
+        assert_eq!(matched, Some(deep));
     }
 }
