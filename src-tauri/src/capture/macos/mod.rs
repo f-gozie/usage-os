@@ -199,9 +199,20 @@ impl CallbackContext {
     }
 
     /// Build and send a [`FocusEvent`] for the current app + the given title,
-    /// enriching browsers with the front-tab url and terminals with the cwd.
+    /// enriching browsers with the front-tab url and terminals with the cwd. An
+    /// incognito/private browser window drops BOTH the title and the url (D8).
     fn emit_with_title(&self, title: Option<String>) {
-        let url = browser::front_tab_url(&self.bundle_id);
+        let mut title = title;
+        let mut url = None;
+        let mut is_private = false;
+        match browser::inspect(&self.bundle_id) {
+            browser::BrowserUrl::Private => {
+                title = None; // D8: never record an incognito window's title or url
+                is_private = true;
+            }
+            browser::BrowserUrl::Normal(u) => url = u,
+            browser::BrowserUrl::NotBrowser => {}
+        }
         let cwd = terminal::front_cwd(&self.bundle_id, self.pid);
         let _ = self.tx.send(FocusEvent {
             app_name: self.app_name.clone(),
@@ -210,6 +221,7 @@ impl CallbackContext {
             window_title: title,
             url,
             cwd,
+            is_private,
             is_idle: is_idle(),
             timestamp: now_unix(),
         });

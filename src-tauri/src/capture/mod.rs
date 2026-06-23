@@ -35,6 +35,9 @@ pub struct FocusEvent {
     pub url: Option<String>,
     /// Terminal shell cwd — the ephemeral project signal, resolved at capture time.
     pub cwd: Option<String>,
+    /// The source detected a private context (e.g. an incognito browser window) —
+    /// record time + app only, never the title/url (D8).
+    pub is_private: bool,
     pub is_idle: bool,
     pub timestamp: i64,
 }
@@ -112,30 +115,32 @@ pub fn consume(db_conn: DbConnection, rx: Receiver<FocusEvent>) {
 }
 
 /// Turn one [`FocusEvent`] into a stored span. Order matters: sensitive handling
-/// (D8) is applied first — an `Exclude` match is dropped entirely; a `Private`
-/// match records time + app but omits title/url/site and skips project inference.
+/// (D8) is applied first — an `Exclude` match is dropped entirely; a private span
+/// (an `incognito` browser window the source flagged, or a `Private` exclusion
+/// rule) records time + app but omits title/url/site and skips project inference.
 /// Otherwise the url is parsed to a site and the live signals are resolved to a
 /// project (D30) before the coalescing write.
 pub fn process_focus_event(conn: &Connection, ev: &FocusEvent) -> rusqlite::Result<()> {
     let title = ev.window_title.as_deref().unwrap_or("");
     let site = ev.url.as_deref().and_then(enrich::parse_site);
 
-    match db::match_exclusion(conn, &ev.app_name, title, site.as_deref())? {
-        Some(ExclusionMode::Exclude) => return Ok(()), // D8: never written
-        Some(ExclusionMode::Private) => {
-            return db::log_focus(
-                conn,
-                &NewEvent {
-                    process_name: &ev.app_name,
-                    window_title: "", // D8: omit title
-                    is_private: true,
-                    is_idle: ev.is_idle,
-                    timestamp: ev.timestamp,
-                    ..Default::default()
-                },
-            );
-        }
-        None => {}
+    let exclusion = db::match_exclusion(conn, &ev.app_name, title, site.as_deref())?;
+    if matches!(exclusion, Some(ExclusionMode::Exclude)) {
+        return Ok(()); // D8: never written
+    }
+    // Private if the capture source flagged it (incognito) or a Private exclusion matched.
+    if ev.is_private || matches!(exclusion, Some(ExclusionMode::Private)) {
+        return db::log_focus(
+            conn,
+            &NewEvent {
+                process_name: &ev.app_name,
+                window_title: "", // D8: omit title
+                is_private: true,
+                is_idle: ev.is_idle,
+                timestamp: ev.timestamp,
+                ..Default::default()
+            },
+        );
     }
 
     let (project_id, project_abstain_reason) = match enrich::infer_project(
@@ -283,6 +288,32 @@ mod tests {
         let logs = all_logs(&conn);
         assert_eq!(logs[0].project_id, None);
         assert_eq!(logs[0].project_abstain_reason.as_deref(), Some("ambiguous"));
+    }
+
+    #[test]
+    fn private_flag_blanks_title_and_url() {
+        // An incognito browser window: the source flags is_private. D8 — record
+        // time + app, but neither the title nor the url.
+        let conn = test_db();
+        let ev = FocusEvent {
+            app_name: "Google Chrome".to_string(),
+            pid: 2,
+            window_title: Some("Secret Incognito Page".to_string()),
+            url: Some("https://secret.example/x".to_string()),
+            is_private: true,
+            timestamp: 1000,
+            ..Default::default()
+        };
+        process_focus_event(&conn, &ev).unwrap();
+        let logs = all_logs(&conn);
+        assert_eq!(logs.len(), 1);
+        assert!(logs[0].is_private);
+        assert_eq!(
+            logs[0].window_title, "",
+            "incognito title must not be recorded (D8)"
+        );
+        assert_eq!(logs[0].url, None, "incognito url must not be recorded (D8)");
+        assert_eq!(logs[0].project_id, None);
     }
 
     #[test]
