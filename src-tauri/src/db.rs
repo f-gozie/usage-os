@@ -356,6 +356,15 @@ pub fn get_categories(conn: &Connection) -> Result<Vec<Category>> {
     rows.collect()
 }
 
+/// Context identity for the rollup: `(id, slug, name)`. `slug` (e.g. "deep") maps to a
+/// colour token in the UI; `None` for a user-created context. Kept separate from
+/// [`get_categories`] so the slug stays out of the legacy IPC `Category` shape.
+pub fn get_context_metas(conn: &Connection) -> Result<Vec<(i64, Option<String>, String)>> {
+    let mut stmt = conn.prepare("SELECT id, slug, name FROM categories")?;
+    let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+    rows.collect()
+}
+
 pub fn create_category(conn: &Connection, name: &str, color: &str) -> Result<i64> {
     conn.execute(
         "INSERT INTO categories (name, color) VALUES (?1, ?2)",

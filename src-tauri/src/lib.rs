@@ -16,9 +16,13 @@ mod enrich;
 // `migrations` is the forward-only SQL migration runner (per-file `.sql`, applied in
 // a transaction, checksum-guarded). Paired with the crate-root `migrations/` dir.
 mod migrations;
+// `rollup` is the pure read-time layer that turns a day's events into the view the
+// dial renders (per-axis aggregates + context-runs + template recap — D34, hard rule 6).
+mod rollup;
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
 use tauri_specta::{collect_commands, Builder};
@@ -66,6 +70,29 @@ fn get_activity_stats(
 ) -> Result<Vec<db::ActivityLog>, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     db::get_activity_logs(&conn, start_time, end_time).map_err(AppError::from)
+}
+
+/// Build the Day view — per-axis context aggregates, context-runs, and the template
+/// recap (D34) — for a `[start_time, end_time]` Unix-second range. Numbers are computed
+/// in Rust (hard rule 6); the frontend only renders this.
+#[tauri::command]
+#[specta::specta]
+fn get_day(
+    db: State<DbState>,
+    start_time: i64,
+    end_time: i64,
+) -> Result<rollup::DayView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let events = db::get_activity_logs(&conn, start_time, end_time)?;
+    let contexts: HashMap<i64, rollup::ContextMeta> = db::get_context_metas(&conn)?
+        .into_iter()
+        .map(|(id, slug, name)| (id, rollup::ContextMeta { slug, name }))
+        .collect();
+    let projects: HashMap<i64, String> = db::get_projects(&conn)?
+        .into_iter()
+        .map(|p| (p.id, p.display_name))
+        .collect();
+    Ok(rollup::build_day_view(&events, &contexts, &projects))
 }
 
 #[tauri::command]
@@ -164,6 +191,7 @@ fn update_setting(db: State<DbState>, key: String, value: String) -> Result<(), 
 fn make_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         get_activity_stats,
+        get_day,
         get_categories,
         create_category,
         delete_category,

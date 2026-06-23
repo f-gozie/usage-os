@@ -18,6 +18,19 @@ async getActivityStats(startTime: number, endTime: number) : Promise<Result<Acti
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Build the Day view — per-axis context aggregates, context-runs, and the template
+ * recap (D34) — for a `[start_time, end_time]` Unix-second range. Numbers are computed
+ * in Rust (hard rule 6); the frontend only renders this.
+ */
+async getDay(startTime: number, endTime: number) : Promise<Result<DayView, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_day", { startTime, endTime }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getCategories() : Promise<Result<Category[], AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_categories") };
@@ -146,6 +159,35 @@ is_private: boolean }
  */
 export type AppError = { kind: "Db"; message: string } | { kind: "LockPoisoned" }
 export type Category = { id: number; name: string; color: string }
+/**
+ * A continuous stretch of one context — a dial arc, click-to-inspect.
+ */
+export type ContextRun = { context_slug: string; context_name: string; 
+/**
+ * Span bounds (Unix secs); the arc is drawn start→end.
+ */
+start: number; end: number; 
+/**
+ * Active seconds within the run (≤ end−start when small gaps are bridged).
+ */
+secs: number; projects: ProjectSlice[]; apps: string[] }
+/**
+ * One context's total share of the active day (the ledger/legend/stats unit).
+ */
+export type ContextSlice = { slug: string; name: string; secs: number; pct: number }
+/**
+ * Everything the Day view needs, computed from one day of events.
+ */
+export type DayView = { active_secs: number; idle_secs: number; contexts: ContextSlice[]; runs: ContextRun[]; recap: Recap }
+/**
+ * A project's share of time *inside* a context-run (shown as a text line, never a bar).
+ */
+export type ProjectSlice = { name: string; secs: number }
+/**
+ * The day's recap. `generated_by` is "template" here; the on-device Foundation
+ * Models prose (Phase 3) will reuse the same facts behind the `ai` trait.
+ */
+export type Recap = { text: string; generated_by: string }
 export type Rule = { id: number; category_id: number; match_field: string; pattern: string; ignore_title: boolean }
 /**
  * One persisted setting key/value (replaces the awkward `[string, string][]`).
