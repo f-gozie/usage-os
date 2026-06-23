@@ -1,0 +1,63 @@
+/*
+ * Bauhaus design tokens — the frozen visual contract (context/design-system.md).
+ * Three themes, all first-class, selected via [data-theme] on <html>. Components
+ * never hardcode colour; every value comes from a var here. Mirrors design/*.html.
+ */
+
+:root,
+[data-theme="paper"] {
+  --bg: #EEEBE1;
+  --surface: #F6F3EA;
+  --fg: #161616;
+  --muted: #6A6A66;
+  --edge: #161616;
+  --rule: rgba(22, 22, 22, 0.16);
+  --track: #D7D3C7;
+  --c-deep: #1B45BE;
+  --c-research: #E0241B;
+  --c-comms: #EAB308;
+  --c-breaks: #161616;
+  --now: #161616;
+  --casing: #161616;
+  --on-ink: #EEEBE1;
+  --bar-bg: #161616;
+  --bar-fg: #EEEBE1;
+}
+
+[data-theme="warm"] {
+  --bg: #1A1916;
+  --surface: #24221A;
+  --fg: #EDE9DD;
+  --muted: #938E81;
+  --edge: #4A453B;
+  --rule: rgba(237, 233, 221, 0.14);
+  --track: #39342B;
+  --c-deep: #3358E0;
+  --c-research: #F0463C;
+  --c-comms: #F2BC0C;
+  --c-breaks: #CFC9B8;
+  --now: #EDE9DD;
+  --casing: transparent;
+  --on-ink: #1A1916;
+  --bar-bg: #100F0C;
+  --bar-fg: #EDE9DD;
+}
+
+[data-theme="black"] {
+  --bg: #0E0E0E;
+  --surface: #171719;
+  --fg: #F4F4F2;
+  --muted: #8C8C8A;
+  --edge: #2F2F2F;
+  --rule: rgba(244, 244, 242, 0.12);
+  --track: #252525;
+  --c-deep: #3A6BF0;
+  --c-research: #FF4B40;
+  --c-comms: #F5C518;
+  --c-breaks: #C6C6C4;
+  --now: #F4F4F2;
+  --casing: transparent;
+  --on-ink: #0E0E0E;
+  --bar-bg: #000000;
+  --bar-fg: #F4F4F2;
+}

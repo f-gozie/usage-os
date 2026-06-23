@@ -10,13 +10,26 @@ import type {
   ActivityLog,
   AppError,
   Category,
+  DayView,
   Result,
   Rule,
   Setting,
   WatcherStatus,
 } from '../bindings';
 
-export type { ActivityLog, AppError, Category, Rule, Setting, WatcherStatus } from '../bindings';
+export type {
+  ActivityLog,
+  AppError,
+  Category,
+  ContextRun,
+  ContextSlice,
+  DayView,
+  ProjectSlice,
+  Recap,
+  Rule,
+  Setting,
+  WatcherStatus,
+} from '../bindings';
 
 /** Unwrap a generated `Result`, throwing a readable `Error` on the typed failure. */
 function unwrap<T>(r: Result<T, AppError>): T {
@@ -39,6 +52,14 @@ export async function getActivityStats(
   endTime: number
 ): Promise<ActivityLog[]> {
   return unwrap(await commands.getActivityStats(startTime, endTime));
+}
+
+/**
+ * Fetch the computed Day view (context aggregates + context-runs + recap) for a
+ * Unix-second range. All numbers are computed in Rust (hard rule 6).
+ */
+export async function getDay(startTime: number, endTime: number): Promise<DayView> {
+  return unwrap(await commands.getDay(startTime, endTime));
 }
 
 // --- Categories ---
