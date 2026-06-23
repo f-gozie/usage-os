@@ -40,7 +40,7 @@ From the shipped v0.1.0 + Tier-1 work, do **not** rebuild these:
 - [x] **Hard-rule-3 cleanup + missing merge gates** ([PR #5](https://github.com/f-gozie/usage-os/pull/5)) — removed all production `.expect()` (`lib.rs`, `watcher.rs`, `db.rs` → shared `now_unix()` helper), added `#![cfg_attr(not(test), deny(clippy::unwrap_used, expect_used, panic))]` to both crate roots, and wired `clippy -D warnings` + `cargo fmt --check` + `tsc --noEmit` into `ci.yml`. (R82) _Binding-freshness gate deferred until tauri-specta is wired._
 - [ ] **`recharts` stays for now** — audit §M / R77 called it unused, but it's imported by `src/components/ActivityChart.tsx` (the current dashboard). Remove only when the Bauhaus dial replaces that dashboard (Phase 1+).
 - [x] **Wire tauri-specta — ✅ DONE** (`phase1/tauri-specta-ipc`). All 11 commands `#[specta::specta]` with a typed `AppError`; `get_watcher_status` (`serde_json::Value`→`WatcherStatus`) + `get_settings` (tuples→`Setting`) rewritten to named structs; `tauri_specta::Builder` replaces `generate_handler!`; `BigIntExportBehavior::Number` (timestamps export as `number`); `export_bindings` `#[test]` → generated `src/bindings.ts` (deterministic); frontend `src/lib/tauri.ts` re-exports generated types + unwraps `Result`; Linux-only binding-freshness CI gate. **Key finding (D27): the trio is `rc.20`, not the standard's provisional `rc.24`** — rc.24's specta dropped `#[specta(rename)]` on containers, which tauri 2.9.3 still uses, so rc.24 doesn't build. Commands-only stands (#211). Gates green: build, 26 Rust tests, clippy -D, fmt, tsc, 28 TS tests.
-- [ ] **Design system (parallel track):** full Bauhaus system in Claude Design (needs `/design-login`), both themes, all states; reconcile `context/design-system.md`. UI build blocked until locked. **Blocker the audit found:** the Comms yellow `#F2BC0C` fails WCAG non-text contrast (1.47:1) and color is the only context channel — fix the palette (or add arc outlines + a guaranteed non-color cue) and re-run contrast in both themes before locking (R77).
+- [~] **Design system (parallel track):** full Bauhaus system, both themes, all states; reconcile `context/design-system.md`. UI build blocked until locked. **In progress (design session 2026-06-23):** built as interactive, self-contained **HTML mockups under `design/`** — Claude Design `/design-login` is unavailable in this CLI env, so the DesignSync push is deferred and the mockups are the working visual source of truth (to be pushed/reconciled later). **Locks so far:** **R77 resolved → Option A** — every dial arc carries a 1px ink **casing** (clears WCAG 1.4.11 non-text contrast regardless of fill) + Comms tuned to gold `#EAB308` + colour is **never the only cue** (legend/ledger/inspector always carry the text label); contrast re-run. Token themes: `paper` + two darks (`warm` charcoal / `black` near-black — **canonical dark TBD**, both shippable as user-selectable for ~zero cost). Theme-safe inverted bars via `--bar-bg`/`--bar-fg`; the week "now" marker is the same theme-aware triangle as the day dial. **Screens mocked:** Day, Week, Settings. **Pending:** Timeline, a Components & States page (inputs/dropdowns/time-picker/forms/**modals**), onboarding + permission-priming, landing; then freeze `context/design-system.md`.
 
 ## Phase 1 — Capture → the dial ("I open it and see MY actual day")
 
@@ -52,7 +52,7 @@ From the shipped v0.1.0 + Tier-1 work, do **not** rebuild these:
 ## Phase 2 — Enrichment
 
 - [ ] Embedding-based categorization + corrections memory; contexts/rules editor in Settings.
-- [ ] Week view (7 mini-dials) + linear timeline strip.
+- [ ] Week view (7 mini-dials) + linear timeline strip. **Timeline = context-runs with project shown inside (D34, Direction A);** dial arcs are context-runs too. A read-time rollup over `events` (no schema change). **Open:** the run-segmentation thresholds (excursion-absorb / idle-gap / sustained-shift) — resolve by **dogfooding real capture data + a session-explorer**, then lock (D34a). See `explorations/2026-06-23-sessionization.md`.
 
 ## Phase 3 — The recap
 
@@ -64,6 +64,8 @@ From the shipped v0.1.0 + Tier-1 work, do **not** rebuild these:
 
 - [ ] Menubar launcher + window; primed onboarding + permission priming (run degraded if declined).
 - [ ] Dark-mode parity (designed); performance pass (idle CPU).
+- [ ] **Settings — Your-data controls:** retention duration picker (wraps the existing `cleanup_old_data` / `data_retention_days`); **Export CSV** (new IPC command) + **Delete all data** (new IPC command + confirm modal). _Export + Delete-all surfaced in the 2026-06-23 design session — not in the original plan; the data-ownership/privacy ethos (`vision.md`) justifies them. Lower priority within the phase; Export may slip to Phase 5._
+- [ ] **Day-start offset** (night-owl "day starts at 4 AM", D14): applied to day-bucketing + exposed in Settings. _Deferred "later" per D14; the design tags it as such — build after the core dial lands._
 
 ## Phase 5 — Launch
 

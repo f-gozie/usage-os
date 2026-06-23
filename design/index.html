@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616;
+  --on-ink:#EEEBE1; --bar-bg:#161616; --bar-fg:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8;
+  --on-ink:#1A1916; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4;
+  --on-ink:#0E0E0E; --bar-bg:#000000; --bar-fg:#F4F4F2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;}
+a{color:inherit;text-decoration:none;}
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);min-height:100vh;}
+.top{display:flex;align-items:center;justify-content:space-between;padding:14px 26px;border-bottom:3px solid var(--edge);}
+.brand{font-family:'Anton',sans-serif;font-size:26px;letter-spacing:.02em;text-transform:uppercase;}
+.brand .o{color:var(--c-research);}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+
+.hero{padding:48px 26px 30px;}
+.eyebrow{font-weight:600;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--c-deep);margin-bottom:14px;}
+.h1{font-family:'Anton',sans-serif;font-size:72px;line-height:.84;text-transform:uppercase;letter-spacing:.005em;}
+.h1 .r{color:var(--c-research);}
+.sub{font-size:16px;font-weight:500;max-width:62ch;margin-top:20px;color:var(--muted);line-height:1.6;}
+.sub strong{color:var(--fg);font-weight:600;}
+
+.locks{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px;}
+.lock{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border:2px solid var(--edge);padding:5px 11px;display:flex;align-items:center;gap:7px;}
+.lock .d{width:10px;height:10px;}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:10px 26px 40px;}
+.card{border:3px solid var(--edge);background:var(--bg);padding:20px;display:flex;flex-direction:column;min-height:210px;transition:transform .14s,background .14s,color .14s;}
+.card:hover{transform:translateY(-4px);background:var(--edge);color:var(--bg);}
+.card:hover .cdesc{color:rgba(238,235,225,.72);}
+.card:hover .cnum{color:var(--c-comms);}
+.card:hover .motif .tk{stroke:rgba(238,235,225,.3);}
+.card .motif{height:56px;margin-bottom:16px;}
+.card .cnum{font-family:'Anton',sans-serif;font-size:14px;color:var(--muted);letter-spacing:.06em;}
+.card .ctitle{font-family:'Anton',sans-serif;font-size:26px;line-height:.9;text-transform:uppercase;margin:4px 0 8px;}
+.card .cdesc{font-size:13.5px;font-weight:500;color:var(--muted);line-height:1.5;flex:1;}
+.card .cgo{font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-top:14px;}
+
+.foot{border-top:3px solid var(--edge);padding:16px 26px;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+@media(max-width:680px){.h1{font-size:48px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand">USAGE<span class="o">OS</span></div>
+    <div class="themesw" id="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+  </div>
+
+  <div class="hero">
+    <div class="eyebrow">Bauhaus design system · the working source of truth</div>
+    <div class="h1">Design<br>system<span class="r">.</span></div>
+    <div class="sub">Every screen and component, built as interactive HTML you can open, inspect and theme. <strong>Light + two darks</strong>, all states. This is what the React build is held against until <code>design-system.md</code> is frozen.</div>
+    <div class="locks">
+      <span class="lock"><span class="d" style="background:var(--c-deep)"></span>R77 → outline + gold</span>
+      <span class="lock"><span class="d" style="background:var(--c-comms)"></span>Paper · Warm · Black</span>
+      <span class="lock"><span class="d" style="background:var(--c-research)"></span>Anton + Jost</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <a class="card" href="foundations.html">
+      <div class="motif"><svg viewBox="0 0 120 56" height="56"><rect x="0" y="8" width="40" height="40" fill="var(--c-deep)"/><rect x="44" y="8" width="40" height="40" fill="var(--c-research)"/><rect x="88" y="8" width="14" height="40" fill="var(--c-comms)"/><rect x="104" y="8" width="14" height="40" fill="var(--c-breaks)"/></svg></div>
+      <div class="cnum">01</div><div class="ctitle">Foundations</div>
+      <div class="cdesc">Colour both themes, the R77 contrast fix on real dials, type scale, core components.</div>
+      <div class="cgo">Open →</div>
+    </a>
+
+    <a class="card" href="day.html">
+      <div class="motif"><svg viewBox="0 0 56 56" height="56"><circle class="tk" cx="28" cy="28" r="21" fill="none" stroke="var(--track)" stroke-width="6"/><circle cx="28" cy="28" r="21" fill="none" stroke="var(--c-deep)" stroke-width="6" stroke-dasharray="52 80" transform="rotate(-90 28 28)"/><circle cx="28" cy="28" r="21" fill="none" stroke="var(--c-comms)" stroke-width="6" stroke-dasharray="16 116" stroke-dashoffset="-52" transform="rotate(-90 28 28)"/><circle cx="28" cy="28" r="21" fill="none" stroke="var(--c-research)" stroke-width="6" stroke-dasharray="14 118" stroke-dashoffset="-72" transform="rotate(-90 28 28)"/></svg></div>
+      <div class="cnum">02</div><div class="ctitle">Day</div>
+      <div class="cdesc">The signature 24-hour dial, the recap card, stats, legend, detail inspector, ledger.</div>
+      <div class="cgo">Open →</div>
+    </a>
+
+    <a class="card" href="week.html">
+      <div class="motif"><svg viewBox="0 0 120 56" height="56"><g><circle class="tk" cx="14" cy="28" r="12" fill="none" stroke="var(--track)" stroke-width="4"/><circle cx="14" cy="28" r="12" fill="none" stroke="var(--c-deep)" stroke-width="4" stroke-dasharray="40 36" transform="rotate(-90 14 28)"/></g><g><circle class="tk" cx="45" cy="28" r="12" fill="none" stroke="var(--track)" stroke-width="4"/><circle cx="45" cy="28" r="12" fill="none" stroke="var(--c-research)" stroke-width="4" stroke-dasharray="26 50" transform="rotate(-90 45 28)"/></g><g><circle class="tk" cx="76" cy="28" r="12" fill="none" stroke="var(--track)" stroke-width="4"/><circle cx="76" cy="28" r="12" fill="none" stroke="var(--c-comms)" stroke-width="4" stroke-dasharray="50 26" transform="rotate(-90 76 28)"/></g><g><circle class="tk" cx="107" cy="28" r="12" fill="none" stroke="var(--track)" stroke-width="4"/><circle cx="107" cy="28" r="12" fill="none" stroke="var(--c-deep)" stroke-width="4" stroke-dasharray="20 56" transform="rotate(-90 107 28)"/></g></svg></div>
+      <div class="cnum">03</div><div class="ctitle">Week</div>
+      <div class="cdesc">Seven mini-dials on the fixed 24h scale — read the rhythm of the week at a glance.</div>
+      <div class="cgo">Open →</div>
+    </a>
+
+    <a class="card" href="timeline.html">
+      <div class="motif"><svg viewBox="0 0 120 56" height="56"><rect x="0" y="6" width="6" height="12" fill="var(--c-comms)"/><rect x="14" y="8" width="92" height="8" fill="var(--surface)" stroke="var(--rule)"/><rect x="0" y="24" width="6" height="12" fill="var(--c-deep)"/><rect x="14" y="26" width="106" height="8" fill="var(--surface)" stroke="var(--rule)"/><rect x="0" y="42" width="6" height="12" fill="var(--c-research)"/><rect x="14" y="44" width="64" height="8" fill="var(--surface)" stroke="var(--rule)"/></svg></div>
+      <div class="cnum">04</div><div class="ctitle">Timeline</div>
+      <div class="cdesc">The day in sequence — scan to a time and read exactly what you were doing.</div>
+      <div class="cgo">Open →</div>
+    </a>
+
+    <a class="card" href="settings.html">
+      <div class="motif"><svg viewBox="0 0 120 56" height="56"><rect x="0" y="10" width="36" height="18" rx="2" fill="none" stroke="var(--edge)" stroke-width="2"/><rect x="20" y="12" width="14" height="14" fill="var(--c-deep)"/><rect x="0" y="34" width="36" height="18" rx="2" fill="none" stroke="var(--edge)" stroke-width="2"/><rect x="2" y="36" width="14" height="14" fill="var(--edge)"/><line x1="54" y1="19" x2="120" y2="19" stroke="var(--rule)" stroke-width="2"/><line x1="54" y1="37" x2="120" y2="37" stroke="var(--rule)" stroke-width="2"/><rect x="76" y="13" width="14" height="12" fill="var(--c-comms)"/><rect x="98" y="31" width="14" height="12" fill="var(--c-research)"/></svg></div>
+      <div class="cnum">05</div><div class="ctitle">Settings</div>
+      <div class="cdesc">Tracking, local intelligence, the contexts/rules editor, privacy &amp; exclusions, your data.</div>
+      <div class="cgo">Open →</div>
+    </a>
+
+    <a class="card" href="components.html">
+      <div class="motif"><svg viewBox="0 0 120 56" height="56"><rect x="0" y="8" width="22" height="22" fill="var(--c-deep)"/><rect x="26" y="8" width="22" height="22" fill="none" stroke="var(--edge)" stroke-width="2"/><rect x="0" y="34" width="22" height="22" fill="none" stroke="var(--edge)" stroke-width="2"/><rect x="26" y="34" width="22" height="22" fill="var(--c-comms)"/><rect x="58" y="14" width="62" height="12" rx="6" fill="none" stroke="var(--edge)" stroke-width="2"/><rect x="58" y="36" width="44" height="12" fill="var(--edge)"/></svg></div>
+      <div class="cnum">06</div><div class="ctitle">Components &amp; states</div>
+      <div class="cdesc">Buttons, inputs, pickers, the time picker, modals, loading &amp; degraded — every state.</div>
+      <div class="cgo">Open →</div>
+    </a>
+
+    <a class="card" href="onboarding.html">
+      <div class="motif"><svg viewBox="0 0 120 56" height="56"><rect x="0" y="10" width="26" height="6" fill="var(--c-deep)"/><rect x="31" y="10" width="26" height="6" fill="var(--c-deep)"/><rect x="62" y="10" width="26" height="6" fill="var(--track)"/><rect x="93" y="10" width="26" height="6" fill="var(--track)"/><rect x="0" y="26" width="82" height="8" fill="var(--surface)" stroke="var(--rule)"/><rect x="0" y="40" width="40" height="12" fill="var(--edge)"/><rect x="46" y="40" width="34" height="12" fill="none" stroke="var(--edge)" stroke-width="2"/></svg></div>
+      <div class="cnum">07</div><div class="ctitle">Onboarding</div>
+      <div class="cdesc">The primed first run — why each permission, grant or skip, runs degraded if declined.</div>
+      <div class="cgo">Open →</div>
+    </a>
+
+    <a class="card" href="landing.html">
+      <div class="motif"><svg viewBox="0 0 120 56" height="56"><rect x="0" y="6" width="58" height="14" fill="var(--edge)"/><rect x="0" y="26" width="44" height="6" fill="var(--track)"/><rect x="0" y="36" width="50" height="6" fill="var(--track)"/><rect x="0" y="47" width="28" height="8" fill="var(--c-deep)"/><circle cx="96" cy="30" r="21" fill="var(--c-comms)"/><path d="M96 9 a21 21 0 0 1 21 21 h-21 z" fill="var(--c-research)"/></svg></div>
+      <div class="cnum">08</div><div class="ctitle">Landing</div>
+      <div class="cdesc">The marketing site — hero dial, the pitch, the privacy promise, the week at a glance.</div>
+      <div class="cgo">Open →</div>
+    </a>
+  </div>
+
+  <div class="foot"><span>USAGEOS · DESIGN SYSTEM</span><span>Pending: copy &amp; voice pass · freeze design-system.md</span></div>
+</div>
+
+<script>
+document.getElementById("themesw").addEventListener("click",function(e){var b=e.target.closest("button[data-t]");if(!b)return;
+  document.documentElement.setAttribute("data-theme",b.dataset.t);
+  document.querySelectorAll("#themesw button").forEach(function(x){x.classList.toggle("on",x===b);});});
+</script>
+</body>
+</html>

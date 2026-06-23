@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Design System · Foundations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616;
+  --now:#161616; --casing:#161616; --on-ink:#EEEBE1; --shadow:transparent;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8;
+  --now:#EDE9DD; --casing:transparent; --on-ink:#1A1916;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4;
+  --now:#F4F4F2; --casing:transparent; --on-ink:#0E0E0E;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;}
+.anton{font-family:'Anton',sans-serif;text-transform:uppercase;}
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);min-height:100vh;}
+
+/* topbar */
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+  padding:13px 24px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.brand{font-family:'Anton',sans-serif;font-size:24px;letter-spacing:.02em;text-transform:uppercase;}
+.brand .o{color:var(--c-research);}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-family:'Jost';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+
+/* sections */
+section{padding:38px 24px;border-bottom:3px solid var(--edge);}
+.eyebrow{font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--c-deep);margin-bottom:6px;}
+.shead{font-family:'Anton',sans-serif;font-size:34px;line-height:.92;text-transform:uppercase;margin-bottom:22px;}
+.lead{font-size:15px;max-width:60ch;color:var(--muted);margin:-14px 0 24px;font-weight:500;}
+.subhead{font-family:'Anton',sans-serif;font-size:15px;letter-spacing:.04em;text-transform:uppercase;margin:26px 0 12px;
+  display:flex;align-items:center;gap:10px;}
+.subhead::after{content:"";flex:1;height:2px;background:var(--edge);}
+
+/* swatches */
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.sw{}
+.sw .chip{height:64px;border:2px solid var(--edge);}
+.sw .nm{font-weight:600;font-size:12px;margin-top:7px;}
+.sw .hx{font-size:12px;color:var(--muted);}
+.inkblk{}
+.inkblk .blk{height:104px;border:2px solid var(--edge);display:flex;flex-direction:column;justify-content:space-between;padding:11px;}
+.inkblk .role{font-family:'Anton',sans-serif;font-size:17px;line-height:.9;text-transform:uppercase;}
+.inkblk .hx{font-weight:600;font-size:12px;}
+.inkblk .note{font-size:12px;color:var(--muted);margin-top:7px;}
+.inkblk .note.warn{color:var(--c-research);font-weight:600;}
+
+/* R77 trio — always rendered on paper for honest comparison */
+.r77{background:#EEEBE1;border:3px solid #161616;padding:18px;}
+.r77 .trio{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:8px;}
+.r77 .opt{text-align:center;color:#161616;}
+.r77 .opt svg{width:100%;max-width:180px;}
+.r77 .opt .ot{font-family:'Anton',sans-serif;font-size:16px;text-transform:uppercase;margin-top:4px;}
+.r77 .opt .legchip{display:inline-flex;align-items:center;gap:6px;border:2px solid #161616;background:#EEEBE1;padding:4px 10px;margin-top:10px;}
+.r77 .opt .legchip span.s{width:12px;height:12px;border:1px solid #161616;}
+.r77 .opt .legchip span.l{font-weight:600;font-size:11px;text-transform:uppercase;}
+.r77 .opt .verdict{font-size:12px;font-weight:600;margin-top:10px;line-height:1.45;}
+.r77 .opt.rec .verdict{color:#1B45BE;}
+.r77 .opt .verdict.m{color:#6A6A66;}
+.r77 .recpill{display:inline-block;font-weight:600;font-size:10px;letter-spacing:.12em;text-transform:uppercase;background:#1B45BE;color:#EEEBE1;padding:3px 9px;margin-bottom:8px;}
+
+/* hero dial */
+.hero{display:grid;grid-template-columns:320px 1fr;gap:32px;align-items:center;}
+.dialc{position:relative;width:100%;max-width:320px;margin:0 auto;}
+.dialc svg{width:100%;display:block;}
+.cen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none;}
+.cen .big{font-family:'Anton',sans-serif;font-size:42px;line-height:.85;}
+.cen .lab{font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;margin-top:5px;color:var(--muted);}
+.stats{display:flex;border-top:3px solid var(--edge);}
+.stat{flex:1;padding:13px 0 4px;}
+.stat+.stat{border-left:2px solid var(--edge);padding-left:14px;}
+.stat .n{font-family:'Anton',sans-serif;font-size:28px;line-height:.9;}
+.stat .k{font-size:10px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-top:7px;}
+.legend{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px;}
+.chip{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;
+  border:2px solid var(--edge);padding:6px 11px;background:var(--bg);color:var(--fg);cursor:pointer;}
+.chip .s{width:12px;height:12px;border:1px solid var(--edge);}
+
+/* type */
+.specimen{border:2px solid var(--edge);padding:18px 20px;}
+.specimen+.specimen{margin-top:12px;}
+.specimen .tag{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+.scaleRow{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;}
+
+/* components */
+.compgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.panel{border:2px solid var(--edge);padding:16px;}
+.panel .plabel{font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
+.btn{font-family:'Jost';font-weight:600;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  background:var(--edge);color:var(--bg);border:2px solid var(--edge);padding:9px 16px;cursor:pointer;}
+.btn.out{background:transparent;color:var(--fg);}
+.btn.danger{background:transparent;border-color:var(--c-research);color:var(--c-research);}
+.pill{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:2px solid var(--edge);
+  padding:5px 11px;background:var(--bg);color:var(--fg);display:inline-block;}
+.pill.ok{background:var(--edge);color:var(--bg);}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.toggle{width:54px;height:29px;border:2px solid var(--edge);background:var(--bg);position:relative;cursor:pointer;flex-shrink:0;}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:21px;height:21px;background:var(--edge);transition:left .18s;}
+.toggle.on{background:var(--c-deep);border-color:var(--c-deep);}
+.toggle.on::after{left:29px;background:var(--bg);}
+.recap{background:var(--surface);border:3px solid var(--edge);padding:16px 18px;}
+.recap .rt{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.recap .eye{font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+.recap .ai{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--c-deep);border:2px solid var(--c-deep);padding:3px 8px;}
+.recap p{font-size:16px;line-height:1.45;font-weight:500;}
+.recap p .hl{color:var(--c-deep);}
+.lrow{display:grid;grid-template-columns:120px 1fr 96px;align-items:center;gap:13px;padding:10px 0;border-top:2px solid var(--edge);}
+.lrow:last-child{border-bottom:2px solid var(--edge);}
+.lrow .nm{display:flex;align-items:center;gap:9px;font-weight:600;text-transform:uppercase;font-size:13px;}
+.lrow .nm .s{width:15px;height:15px;border:1px solid var(--edge);flex-shrink:0;}
+.lrow .bar{height:9px;background:var(--track);}
+.lrow .bar>div{height:100%;}
+.lrow .vl{text-align:right;font-family:'Anton',sans-serif;font-size:18px;}
+.lrow .vl .pc{font-family:'Jost';font-size:11px;color:var(--muted);font-weight:600;margin-left:5px;}
+.setrow{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-top:2px solid var(--edge);}
+.setrow:first-child{border-top:none;}
+.setrow .lab{font-weight:600;font-size:14px;}
+.setrow .des{font-size:12px;color:var(--muted);margin-top:2px;max-width:42ch;}
+
+.note{font-size:13px;color:var(--muted);line-height:1.6;max-width:70ch;}
+.note code{background:var(--surface);border:1px solid var(--rule);padding:1px 6px;font-family:'Jost';font-weight:600;color:var(--fg);}
+.foot{padding:16px 24px;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+  display:flex;justify-content:space-between;}
+
+@media(max-width:760px){.hero{grid-template-columns:1fr;}.grid5,.grid4,.r77 .trio,.compgrid{grid-template-columns:1fr 1fr;}.shead{font-size:26px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <a class="brand" href="index.html" style="text-decoration:none;color:inherit;">← USAGE<span class="o">OS</span> <span style="font-family:'Jost';font-size:11px;font-weight:600;letter-spacing:.16em;color:var(--muted);">· FOUNDATIONS</span></a>
+    <div class="themesw" id="themesw">
+      <button data-t="paper" class="on">Paper</button>
+      <button data-t="warm">Warm</button>
+      <button data-t="black">Black</button>
+    </div>
+  </div>
+
+  <!-- COLOUR -->
+  <section>
+    <div class="eyebrow">01 — Foundations</div>
+    <div class="shead">Colour</div>
+    <div class="lead">Three primary inks carry meaning — each context is a colour. Toggle the theme above to see the system hold in light, warm charcoal, and near-black.</div>
+
+    <div class="subhead">Neutrals — paper &amp; ink</div>
+    <div class="grid5">
+      <div class="sw"><div class="chip" style="background:var(--bg)"></div><div class="nm">Background</div><div class="hx" id="hx-bg">—</div></div>
+      <div class="sw"><div class="chip" style="background:var(--surface)"></div><div class="nm">Surface</div><div class="hx" id="hx-surface">—</div></div>
+      <div class="sw"><div class="chip" style="background:var(--fg)"></div><div class="nm">Ink / text</div><div class="hx" id="hx-fg">—</div></div>
+      <div class="sw"><div class="chip" style="background:var(--muted)"></div><div class="nm">Muted</div><div class="hx" id="hx-muted">—</div></div>
+      <div class="sw"><div class="chip" style="background:var(--track)"></div><div class="nm">Track (idle)</div><div class="hx" id="hx-track">—</div></div>
+    </div>
+
+    <div class="subhead">The inks — context is colour</div>
+    <div class="grid4">
+      <div class="inkblk"><div class="blk" style="background:var(--c-deep)"><span class="role" style="color:var(--on-ink)">Deep<br>work</span><span class="hx" style="color:var(--on-ink);opacity:.85" id="hx-deep">—</span></div><div class="note">7.4:1 vs paper · pass</div></div>
+      <div class="inkblk"><div class="blk" style="background:var(--c-research)"><span class="role" style="color:#fff">Re&shy;search</span><span class="hx" style="color:#fff;opacity:.9" id="hx-research">—</span></div><div class="note warn">red marginal vs track</div></div>
+      <div class="inkblk"><div class="blk" style="background:var(--c-comms)"><span class="role" style="color:#161616">Comms</span><span class="hx" style="color:#161616" id="hx-comms">—</span></div><div class="note">tuned gold · arc gets outline</div></div>
+      <div class="inkblk"><div class="blk" style="background:var(--c-breaks)"><span class="role" style="color:var(--bg)">Breaks</span><span class="hx" style="color:var(--bg);opacity:.7" id="hx-breaks">—</span></div><div class="note">ink in light · bone in dark</div></div>
+    </div>
+  </section>
+
+  <!-- R77 -->
+  <section>
+    <div class="eyebrow">01 — Foundations · the blocker</div>
+    <div class="shead">R77 — every arc legible</div>
+    <div class="lead">The locked Comms yellow only hits 1.47:1 on paper (WCAG non-text needs ≥3:1). These three resolutions are rendered on the real dial, on paper, so the comparison is honest. Pick one and we lock the palette.</div>
+    <div class="r77">
+      <div class="trio">
+        <div class="opt rec">
+          <span class="recpill">Recommended</span><br>
+          <svg id="r77a" viewBox="0 0 300 300" role="img" aria-label="Dial, outline plus tuned gold"></svg>
+          <div class="ot">A · Outline + gold</div>
+          <div class="legchip"><span class="s" style="background:#EAB308"></span><span class="l">Comms</span></div>
+          <div class="verdict">Loud + readable. 1px ink casing on every arc clears 3:1 regardless of fill; colour is never the only cue.</div>
+        </div>
+        <div class="opt">
+          <svg id="r77b" viewBox="0 0 300 300" role="img" aria-label="Dial, darkened mustard"></svg>
+          <div class="ot">B · Darken</div>
+          <div class="legchip"><span class="s" style="background:#9A7B0A"></span><span class="l">Comms</span></div>
+          <div class="verdict m">Passes by colour alone — but loses the loud Bauhaus yellow; reads as mustard.</div>
+        </div>
+        <div class="opt">
+          <svg id="r77c" viewBox="0 0 300 300" role="img" aria-label="Dial, outline only original yellow"></svg>
+          <div class="ot">C · Outline only</div>
+          <div class="legchip"><span class="s" style="background:#F2BC0C"></span><span class="l">Comms</span></div>
+          <div class="verdict m">Loudest, palette untouched — but #F2BC0C stays weak as small text / chips.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIAL -->
+  <section>
+    <div class="eyebrow">The signature</div>
+    <div class="shead">The day-dial</div>
+    <div class="lead">24 hours, fixed scale, midnight at the top. The arc casing + faint idle track carry through whichever theme is active.</div>
+    <div class="hero">
+      <div>
+        <div class="dialc">
+          <svg id="heroDial" viewBox="0 0 300 300" role="img" aria-label="24-hour activity dial"></svg>
+          <div class="cen"><div class="big">4h 15m</div><div class="lab">Active</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="stats">
+          <div class="stat"><div class="n">4h 15m</div><div class="k">Active</div></div>
+          <div class="stat"><div class="n" style="color:var(--c-deep)">3h 30m</div><div class="k">Deep work</div></div>
+          <div class="stat"><div class="n" style="color:var(--c-research)">71%</div><div class="k">Focus</div></div>
+        </div>
+        <div class="legend">
+          <div class="chip"><span class="s" style="background:var(--c-deep)"></span>Deep work</div>
+          <div class="chip"><span class="s" style="background:var(--c-research)"></span>Research</div>
+          <div class="chip"><span class="s" style="background:var(--c-comms)"></span>Comms</div>
+          <div class="chip"><span class="s" style="background:var(--c-breaks)"></span>Breaks</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TYPE -->
+  <section>
+    <div class="eyebrow">02 — Foundations</div>
+    <div class="shead">Type</div>
+    <div class="lead">Anton for display &amp; figures (poster grotesque, all-caps). Jost for body, labels &amp; data (geometric humanist). Never Inter, Roboto, or a system default.</div>
+    <div class="specimen">
+      <div class="tag">Anton · display</div>
+      <div class="anton" style="font-size:64px;line-height:.85;">Where did<br>your day go?</div>
+      <div class="scaleRow" style="margin-top:18px;">
+        <span class="anton" style="font-size:42px;">42 · Hero figure</span>
+        <span class="anton" style="font-size:28px;">28 · Stat</span>
+        <span class="anton" style="font-size:18px;">18 · Section</span>
+      </div>
+    </div>
+    <div class="specimen">
+      <div class="tag">Jost · body &amp; labels</div>
+      <p style="font-size:16px;font-weight:500;max-width:62ch;">A focused morning. You gave usage_os a clean 90-minute deep-work block before 9:30, and 4h 15m of building in all.</p>
+      <div class="scaleRow" style="margin-top:14px;">
+        <span style="font-weight:700">700 Bold</span>
+        <span style="font-weight:600">600 Semibold</span>
+        <span style="font-weight:500">500 Medium</span>
+        <span style="font-weight:400">400 Regular</span>
+        <span style="font-weight:600;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)">Eyebrow · caps · tracked</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPONENTS -->
+  <section>
+    <div class="eyebrow">03 — Components</div>
+    <div class="shead">Core parts</div>
+    <div class="lead">A first pass at the shared parts — themed live. Full state coverage (hover / focus / loading / empty / degraded) comes in the component phase.</div>
+    <div class="compgrid">
+      <div class="panel">
+        <div class="plabel">Buttons &amp; pills</div>
+        <div class="row" style="margin-bottom:14px;"><button class="btn">Primary</button><button class="btn out">Secondary</button><button class="btn danger">Delete</button></div>
+        <div class="row"><span class="pill ok">Granted ✓</span><span class="pill">Local</span><span class="pill">On device</span></div>
+      </div>
+      <div class="panel">
+        <div class="plabel">Toggles &amp; settings row</div>
+        <div class="setrow"><div><div class="lab">Background tracking</div><div class="des">Event-driven · negligible CPU.</div></div><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+        <div class="setrow"><div><div class="lab">Idle detection</div><div class="des">Away after 3 minutes.</div></div><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+      </div>
+      <div class="panel" style="grid-column:1 / -1;">
+        <div class="plabel">Recap card</div>
+        <div class="recap">
+          <div class="rt"><span class="eye">Daily recap</span><span class="ai">⌁ Summarized on-device</span></div>
+          <p>A focused morning. You gave <span class="hl">usage_os</span> a clean 90-minute deep-work block before 9:30. The afternoon frayed — a 30-minute drift into Reddit just after lunch.</p>
+        </div>
+      </div>
+      <div class="panel" style="grid-column:1 / -1;">
+        <div class="plabel">Ledger rows</div>
+        <div class="lrow"><div class="nm"><span class="s" style="background:var(--c-deep)"></span>Deep work</div><div class="bar"><div style="width:82%;background:var(--c-deep)"></div></div><div class="vl">3h 30m<span class="pc">82%</span></div></div>
+        <div class="lrow"><div class="nm"><span class="s" style="background:var(--c-research)"></span>Research</div><div class="bar"><div style="width:18%;background:var(--c-research)"></div></div><div class="vl">45m<span class="pc">18%</span></div></div>
+        <div class="lrow"><div class="nm"><span class="s" style="background:var(--c-comms)"></span>Comms</div><div class="bar"><div style="width:12%;background:var(--c-comms)"></div></div><div class="vl">30m<span class="pc">12%</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NOTES -->
+  <section style="border-bottom:none;">
+    <div class="eyebrow">Pending decisions</div>
+    <div class="shead">What to lock next</div>
+    <div class="note">
+      <strong>1. R77</strong> — pick A / B / C above.<br>
+      <strong>2. Dark direction</strong> — toggle Warm vs Black; tell me which becomes the canonical dark theme (or keep both as user-selectable).<br>
+      <strong>3. Then</strong> — I build the full screens (Day · Week · Settings · Timeline · onboarding · empty/loading/degraded · menubar · landing) as their own browsable HTML pages, plus a components page with every state.
+    </div>
+  </section>
+
+  <div class="foot"><span>USAGEOS · DESIGN SYSTEM</span><span>Open in your browser · toggle themes · inspect freely</span></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var NS="http://www.w3.org/2000/svg";
+var segs=[[450,480,"comms"],[480,570,"deep"],[570,585,"breaks"],[585,675,"deep"],[675,705,"research"],[750,780,"comms"],[780,855,"deep"],[855,885,"breaks"],[885,930,"research"]];
+var NOW=930;
+function pol(cx,cy,t,r){var a=t/1440*2*Math.PI;return[cx+r*Math.sin(a),cy-r*Math.cos(a)];}
+function arc(cx,cy,r,a,b){var lg=(b-a)>720?1:0,p0=pol(cx,cy,a,r),p1=pol(cx,cy,b,r);
+  return "M"+p0[0].toFixed(2)+" "+p0[1].toFixed(2)+" A"+r+" "+r+" 0 "+lg+" 1 "+p1[0].toFixed(2)+" "+p1[1].toFixed(2);}
+function el(t,a){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
+function clear(svg){while(svg.firstChild)svg.removeChild(svg.firstChild);}
+
+function drawDial(svg,o){
+  clear(svg);
+  var C={deep:o.deep,research:o.research,comms:o.comms,breaks:o.breaks};
+  svg.appendChild(el("circle",{cx:150,cy:150,r:99,fill:"none",stroke:o.track,"stroke-width":18}));
+  svg.appendChild(el("circle",{cx:150,cy:150,r:110,fill:"none",stroke:o.ring,"stroke-width":2}));
+  svg.appendChild(el("circle",{cx:150,cy:150,r:89,fill:"none",stroke:o.ring,"stroke-width":2}));
+  [0,6,12,18].forEach(function(h){var t=h*60,pi=pol(150,150,t,89),po=pol(150,150,t,110);
+    svg.appendChild(el("line",{x1:pi[0].toFixed(1),y1:pi[1].toFixed(1),x2:po[0].toFixed(1),y2:po[1].toFixed(1),stroke:o.ring,"stroke-width":2}));
+    var pl=pol(150,150,t,128),tx=el("text",{x:pl[0].toFixed(1),y:(pl[1]+5).toFixed(1),"text-anchor":"middle","font-family":"'Anton',sans-serif","font-size":14,fill:o.numerals});
+    tx.textContent=(h===0?"24":h);svg.appendChild(tx);});
+  var arcs=[];
+  segs.forEach(function(sg){var s=sg[0],e=sg[1],cat=sg[2];var a=s+5,b=(e-5>s+5)?e-5:e;var col=C[cat];
+    if(o.casing&&o.casing!=="transparent")svg.appendChild(el("path",{d:arc(150,150,99,a,b),stroke:o.casing,"stroke-width":21,fill:"none"}));
+    var p=el("path",{d:arc(150,150,99,a,b),stroke:col,"stroke-width":o.casing&&o.casing!=="transparent"?17:20,fill:"none"});
+    svg.appendChild(p);arcs.push(p);});
+  if(o.animate){arcs.forEach(function(p,i){var L=p.getTotalLength();p.style.strokeDasharray=L;p.style.strokeDashoffset=L;
+    p.style.transition="stroke-dashoffset .5s cubic-bezier(.3,.9,.3,1) "+(0.05*i)+"s";});
+    requestAnimationFrame(function(){requestAnimationFrame(function(){arcs.forEach(function(p){p.style.strokeDashoffset=0;});});});}
+  var b1=pol(150,150,NOW,112),b2=pol(150,150,NOW-9,126),b3=pol(150,150,NOW+9,126);
+  svg.appendChild(el("polygon",{points:b1[0].toFixed(1)+","+b1[1].toFixed(1)+" "+b2[0].toFixed(1)+","+b2[1].toFixed(1)+" "+b3[0].toFixed(1)+","+b3[1].toFixed(1),fill:o.now}));
+}
+
+/* R77 trio — fixed light palette */
+var LIGHT={track:"#D7D3C7",ring:"#161616",numerals:"#161616",deep:"#1B45BE",research:"#E0241B",breaks:"#161616",now:"#161616"};
+drawDial(document.getElementById("r77a"),Object.assign({},LIGHT,{comms:"#EAB308",casing:"#161616"}));
+drawDial(document.getElementById("r77b"),Object.assign({},LIGHT,{comms:"#9A7B0A",casing:"transparent"}));
+drawDial(document.getElementById("r77c"),Object.assign({},LIGHT,{comms:"#F2BC0C",casing:"#161616"}));
+
+/* themed hero dial + hex readouts */
+function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function setHex(id,varn){var e=document.getElementById(id);if(e)e.textContent=cssv(varn).toUpperCase();}
+function refresh(animate){
+  drawDial(document.getElementById("heroDial"),{
+    track:cssv("--track"),ring:cssv("--edge"),numerals:cssv("--muted"),
+    deep:cssv("--c-deep"),research:cssv("--c-research"),comms:cssv("--c-comms"),breaks:cssv("--c-breaks"),
+    now:cssv("--now"),casing:cssv("--casing"),animate:animate});
+  var inks={deep:1,research:1,comms:1,breaks:1};
+  ["bg","surface","fg","muted","track","deep","research","comms","breaks"].forEach(function(k){
+    setHex("hx-"+k,inks[k]?"--c-"+k:"--"+k);});
+}
+document.getElementById("themesw").addEventListener("click",function(e){
+  var b=e.target.closest("button[data-t]");if(!b)return;
+  document.documentElement.setAttribute("data-theme",b.dataset.t);
+  document.querySelectorAll("#themesw button").forEach(function(x){x.classList.toggle("on",x===b);});
+  refresh(false);
+});
+refresh(true);
+})();
+</script>
+</body>
+</html>

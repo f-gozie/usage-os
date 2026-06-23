@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Onboarding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616;
+  --on-ink:#EEEBE1; --bar-bg:#161616; --bar-fg:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8;
+  --on-ink:#1A1916; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4;
+  --on-ink:#0E0E0E; --bar-bg:#000000; --bar-fg:#F4F4F2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:30px 18px;overflow:hidden;}
+button{font-family:inherit;cursor:pointer;}
+a{color:inherit;}
+.themesw{position:fixed;top:18px;right:22px;display:flex;border:2px solid var(--edge);z-index:10;background:var(--bg);}
+.themesw button{font-weight:600;font-size:10px;letter-spacing:.08em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 9px;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+.gallery{position:fixed;top:20px;left:24px;font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-decoration:none;z-index:10;}
+
+.scene{position:relative;width:100%;max-width:560px;}
+.deco{position:absolute;z-index:0;}
+.deco.circle{width:240px;height:240px;border-radius:50%;background:var(--c-comms);top:-70px;right:-60px;opacity:.9;}
+.deco.quart{width:120px;height:120px;background:var(--c-research);border-radius:0 0 0 120px;bottom:-40px;left:-46px;}
+.ob{position:relative;z-index:1;background:var(--bg);border:3px solid var(--edge);}
+.ob .head{background:var(--bar-bg);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;}
+.ob .head .wm{font-family:'Anton',sans-serif;font-size:16px;letter-spacing:.04em;text-transform:uppercase;color:var(--bar-fg);}
+.ob .head .wm .o{color:var(--c-research);}
+.ob .head .step{font-weight:600;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55);}
+.prog{display:flex;gap:5px;padding:14px 18px 0;}
+.prog .seg{flex:1;height:5px;background:var(--track);}
+.prog .seg.on{background:var(--c-deep);}
+.body{padding:22px 22px 8px;min-height:280px;}
+.motif{height:60px;margin-bottom:18px;}
+.eyebrow{font-weight:600;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--c-deep);margin-bottom:10px;}
+.h{font-family:'Anton',sans-serif;font-size:38px;line-height:.88;text-transform:uppercase;margin-bottom:14px;}
+.h .r{color:var(--c-research);}
+.lead{font-size:15.5px;font-weight:500;line-height:1.5;max-width:46ch;}
+.lead .hl{color:var(--c-deep);}
+.why{list-style:none;margin:18px 0 0;display:flex;flex-direction:column;gap:12px;}
+.why li{position:relative;padding-left:23px;font-size:13.5px;font-weight:500;line-height:1.5;}
+.why li .dot{position:absolute;left:0;top:5px;width:11px;height:11px;}
+.grantbox{margin-top:18px;border:2px solid var(--edge);padding:13px 15px;display:flex;align-items:center;justify-content:space-between;gap:14px;}
+.grantbox .lab{font-weight:600;font-size:14px;}
+.grantbox .sub{font-size:12px;color:var(--muted);}
+.pill{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:2px solid var(--edge);padding:5px 11px;background:var(--bg);color:var(--fg);}
+.pill.ok{background:var(--edge);color:var(--bg);}
+.nums{display:flex;border:2px solid var(--edge);margin-top:6px;}
+.nums .n{flex:1;padding:14px 8px;text-align:center;}
+.nums .n+.n{border-left:2px solid var(--edge);}
+.nums .n .v{font-family:'Anton',sans-serif;font-size:26px;line-height:.85;}
+.nums .n .v.r{color:var(--c-research);}.nums .n .v.y{color:var(--c-comms);}
+.nums .n .k{font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:8px;}
+.foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 22px;border-top:2px solid var(--edge);margin-top:8px;}
+.btn{font-weight:600;font-size:12px;letter-spacing:.08em;text-transform:uppercase;background:var(--edge);color:var(--bg);border:2px solid var(--edge);padding:11px 20px;}
+.btn.out{background:transparent;color:var(--fg);}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted);padding-left:0;}
+.degraded{font-size:12px;color:var(--muted);font-weight:500;margin-top:14px;border-left:0;}
+@media(max-width:560px){.h{font-size:30px;}.deco.circle{width:160px;height:160px;}}
+</style>
+</head>
+<body>
+<a class="gallery" href="index.html">← Gallery</a>
+<div class="themesw" id="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+
+<div class="scene">
+  <div class="deco circle"></div>
+  <div class="deco quart"></div>
+  <div class="ob">
+    <div class="head"><span class="wm">USAGE<span class="o">OS</span></span><span class="step" id="stepLbl">Welcome</span></div>
+    <div class="prog" id="prog"></div>
+    <div class="body" id="body"></div>
+    <div class="foot" id="foot"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var STEPS=[
+ {label:"Welcome",render:function(){return ''+
+   '<div class="motif"><svg viewBox="0 0 60 60" height="60"><circle cx="30" cy="30" r="22" fill="none" stroke="var(--track)" stroke-width="6"/><circle cx="30" cy="30" r="22" fill="none" stroke="var(--c-deep)" stroke-width="6" stroke-dasharray="56 82" transform="rotate(-90 30 30)"/><circle cx="30" cy="30" r="22" fill="none" stroke="var(--c-comms)" stroke-width="6" stroke-dasharray="18 120" stroke-dashoffset="-56" transform="rotate(-90 30 30)"/></svg></div>'+
+   '<div class="eyebrow">A private time tracker for Mac</div>'+
+   '<div class="h">Where did your <span class="r">day</span> go?</div>'+
+   '<div class="lead">Your Mac already knows how you spent today. UsageOS quietly keeps track, then tells you the story — where you focused, what pulled you away, and where the hours actually went.</div>';},
+  foot:function(){return '<span class="ghost btn" style="visibility:hidden">·</span><button class="btn" data-next>Get started →</button>';}},
+
+ {label:"Your privacy",render:function(){return ''+
+   '<div class="eyebrow">Your privacy</div>'+
+   '<div class="h">Nothing leaves<br>this machine.</div>'+
+   '<div class="lead">No cloud, no account, no telemetry. There is no server at all — your data is one file on your Mac, and the code is open for anyone to read.</div>'+
+   '<div class="nums"><div class="n"><div class="v y">100%</div><div class="k">On device</div></div><div class="n"><div class="v">0</div><div class="k">Servers</div></div><div class="n"><div class="v r">MIT</div><div class="k">Open source</div></div></div>';},
+  foot:function(){return '<button class="btn out" data-back>← Back</button><button class="btn" data-next>Continue →</button>';}},
+
+ {label:"Accessibility",perm:"ax",render:function(st){return ''+
+   '<div class="eyebrow">Permission 1 of 2 · why</div>'+
+   '<div class="h">Read what<br>you’re working on</div>'+
+   '<ul class="why">'+
+   '<li><span class="dot" style="background:var(--c-deep)"></span>It reads the title of the window you’re using — so it can tell what you were working on, not just which app was open.</li>'+
+   '<li><span class="dot" style="background:var(--c-comms)"></span>That’s all it reads. It never sees what’s actually on your screen.</li>'+
+   '<li><span class="dot" style="background:var(--c-research)"></span>Titles stay on this Mac, and you can hide any app you don’t want tracked.</li>'+
+   '</ul>'+
+   '<div class="grantbox"><div><div class="lab">Accessibility</div><div class="sub">Opens System Settings → Privacy.</div></div>'+
+   (st.ax?'<span class="pill ok">Granted ✓</span>':'<button class="pill" data-grant="ax">Grant access</button>')+'</div>';},
+  foot:function(st){return '<button class="btn out" data-back>← Back</button>'+
+   (st.ax?'<button class="btn" data-next>Continue →</button>':'<button class="btn ghost" data-skip>Maybe later</button>');}},
+
+ {label:"Automation",perm:"auto",render:function(st){return ''+
+   '<div class="eyebrow">Permission 2 of 2 · why</div>'+
+   '<div class="h">See the sites<br>you visit</div>'+
+   '<ul class="why">'+
+   '<li><span class="dot" style="background:var(--c-deep)"></span>It reads the address of the page you’re on — so it knows you were reading docs, not scrolling Reddit.</li>'+
+   '<li><span class="dot" style="background:var(--c-comms)"></span>You’re asked once for each browser. Private and incognito windows are never read.</li>'+
+   '<li><span class="dot" style="background:var(--c-research)"></span>Optional — without it, UsageOS just uses the site name from the window title.</li>'+
+   '</ul>'+
+   '<div class="grantbox"><div><div class="lab">Automation</div><div class="sub">Prompts your browser the first time.</div></div>'+
+   (st.auto?'<span class="pill ok">Granted ✓</span>':'<button class="pill" data-grant="auto">Grant access</button>')+'</div>';},
+  foot:function(st){return '<button class="btn out" data-back>← Back</button>'+
+   (st.auto?'<button class="btn" data-next>Continue →</button>':'<button class="btn ghost" data-skip>Skip</button>');}},
+
+ {label:"Ready",render:function(st){var full=st.ax&&st.auto;return ''+
+   '<div class="motif"><svg viewBox="0 0 60 60" height="60"><circle cx="30" cy="30" r="22" fill="none" stroke="var(--track)" stroke-width="6"/><circle cx="30" cy="30" r="22" fill="none" stroke="var(--c-deep)" stroke-width="6" stroke-dasharray="64 74" transform="rotate(-90 30 30)"/><circle cx="30" cy="30" r="22" fill="none" stroke="var(--c-research)" stroke-width="6" stroke-dasharray="20 118" stroke-dashoffset="-64" transform="rotate(-90 30 30)"/><polygon points="30,5 26,13 34,13" fill="var(--edge)"/></svg></div>'+
+   '<div class="eyebrow">You’re all set</div>'+
+   '<div class="h">That’s it.</div>'+
+   '<div class="lead">UsageOS is tracking quietly from here. Open it whenever you want to look — there’s nothing to keep up with.</div>'+
+   (full?'':'<div class="degraded">Running with app-level data for now — you’ll see apps but not titles, projects or sites. Grant the rest anytime in <b>Settings</b>.</div>');},
+  foot:function(){return '<button class="btn out" data-back>← Back</button><a class="btn" href="day.html">Open my day →</a>';}}
+];
+var i=0,state={ax:false,auto:false};
+function render(){
+  var s=STEPS[i];
+  document.getElementById("stepLbl").textContent=s.label;
+  var p=document.getElementById("prog");p.innerHTML="";
+  STEPS.forEach(function(_,k){var seg=document.createElement("div");seg.className="seg"+(k<=i?" on":"");p.appendChild(seg);});
+  document.getElementById("body").innerHTML=s.render(state);
+  document.getElementById("foot").innerHTML=s.foot(state);
+}
+document.getElementById("foot").addEventListener("click",function(e){
+  if(e.target.closest("[data-next]")){i=Math.min(i+1,STEPS.length-1);render();}
+  else if(e.target.closest("[data-back]")){i=Math.max(i-1,0);render();}
+  else if(e.target.closest("[data-skip]")){i=Math.min(i+1,STEPS.length-1);render();}
+});
+document.getElementById("body").addEventListener("click",function(e){
+  var g=e.target.closest("[data-grant]");if(g){state[g.dataset.grant]=true;render();}
+});
+document.getElementById("themesw").addEventListener("click",function(e){var b=e.target.closest("button[data-t]");if(!b)return;
+  document.documentElement.setAttribute("data-theme",b.dataset.t);
+  document.querySelectorAll("#themesw button").forEach(function(x){x.classList.toggle("on",x===b);});});
+render();
+})();
+</script>
+</body>
+</html>

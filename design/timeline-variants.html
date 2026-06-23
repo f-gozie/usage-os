@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Timeline directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616;
+  --now:#161616; --casing:#161616; --bar-bg:#161616; --bar-fg:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8;
+  --now:#EDE9DD; --casing:transparent; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4;
+  --now:#F4F4F2; --casing:transparent; --bar-bg:#000000; --bar-fg:#F4F4F2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;}
+a{color:inherit;text-decoration:none;}
+.wrap{max-width:1000px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);min-height:100vh;}
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:13px 24px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.brand{font-family:'Anton',sans-serif;font-size:22px;letter-spacing:.02em;text-transform:uppercase;}
+.brand .o{color:var(--c-research);}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+.intro{padding:30px 24px 6px;}
+.intro .eyebrow{font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--c-deep);margin-bottom:8px;}
+.intro h1{font-family:'Anton',sans-serif;font-size:34px;line-height:.92;text-transform:uppercase;}
+.intro p{font-size:14.5px;color:var(--muted);max-width:64ch;margin-top:12px;}
+section{padding:26px 24px;border-top:3px solid var(--edge);margin-top:24px;}
+.vh{font-family:'Anton',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.02em;}
+.vcap{font-size:13.5px;color:var(--muted);max-width:66ch;margin:8px 0 18px;}
+.vcap b{color:var(--fg);font-weight:600;}
+
+/* agenda (A & B) */
+.row{border-top:1px solid var(--rule);}
+.rhead{display:grid;grid-template-columns:48px 1fr;gap:14px;align-items:center;padding:11px 0;}
+.rhead .t{font-weight:600;font-size:12.5px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;}
+.rhead .ev{display:flex;align-items:center;gap:13px;min-width:0;}
+.rhead .spine{width:5px;align-self:stretch;min-height:34px;flex-shrink:0;}
+.rhead .body{min-width:0;flex:1;}
+.rhead .ttl{font-weight:600;font-size:14.5px;}
+.rhead .ttl .mut{color:var(--muted);}
+.rhead .sub{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rhead .dur{flex-shrink:0;text-align:right;width:108px;}
+.rhead .dur .d{font-family:'Anton',sans-serif;font-size:17px;line-height:1;}
+.rhead .dur .r{font-size:10.5px;color:var(--muted);font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums;}
+.split{display:flex;height:6px;border:1px solid var(--edge);margin-top:6px;max-width:240px;}
+.split>div{height:100%;}
+.idle{display:grid;grid-template-columns:48px 1fr;gap:14px;align-items:center;padding:7px 0;border-top:1px solid var(--rule);}
+.idle .lbl{display:flex;align-items:center;gap:12px;font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+.idle .lbl .dash{flex:1;border-top:2px dotted var(--rule);}
+
+/* two-axis strip (C) */
+.lanes{margin-top:8px;}
+.lanelbl{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;}
+.lane{position:relative;height:40px;border:2px solid var(--edge);background:var(--track);overflow:hidden;}
+.seg{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;overflow:hidden;border-right:1px solid var(--bg);}
+.seg .sl{font-size:10px;font-weight:600;letter-spacing:.02em;white-space:nowrap;padding:0 4px;}
+.axis{position:relative;height:18px;margin-top:4px;}
+.tick{position:absolute;font-size:10px;font-weight:600;color:var(--muted);transform:translateX(-50%);font-variant-numeric:tabular-nums;}
+.foot{border-top:3px solid var(--edge);padding:16px 24px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="index.html" style="color:inherit;">← USAGE<span class="o">OS</span> <span style="font-family:'Jost';font-size:11px;font-weight:600;letter-spacing:.16em;color:var(--muted);">· TIMELINE DIRECTIONS</span></a>
+    <div class="themesw" id="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+  </div>
+
+  <div class="intro">
+    <div class="eyebrow">Three ways to read the same day</div>
+    <h1>Timeline — pick a direction</h1>
+    <p>One real morning: deep work bouncing between <b>usageos</b> and <b>nudge</b>, then comms, research and a break — none of which carry a project. Same data, segmented three ways. Which one reads true?</p>
+  </div>
+
+  <section>
+    <div class="vh">A · By kind of work</div>
+    <div class="vcap">Blocks are runs of the same <b>context</b>; the project split shows <b>inside</b> each block. Project-hopping never fragments it, and it matches the dial (which colours by context). Optimises for <b>“what kind of work,”</b> with project as texture.</div>
+    <div id="tlA"></div>
+  </section>
+
+  <section>
+    <div class="vh">B · By project</div>
+    <div class="vcap">Blocks are runs of the same <b>project</b>. Truer to “I worked on two projects,” but the interleaved morning <b>fragments</b> into many short rows — and all your comms/research/breaks collapse into long <b>“No project”</b> stretches (we can't attribute them). Optimises for <b>“time per project.”</b></div>
+    <div id="tlB"></div>
+  </section>
+
+  <section>
+    <div class="vh">C · Both axes at once</div>
+    <div class="vcap">Two aligned lanes: <b>kind of work</b> on top (coloured), <b>project</b> below (labelled — projects are named, not coloured, since there can be many). You read both independently. Most honest that they're separate, but it's an overview, not a place to read detail.</div>
+    <div class="lanes" id="tlC"></div>
+  </section>
+
+  <div class="foot"><span>USAGEOS · TIMELINE DIRECTIONS</span><span>Same day · three segmentations</span></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var CATS={deep:"Deep work",research:"Research",comms:"Comms",breaks:"Breaks"};
+var CV={deep:"--c-deep",research:"--c-research",comms:"--c-comms",breaks:"--c-breaks"};
+var PHASES=[
+ {ctx:"deep",s:540,e:642,mix:[["Cursor","usageos"],["iTerm","usageos"],["Cursor","nudge"],["Chrome","nudge"],["Cursor","usageos"],["iTerm","nudge"],["Claude","usageos"]]},
+ {ctx:"comms",s:642,e:651,mix:[["Slack",null]]},
+ {ctx:"deep",s:651,e:735,mix:[["Cursor","usageos"],["iTerm","usageos"],["Claude","usageos"],["Cursor","nudge"],["iTerm","usageos"]]},
+ {ctx:"research",s:755,e:812,mix:[["Chrome",null],["Claude",null]]},
+ {ctx:"deep",s:812,e:855,mix:[["Cursor","nudge"],["iTerm","nudge"]]},
+ {ctx:"breaks",s:855,e:863,mix:[["Chrome",null]]},
+ {ctx:"comms",s:863,e:870,mix:[["Slack",null]]},
+ {ctx:"deep",s:870,e:930,mix:[["Cursor","usageos"],["Chrome","usageos"],["iTerm","usageos"]]}
+];
+var W0=540,W1=930,PAT=[8,4,11,3,7,5,9,4,6,12,5,8,3,10,6,4];
+function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function col(c){return cssv(CV[c]);}
+function pad(n){return(n<10?"0":"")+n;}
+function hm(t){return pad(Math.floor(t/60))+":"+pad(t%60);}
+function durM(d){var h=Math.floor(d/60),m=d%60;return h>0?(m>0?h+"h "+m+"m":h+"h"):m+"m";}
+
+var EVENTS=[];
+PHASES.forEach(function(ph){var t=ph.s,i=0;while(t<ph.e){var len=Math.min(PAT[i%PAT.length],ph.e-t);var m=ph.mix[i%ph.mix.length];
+  EVENTS.push({s:t,e:t+len,app:m[0],proj:m[1],ctx:ph.ctx});t+=len;i++;}});
+
+function runsBy(key){var runs=[],cur=null;EVENTS.forEach(function(ev){var k=key(ev);
+  if(cur&&cur.k===k&&ev.s-cur.e<1){cur.e=ev.e;cur.evs.push(ev);}else{cur={k:k,s:ev.s,e:ev.e,evs:[ev]};runs.push(cur);}});return runs;}
+function dur(r){return r.e-r.s;}
+function uniq(arr){var o=[];arr.forEach(function(x){if(o.indexOf(x)<0&&x!=null)o.push(x);});return o;}
+function projSplit(evs){var d={},tot=0;evs.forEach(function(ev){var k=ev.proj||"none";d[k]=(d[k]||0)+(ev.e-ev.s);tot+=ev.e-ev.s;});return{d:d,tot:tot};}
+
+function idleHTML(gap){return '<div class="idle"><div></div><div class="lbl"><span>Away · '+durM(gap)+'</span><span class="dash"></span></div></div>';}
+
+function renderA(){var host=document.getElementById("tlA");host.innerHTML="";var prev=null;
+  runsBy(function(ev){return ev.ctx;}).forEach(function(r){
+    if(prev!==null&&r.s-prev>=10)host.insertAdjacentHTML("beforeend",idleHTML(r.s-prev));
+    prev=r.e;
+    var ps=projSplit(r.evs),projs=Object.keys(ps.d).filter(function(k){return k!=="none";}).sort(function(a,b){return ps.d[b]-ps.d[a];});
+    var sub,splitBar="";
+    if(projs.length){sub=projs.map(function(p){return p+" "+Math.round(ps.d[p]/ps.tot*100)+"%";}).join("  ·  ");
+      if(ps.d.none)sub+="  ·  no-project "+Math.round(ps.d.none/ps.tot*100)+"%";
+      var segs=projs.map(function(p,i){return '<div style="width:'+(ps.d[p]/ps.tot*100)+'%;background:'+(i===0?"var(--fg)":"var(--muted)")+'"></div>';}).join("")+(ps.d.none?'<div style="width:'+(ps.d.none/ps.tot*100)+'%;background:var(--track)"></div>':"");
+      splitBar='<div class="split">'+segs+'</div>';
+    }else{sub=uniq(r.evs.map(function(e){return e.app;})).join(", ");}
+    host.insertAdjacentHTML("beforeend",
+      '<div class="row"><div class="rhead"><div class="t">'+hm(r.s)+'</div><div class="ev"><span class="spine" style="background:'+col(r.evs[0].ctx)+'"></span>'+
+      '<div class="body"><div class="ttl">'+CATS[r.evs[0].ctx]+'</div><div class="sub">'+sub+'</div>'+splitBar+'</div>'+
+      '<div class="dur"><div class="d">'+durM(dur(r))+'</div><div class="r">'+hm(r.s)+'–'+hm(r.e)+'</div></div></div></div></div>');
+  });}
+
+function renderB(){var host=document.getElementById("tlB");host.innerHTML="";var prev=null;
+  runsBy(function(ev){return ev.proj||"none";}).forEach(function(r){
+    if(prev!==null&&r.s-prev>=10)host.insertAdjacentHTML("beforeend",idleHTML(r.s-prev));
+    prev=r.e;
+    var proj=r.evs[0].proj,ctxs=uniq(r.evs.map(function(e){return e.ctx;})),domCtx=r.evs[0].ctx;
+    var title=proj?proj:'<span class="mut">No project</span>';
+    var sub=ctxs.map(function(c){return CATS[c];}).join(" · ")+"  ·  "+uniq(r.evs.map(function(e){return e.app;})).join(", ");
+    host.insertAdjacentHTML("beforeend",
+      '<div class="row"><div class="rhead"><div class="t">'+hm(r.s)+'</div><div class="ev"><span class="spine" style="background:'+col(domCtx)+'"></span>'+
+      '<div class="body"><div class="ttl">'+title+'</div><div class="sub">'+sub+'</div></div>'+
+      '<div class="dur"><div class="d">'+durM(dur(r))+'</div><div class="r">'+hm(r.s)+'–'+hm(r.e)+'</div></div></div></div></div>');
+  });}
+
+function renderC(){var host=document.getElementById("tlC");
+  function laneHTML(runs,kind){var h='<div class="lane">';
+    runs.forEach(function(r){var left=(r.s-W0)/(W1-W0)*100,w=(r.e-r.s)/(W1-W0)*100;var wide=(r.e-r.s)>=14;
+      if(kind==="ctx"){h+='<div class="seg" style="left:'+left+'%;width:'+w+'%;background:'+col(r.evs[0].ctx)+'">'+(wide?'<span class="sl" style="color:var(--bg)">'+CATS[r.evs[0].ctx]+'</span>':'')+'</div>';}
+      else{var proj=r.evs[0].proj;
+        h+='<div class="seg" style="left:'+left+'%;width:'+w+'%;background:'+(proj?"var(--surface)":"transparent")+(proj?";border:2px solid var(--edge)":"")+'">'+(proj&&wide?'<span class="sl">'+proj+'</span>':'')+'</div>';}
+    });
+    return h+'</div>';}
+  var ctxRuns=runsBy(function(ev){return ev.ctx;}),projRuns=runsBy(function(ev){return ev.proj||"none";});
+  var axis='<div class="axis">';for(var t=W0;t<=W1;t+=60){axis+='<span class="tick" style="left:'+((t-W0)/(W1-W0)*100)+'%">'+hm(t)+'</span>';}axis+='</div>';
+  host.innerHTML='<div class="lanelbl">Kind of work</div>'+laneHTML(ctxRuns,"ctx")+
+    '<div class="lanelbl">Project</div>'+laneHTML(projRuns,"proj")+axis;}
+
+function renderAll(){renderA();renderB();renderC();}
+document.getElementById("themesw").addEventListener("click",function(e){var b=e.target.closest("button[data-t]");if(!b)return;
+  document.documentElement.setAttribute("data-theme",b.dataset.t);
+  document.querySelectorAll("#themesw button").forEach(function(x){x.classList.toggle("on",x===b);});renderAll();});
+renderAll();
+})();
+</script>
+</body>
+</html>
