@@ -28,11 +28,11 @@ export function AppShell({ view, onViewChange, headerDate, children }: AppShellP
               USAGE<span style={{ color: "var(--c-research)" }}>OS</span>
             </div>
             <div className="flex items-center gap-4">
-              {headerDate && (
-                <div className="text-right text-[11px] font-semibold uppercase leading-[1.6] tracking-[0.12em] text-muted">
-                  {headerDate}
-                </div>
-              )}
+              {/* Reserve the date slot (two lines) so the header height is identical across
+                  every view — a missing/short date must never shift the chrome below it. */}
+              <div className="flex min-h-[35px] flex-col justify-end text-right text-[11px] font-semibold uppercase leading-[1.6] tracking-[0.12em] text-muted">
+                {headerDate}
+              </div>
               <ThemeSwitcher />
             </div>
           </header>
