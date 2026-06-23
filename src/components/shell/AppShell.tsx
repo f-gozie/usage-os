@@ -13,34 +13,37 @@ export interface AppShellProps {
   children: ReactNode;
 }
 
-/** The window frame: titlebar, brand header (+ theme switcher), tab nav, content,
- *  privacy footer. Centred, fixed max width, hard border with the only 5px radius. */
+/** The app chrome. Fills the native window edge-to-edge (the OS window IS the frame —
+ *  no nested card): our titlebar hosts the macOS traffic lights (Overlay style), the
+ *  middle scrolls when the window is short, and the privacy footer stays pinned. */
 export function AppShell({ view, onViewChange, headerDate, children }: AppShellProps) {
   return (
-    <div className="flex justify-center px-[18px] py-7">
-      <div className="w-full max-w-[1000px] overflow-hidden rounded-frame border-[3px] border-edge bg-bg">
-        <TitleBar />
+    <div className="flex h-screen flex-col overflow-hidden bg-bg text-fg">
+      <TitleBar />
 
-        <header className="flex items-end justify-between px-[22px] pt-[18px]">
-          <div className="font-display text-[36px] uppercase leading-[0.82] tracking-[0.01em]">
-            USAGE<span style={{ color: "var(--c-research)" }}>OS</span>
-          </div>
-          <div className="flex items-center gap-4">
-            {headerDate && (
-              <div className="text-right text-[11px] font-semibold uppercase leading-[1.6] tracking-[0.12em] text-muted">
-                {headerDate}
-              </div>
-            )}
-            <ThemeSwitcher />
-          </div>
-        </header>
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-[1040px] px-[22px]">
+          <header className="flex items-end justify-between pt-[18px]">
+            <div className="font-display text-[36px] uppercase leading-[0.82] tracking-[0.01em]">
+              USAGE<span style={{ color: "var(--c-research)" }}>OS</span>
+            </div>
+            <div className="flex items-center gap-4">
+              {headerDate && (
+                <div className="text-right text-[11px] font-semibold uppercase leading-[1.6] tracking-[0.12em] text-muted">
+                  {headerDate}
+                </div>
+              )}
+              <ThemeSwitcher />
+            </div>
+          </header>
 
-        <TabNav view={view} onViewChange={onViewChange} />
+          <TabNav view={view} onViewChange={onViewChange} />
 
-        <main className="p-[22px]">{children}</main>
-
-        <Footer />
+          <main className="py-[22px]">{children}</main>
+        </div>
       </div>
+
+      <Footer />
     </div>
   );
 }

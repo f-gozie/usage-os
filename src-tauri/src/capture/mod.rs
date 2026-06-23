@@ -16,6 +16,7 @@ pub use polling::PollingCapture;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
+use std::time::Duration;
 
 use rusqlite::Connection;
 
@@ -90,6 +91,42 @@ pub fn default_source() -> Box<dyn CaptureSource> {
     #[cfg(not(target_os = "macos"))]
     {
         Box::new(PollingCapture::default())
+    }
+}
+
+// ── Heartbeat (keeps the current span growing during sustained single-app work) ──
+
+const HEARTBEAT_SECS: u64 = 20;
+/// Stop extending the current span once the user has been idle this long (stepped
+/// away), so leaving the machine focused on an app doesn't inflate active time.
+/// Placeholder — idle/heartbeat tuning is part of the deferred C2 work.
+const HEARTBEAT_IDLE_GATE_SECS: u64 = 120;
+
+/// Periodically extend the current active span to "now". Without this, a long stretch
+/// in one window (deep work in a single editor file) fires no focus/title events and so
+/// would never accrue time. Runs on its own thread; gated on system idle (no perms —
+/// `user_idle` reads aggregate input idle, capture standard C10).
+pub fn heartbeat(db_conn: DbConnection) {
+    println!(
+        "[Capture] heartbeat up ({}s, idle gate {}s)",
+        HEARTBEAT_SECS, HEARTBEAT_IDLE_GATE_SECS
+    );
+    loop {
+        std::thread::sleep(Duration::from_secs(HEARTBEAT_SECS));
+        let idle = user_idle::UserIdle::get_time()
+            .map(|t| t.as_seconds())
+            .unwrap_or(0);
+        if idle >= HEARTBEAT_IDLE_GATE_SECS {
+            continue; // away — don't extend
+        }
+        match db_conn.lock() {
+            Ok(conn) => {
+                if let Err(e) = db::extend_current_span(&conn, db::now_unix()) {
+                    eprintln!("[Capture] heartbeat extend failed: {}", e);
+                }
+            }
+            Err(e) => eprintln!("[Capture] heartbeat: db lock poisoned: {}", e),
+        }
     }
 }
 
@@ -238,6 +275,29 @@ mod tests {
             logs[0].process_name, "Banking App",
             "time + app still recorded"
         );
+    }
+
+    #[test]
+    fn switching_apps_closes_the_previous_span() {
+        let conn = test_db();
+        process_focus_event(&conn, &focus("Code", Some("main.rs"), 1000)).unwrap();
+        process_focus_event(&conn, &focus("Slack", Some("general"), 1090)).unwrap();
+        let logs = all_logs(&conn);
+        assert_eq!(logs.len(), 2);
+        // Code's span is closed up to the switch — it was a zero-width point before.
+        assert_eq!(logs[0].process_name, "Code");
+        assert_eq!(logs[0].start_time, 1000);
+        assert_eq!(logs[0].end_time, 1090);
+    }
+
+    #[test]
+    fn away_gap_is_not_absorbed_into_the_previous_span() {
+        let conn = test_db();
+        process_focus_event(&conn, &focus("Code", Some("main.rs"), 1000)).unwrap();
+        // A long gap with no events (sleep/away) — far beyond MAX_OPEN_SPAN_GAP.
+        process_focus_event(&conn, &focus("Slack", Some("general"), 1000 + 10_000)).unwrap();
+        let logs = all_logs(&conn);
+        assert_eq!(logs[0].end_time, 1000, "away time must stay untracked");
     }
 
     #[test]

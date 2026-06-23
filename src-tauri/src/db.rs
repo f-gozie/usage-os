@@ -238,6 +238,16 @@ pub fn update_last_activity_end_time(conn: &Connection, id: i64, timestamp: i64)
 /// gaps start a fresh entry, so closing the app for hours doesn't inflate a span.
 const MAX_COALESCE_GAP_SECONDS: i64 = 30;
 
+/// On a focus change, the largest gap we'll absorb when closing the previous span up to
+/// the switch. Beyond this (the machine slept/was away with no events) the old span
+/// keeps its heartbeat end and the gap stays untracked. Placeholder — tuned alongside
+/// idle handling (the deferred C2 heartbeat / D34a).
+const MAX_OPEN_SPAN_GAP_SECONDS: i64 = 180;
+
+/// The heartbeat won't extend a span whose end is already older than this — it means the
+/// heartbeat was paused (e.g. sleep), so we must not stretch the span across the gap.
+const STALE_SPAN_SECONDS: i64 = 90;
+
 /// Log a focus span with smart coalescing — the capture write path (Phase 1.2).
 ///
 /// If the last entry matches this one (app/title/idle/private/url) and the gap is
@@ -267,6 +277,13 @@ pub fn log_focus(conn: &Connection, ev: &NewEvent) -> Result<()> {
             update_last_activity_end_time(conn, last.id, ev.timestamp)?;
             return Ok(());
         }
+        // Focus changed: close the previous span up to this switch so it gets a real
+        // duration (without this, every span is a zero-width point). Bounded — if the
+        // gap is large (asleep/away with no events) leave the old span where the
+        // heartbeat left it and let the gap stay untracked.
+        if gap > 0 && gap <= MAX_OPEN_SPAN_GAP_SECONDS {
+            update_last_activity_end_time(conn, last.id, ev.timestamp)?;
+        }
     }
 
     insert_event(
@@ -276,6 +293,18 @@ pub fn log_focus(conn: &Connection, ev: &NewEvent) -> Result<()> {
             ..ev.clone()
         },
     )?;
+    Ok(())
+}
+
+/// Heartbeat write: extend the current (last, active, fresh) span's end to `now` so a
+/// sustained single-window stretch — which fires no focus/title events — still accrues
+/// time. No-op if the last span is idle or already stale (the heartbeat was paused).
+pub fn extend_current_span(conn: &Connection, now: i64) -> Result<()> {
+    if let Some(last) = get_last_activity_log(conn)? {
+        if !last.is_idle && now > last.end_time && now - last.end_time <= STALE_SPAN_SECONDS {
+            update_last_activity_end_time(conn, last.id, now)?;
+        }
+    }
     Ok(())
 }
 
@@ -820,6 +849,24 @@ mod tests {
         assert_eq!(logs.len(), 2);
         assert_eq!(logs[0].process_name, "firefox");
         assert_eq!(logs[1].process_name, "code");
+    }
+
+    #[test]
+    fn extend_current_span_extends_a_fresh_active_span() {
+        let conn = setup_test_db();
+        insert_activity_log(&conn, "Code", "main.rs", false, 1000, None).unwrap();
+        extend_current_span(&conn, 1015).unwrap(); // within the stale window
+        let logs = get_activity_logs(&conn, 0, i64::MAX).unwrap();
+        assert_eq!(logs[0].end_time, 1015);
+    }
+
+    #[test]
+    fn extend_current_span_ignores_a_stale_span() {
+        let conn = setup_test_db();
+        insert_activity_log(&conn, "Code", "main.rs", false, 1000, None).unwrap();
+        extend_current_span(&conn, 1000 + 1000).unwrap(); // gap > STALE_SPAN_SECONDS
+        let logs = get_activity_logs(&conn, 0, i64::MAX).unwrap();
+        assert_eq!(logs[0].end_time, 1000, "a stale span must not be stretched");
     }
 
     // --- Coalescing tests ---

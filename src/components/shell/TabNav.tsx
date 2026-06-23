@@ -17,7 +17,7 @@ export interface TabNavProps {
 /** Top navigation tabs (Day / Week / Timeline / Settings). */
 export function TabNav({ view, onViewChange }: TabNavProps) {
   return (
-    <nav className="mx-[22px] mt-4 flex items-center border-b-[3px] border-edge">
+    <nav className="mt-4 flex items-center border-b-[3px] border-edge">
       {VIEWS.map((tab) => {
         const active = tab.value === view;
         return (

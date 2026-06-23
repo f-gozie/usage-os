@@ -61,7 +61,7 @@ export function DayView({ date, onDateChange }: DayViewProps) {
 
   return (
     <div>
-      <DayNav date={date} isToday={isToday} onDateChange={onDateChange} />
+      <DayNav date={date} isToday={isToday} onDateChange={onDateChange} onRefresh={refresh} />
 
       {!captureHealthy && (
         <div className="mb-5">
@@ -143,10 +143,12 @@ function DayNav({
   date,
   isToday,
   onDateChange,
+  onRefresh,
 }: {
   date: Date;
   isToday: boolean;
   onDateChange: (date: Date) => void;
+  onRefresh: () => void;
 }) {
   const label = isToday
     ? "Today"
@@ -155,6 +157,15 @@ function DayNav({
     <div className="mb-[18px] flex items-center justify-between">
       <div className="font-display text-[22px] uppercase tracking-[0.02em]">{label}</div>
       <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-label="Refresh"
+          title="Refresh (updates automatically every 30s)"
+          onClick={onRefresh}
+          className="mr-1 flex h-[34px] w-9 items-center justify-center border-2 border-edge bg-bg text-sm font-bold text-fg"
+        >
+          ↻
+        </button>
         <button
           type="button"
           aria-label="Previous day"

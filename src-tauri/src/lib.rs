@@ -244,6 +244,11 @@ pub fn run() {
             // block, so they must stay off the async executor; R57).
             let (tx, rx) = std::sync::mpsc::channel();
             capture::default_source().start(tx);
+            // The heartbeat keeps the currently-focused span growing during sustained
+            // single-window work (which fires no focus events); idle-gated so away time
+            // doesn't inflate.
+            let heartbeat_conn = db_conn.clone();
+            std::thread::spawn(move || capture::heartbeat(heartbeat_conn));
             std::thread::spawn(move || capture::consume(db_conn, rx));
             Ok(())
         })
