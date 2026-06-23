@@ -23,6 +23,11 @@ function makeLog(overrides: Partial<ActivityLog> = {}): ActivityLog {
     end_time: 1060,
     is_idle: false,
     category_id: null,
+    url: null,
+    site: null,
+    project_id: null,
+    project_abstain_reason: null,
+    is_private: false,
     ...overrides,
   };
 }

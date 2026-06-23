@@ -3,7 +3,10 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
-mod db;
+// `db` is the typed repository layer (the lib's data boundary). It's `pub` so the
+// repository API built ahead of its command/capture consumers (Phase 1.2+) is
+// reachable — otherwise not-yet-wired fns would trip `dead_code` under `-D warnings`.
+pub mod db;
 mod watcher;
 
 use rusqlite::Connection;

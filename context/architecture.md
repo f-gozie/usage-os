@@ -48,8 +48,9 @@ _Last updated: 2026-06-22. Detailed code conventions live in `context/standards/
 
 Schema is already managed by the versioned migration system (`schema_migrations`; current tables: `categories`, `rules`, `activity_logs`, `settings`). The redesign adds **new migrations (v5+)** — it does not recreate the schema. The `events` shape below is the evolved `activity_logs` (new columns) plus new tables:
 
-- `events` — one row per coalesced activity span: `id, start, end, app, title, url, site, project_id?, context_id?, is_idle, is_private`.
-- `contexts` — `id, name, color`. `projects` — `id, name, match_hint`.
+- `events` — one row per coalesced activity span: `id, start, end, app, title, url, site, project_id?, context_id?, is_idle, is_private`. _(Built in Phase 1.1 as new columns on `activity_logs` — the rename to `events` is deferred to the UI rewrite, D31; `project_abstain_reason` (NULL | `no-signal` | `ambiguous`) persists why a span is unassigned, for Phase-2 correlation.)_
+- `contexts` — `id, name, color` _(still the `categories` table for now; rename deferred — D31)_. `projects` — keyed on `canonical_key` (git remote `owner/repo`) with `display_name, remote_url`; folder/title/url aliases resolve to it via `project_aliases` (D30).
+- `sites` — `id, host, display_name, kind` registry (`general`/`dashboard`/`project-host`); `exclusions` — `match_type, pattern, mode (exclude|private)` (D8).
 - `rules` — app/title/site → context (smart defaults, user-editable).
 - `corrections` — user reclassifications (feed the embedding matcher).
 - `recaps` — `date, facts_json, text, generated_by (template|fm)`.
