@@ -35,6 +35,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "seed_default_rules",
         sql: include_str!("../migrations/0003_seed_default_rules.sql"),
     },
+    Migration {
+        version: 4,
+        name: "recategorize_claude_as_deep",
+        sql: include_str!("../migrations/0004_recategorize_claude_as_deep.sql"),
+    },
 ];
 
 /// FNV-1a (64-bit): a small, stable, dependency-free hash. Not cryptographic — its only
@@ -204,5 +209,20 @@ mod tests {
         // A starter rule maps the Cursor editor to Deep work.
         let matched = crate::db::find_category(&conn, "Cursor", "").unwrap();
         assert_eq!(matched, Some(deep));
+    }
+
+    #[test]
+    fn claude_app_recategorized_to_deep_work() {
+        // 0004 re-points the Claude rule from Research to Deep work (supervising an
+        // agent is deep work). The claude.ai web tab is unaffected — it matches browser
+        // process rules, not this one.
+        let conn = fresh();
+        let deep: i64 = conn
+            .query_row("SELECT id FROM categories WHERE slug = 'deep'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        let matched = crate::db::find_category(&conn, "Claude", "").unwrap();
+        assert_eq!(matched, Some(deep), "Claude app should now be Deep work");
     }
 }

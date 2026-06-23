@@ -26,7 +26,9 @@ use crate::enrich::{self, ProjectAssignment, ProjectSignals};
 
 /// A focus change marshaled from the capture side to the consumer thread. All
 /// fields are owned/`Send` (D29). The signals are filled by whichever source is
-/// active: polling sets app + idle only; the macOS impl adds title, url, and cwd.
+/// active: polling sets app only; the macOS impl adds title, url, and cwd. Idle is
+/// NOT a per-event signal — the consumer is the single source of idle truth (D39),
+/// reading input-idle on each tick against the per-app gate.
 #[derive(Debug, Clone, Default)]
 pub struct FocusEvent {
     pub app_name: String,
@@ -40,7 +42,6 @@ pub struct FocusEvent {
     /// The source detected a private context (e.g. an incognito browser window) —
     /// record time + app only, never the title/url (D8).
     pub is_private: bool,
-    pub is_idle: bool,
     pub timestamp: i64,
 }
 
@@ -100,11 +101,33 @@ pub fn default_source() -> Box<dyn CaptureSource> {
 /// How often the consumer wakes (when no events arrive) to re-check idle and extend
 /// the open span — the resolution of tail time and the max lost on a crash.
 const TICK_SECS: i64 = 20;
-/// Input-idle at/over this is "away": the open span is closed and time stops accruing.
-/// Also the reading/watching allowance — scroll/trackpad count as input, so genuine
-/// reading rarely trips it. The one knob with a real UX trade-off; tune via dogfooding
-/// (D34a). Erring toward an *honest* mirror, we keep this modest (don't over-count).
+/// Default input-idle gate: at/over this many seconds with no input the open span is
+/// closed and time stops accruing. Also the everyday reading allowance — scroll/trackpad
+/// count as input, so genuine reading rarely trips it.
 const GATE_SECS: i64 = 120;
+/// A longer gate for apps where attentively watching with little input is the norm —
+/// supervising an AI coding agent, a long build/test run. Bounded, never disabled: a
+/// genuine walk-away still closes the span once idle crosses it, capping the over-count
+/// (the honest-mirror trade-off). D34a dogfood-tunable starting value (D39, set by the
+/// Codex+Opus debate).
+const PATIENT_GATE_SECS: i64 = 600;
+/// Process-name substrings (case-insensitive) that earn `PATIENT_GATE_SECS`: the
+/// editor / terminal / agent surfaces where you watch work happen without touching the
+/// keys. Mirrors the "deep work" starter rules (migration 0003) but is deliberately
+/// decoupled from categorization — a browser doing "research" is not a patient surface.
+const PATIENT_APPS: &[&str] = &[
+    "Cursor", "Code", "Xcode", "iTerm", "Terminal", "Warp", "Ghostty", "Zed", "Claude",
+];
+
+/// The idle gate for `app`: the longer patient gate for agent/dev surfaces, else default.
+fn gate_secs_for(app: &str) -> i64 {
+    let app = app.to_lowercase();
+    if PATIENT_APPS.iter().any(|p| app.contains(&p.to_lowercase())) {
+        PATIENT_GATE_SECS
+    } else {
+        GATE_SECS
+    }
+}
 
 /// The resolved identity of a focused window — what we write and compare for
 /// coalescing. Already privacy-sanitized (title/url blanked when private).
@@ -267,7 +290,15 @@ fn on_tick(
     now: i64,
     idle_secs: i64,
 ) -> rusqlite::Result<()> {
-    if idle_secs >= GATE_SECS {
+    // The gate depends on the app we'd extend or resume — agent/dev surfaces get the
+    // longer patient gate so hands-off watching (an agent working) isn't dropped.
+    let gate = state
+        .current
+        .as_ref()
+        .map(|open| open.focus.app.as_str())
+        .or_else(|| state.last_focus.as_ref().map(|f| f.app.as_str()))
+        .map_or(GATE_SECS, gate_secs_for);
+    if idle_secs >= gate {
         // Away: close the open span (leave its end at the last tick) but remember the
         // focus so we can resume the same window when the user comes back.
         state.current = None;
@@ -525,7 +556,8 @@ mod tests {
     fn idle_closes_span_without_inflating_it() {
         let conn = test_db();
         let mut st = SpanState::default();
-        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
+        // Slack is not a patient app — the default 120s gate applies.
+        feed(&conn, &mut st, &focus("Slack", Some("general"), 1000));
         on_tick(&conn, &mut st, 1000 + GATE_SECS, GATE_SECS).unwrap(); // away
         assert!(st.current.is_none(), "the open span is closed when away");
         assert_eq!(
@@ -540,15 +572,74 @@ mod tests {
         // read → walk away → come back to the SAME window (macOS fires no event).
         let conn = test_db();
         let mut st = SpanState::default();
-        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
+        feed(&conn, &mut st, &focus("Slack", Some("general"), 1000));
         on_tick(&conn, &mut st, 1200, GATE_SECS).unwrap(); // away → close
         on_tick(&conn, &mut st, 1230, 3).unwrap(); // active again, same window
         let logs = all_logs(&conn);
         assert_eq!(logs.len(), 2, "a fresh span resumes the same window");
-        assert_eq!(logs[1].process_name, "Code");
+        assert_eq!(logs[1].process_name, "Slack");
         assert_eq!(
             logs[1].start_time, 1230,
             "resumes at now, not across the gap"
+        );
+    }
+
+    #[test]
+    fn agent_app_keeps_accruing_past_the_default_gate() {
+        // Watching an agent work in a patient app: 5 min hands-off is under the 600s
+        // gate, so the span keeps extending instead of being dropped at 120s.
+        let conn = test_db();
+        let mut st = SpanState::default();
+        feed(
+            &conn,
+            &mut st,
+            &focus("Claude", Some("usage-os — working"), 1000),
+        );
+        on_tick(&conn, &mut st, 1300, 300).unwrap(); // 5 min idle, still watching
+        assert!(
+            st.current.is_some(),
+            "a patient app survives past the default gate"
+        );
+        assert_eq!(
+            all_logs(&conn)[0].end_time,
+            1300,
+            "supervision time accrues"
+        );
+    }
+
+    #[test]
+    fn agent_app_still_closes_at_the_patient_gate() {
+        // The patient gate is bounded: a true walk-away (>10 min) still closes the span,
+        // so there is no phantom focus past the cap (honest-mirror trade-off).
+        let conn = test_db();
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Claude", Some("usage-os"), 1000));
+        on_tick(&conn, &mut st, 1000 + PATIENT_GATE_SECS, PATIENT_GATE_SECS).unwrap();
+        assert!(
+            st.current.is_none(),
+            "the patient gate still closes on a walk-away"
+        );
+        assert_eq!(
+            all_logs(&conn)[0].end_time,
+            1000,
+            "no phantom time past the cap"
+        );
+    }
+
+    #[test]
+    fn gate_is_per_app() {
+        assert_eq!(gate_secs_for("Cursor"), PATIENT_GATE_SECS);
+        assert_eq!(
+            gate_secs_for("iTerm2"),
+            PATIENT_GATE_SECS,
+            "substring match"
+        );
+        assert_eq!(gate_secs_for("Claude"), PATIENT_GATE_SECS);
+        assert_eq!(gate_secs_for("Slack"), GATE_SECS);
+        assert_eq!(
+            gate_secs_for("Google Chrome"),
+            GATE_SECS,
+            "research surfaces are not patient"
         );
     }
 

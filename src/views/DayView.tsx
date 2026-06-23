@@ -52,6 +52,10 @@ export function DayView({ date, onDateChange }: DayViewProps) {
   const researchSecs = data?.contexts.find((c) => c.slug === "research")?.secs ?? 0;
   const activeSecs = data?.active_secs ?? 0;
   const focusPct = activeSecs > 0 ? Math.round(((deepSecs + researchSecs) / activeSecs) * 100) : 0;
+  // The day's leading context — `contexts` is sorted longest-first by the rollup, so [0]
+  // is the headline. Featuring whatever actually led (vs. a fixed "Deep work" that's
+  // often ~0) keeps the stat honest instead of looking broken.
+  const topContext = data?.contexts[0];
 
   const inspector: InspectorDetail | null = selectedRun
     ? buildInspector(selectedRun)
@@ -98,9 +102,9 @@ export function DayView({ date, onDateChange }: DayViewProps) {
               <div className="flex border-t-[3px] border-edge">
                 <StatTile value={formatDuration(activeSecs)} label="Active" />
                 <StatTile
-                  value={formatDuration(deepSecs)}
-                  label="Deep work"
-                  colorVar="var(--c-deep)"
+                  value={topContext ? formatDuration(topContext.secs) : "—"}
+                  label={topContext ? topContext.name : "Top context"}
+                  colorVar={topContext ? contextColorVar(topContext.slug) : undefined}
                   className="border-l-2 border-edge pl-3.5"
                 />
                 <StatTile
