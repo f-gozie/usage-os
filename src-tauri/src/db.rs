@@ -10,7 +10,7 @@ pub type DbConnection = Arc<Mutex<Connection>>;
 ///
 /// If the system clock is before the Unix epoch (clock skew), this falls back
 /// to `Duration::ZERO` rather than panicking, yielding a timestamp of 0.
-fn now_unix() -> i64 {
+pub fn now_unix() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -421,14 +421,72 @@ pub fn update_last_activity_end_time(conn: &Connection, id: i64, timestamp: i64)
     Ok(())
 }
 
-/// Log activity with smart coalescing logic.
+/// How close two consecutive spans must be (seconds) to coalesce into one. Larger
+/// gaps start a fresh entry, so closing the app for hours doesn't inflate a span.
+const MAX_COALESCE_GAP_SECONDS: i64 = 30;
+
+/// Log a focus span with smart coalescing — the capture write path (Phase 1.2).
 ///
-/// If the last entry matches the current process/title/idle state AND
-/// the time gap is reasonable (< 30 seconds), updates its end_time.
-/// Otherwise, inserts a new entry.
-///
-/// This prevents false duration inflation when the app is restarted
-/// after being closed for hours/days.
+/// If the last entry matches this one (app/title/idle/private/url) and the gap is
+/// `<= MAX_COALESCE_GAP_SECONDS`, extends its `end_time`; otherwise inserts a new
+/// span. `site`/project are left for the enrichment pass. Callers are responsible
+/// for sensitive handling (D8) — for a private span, pass `is_private = true` with
+/// `title`/`url` already omitted (this fn does not filter).
+#[allow(clippy::too_many_arguments)]
+pub fn log_focus(
+    conn: &Connection,
+    app: &str,
+    title: Option<&str>,
+    url: Option<&str>,
+    site: Option<&str>,
+    is_idle: bool,
+    is_private: bool,
+    timestamp: i64,
+) -> Result<()> {
+    let title = title.unwrap_or("");
+
+    let category_id = match find_category(conn, app, title) {
+        Ok(id) => id,
+        Err(e) => {
+            eprintln!("[Capture] category lookup failed: {}", e);
+            None
+        }
+    };
+
+    if let Some(last) = get_last_activity_log(conn)? {
+        let gap = timestamp - last.end_time;
+        let is_same = last.process_name == app
+            && last.window_title == title
+            && last.is_idle == is_idle
+            && last.is_private == is_private
+            && last.url.as_deref() == url;
+        if is_same && gap <= MAX_COALESCE_GAP_SECONDS {
+            update_last_activity_end_time(conn, last.id, timestamp)?;
+            return Ok(());
+        }
+    }
+
+    insert_event(
+        conn,
+        &NewEvent {
+            process_name: app,
+            window_title: title,
+            url,
+            site,
+            project_id: None,
+            project_abstain_reason: None,
+            is_private,
+            is_idle,
+            category_id,
+            timestamp,
+        },
+    )?;
+    Ok(())
+}
+
+/// Log activity with smart coalescing — the legacy app+title write path (kept so
+/// existing callers/tests are unchanged). Delegates to [`log_focus`] with no url
+/// and `is_private = false`.
 pub fn log_activity(
     conn: &Connection,
     process_name: &str,
@@ -436,71 +494,16 @@ pub fn log_activity(
     is_idle: bool,
     timestamp: i64,
 ) -> Result<()> {
-    const MAX_GAP_SECONDS: i64 = 30;
-
-    // Calculate category_id
-    // Note: This fetches rules every time. For high-frequency polling (5s), this is fine with SQLite.
-    // Optimization: Cache rules in memory if needed later.
-    let category_id = match find_category(conn, process_name, window_title) {
-        Ok(id) => id,
-        Err(e) => {
-            eprintln!("[Database] Failed to determine category: {}", e);
-            None
-        }
-    };
-
-    match get_last_activity_log(conn)? {
-        Some(last_log) => {
-            let time_gap = timestamp - last_log.end_time;
-            // We also check if category changed?
-            // Ideally yes, if rules change mid-stream or dynamic categorization happens.
-            // But usually category depends on process/title.
-            // If process/title are same, category should be same given same rules.
-            // So checking process/title/idle is sufficient.
-
-            let is_same_activity = last_log.process_name == process_name
-                && last_log.window_title == window_title
-                && last_log.is_idle == is_idle;
-
-            if is_same_activity && time_gap <= MAX_GAP_SECONDS {
-                update_last_activity_end_time(conn, last_log.id, timestamp)?;
-            } else {
-                insert_activity_log(
-                    conn,
-                    process_name,
-                    window_title,
-                    is_idle,
-                    timestamp,
-                    category_id,
-                )?;
-                if time_gap > MAX_GAP_SECONDS {
-                    println!(
-                        "[Database] Gap detected ({} seconds), starting new entry",
-                        time_gap
-                    );
-                }
-                println!(
-                    "[Database] New activity: {} - {} (idle: {}) [Category: {:?}]",
-                    process_name, window_title, is_idle, category_id
-                );
-            }
-        }
-        None => {
-            insert_activity_log(
-                conn,
-                process_name,
-                window_title,
-                is_idle,
-                timestamp,
-                category_id,
-            )?;
-            println!(
-                "[Database] First activity: {} - {} (idle: {}) [Category: {:?}]",
-                process_name, window_title, is_idle, category_id
-            );
-        }
-    }
-    Ok(())
+    log_focus(
+        conn,
+        process_name,
+        Some(window_title),
+        None,
+        None,
+        is_idle,
+        false,
+        timestamp,
+    )
 }
 
 /// Thread-safe wrapper for logging activity.
