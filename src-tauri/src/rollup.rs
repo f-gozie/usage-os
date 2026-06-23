@@ -107,6 +107,37 @@ pub struct WeekView {
     pub deepest_day: Option<i64>,
 }
 
+/// One focused-window event inside a context-run — the Timeline's click-to-expand detail.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct TimelineSegment {
+    pub start: i64,
+    pub end: i64,
+    pub app: String,
+    /// Resolved project name, or `None` when none was inferred (the UI shows "—").
+    pub project: Option<String>,
+    pub secs: i64,
+}
+
+/// A context-run plus its inner app-switch segments — one expandable Timeline row (D34).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct TimelineRun {
+    pub context_slug: String,
+    pub context_name: String,
+    pub start: i64,
+    pub end: i64,
+    pub secs: i64,
+    pub projects: Vec<ProjectSlice>,
+    pub apps: Vec<String>,
+    pub segments: Vec<TimelineSegment>,
+}
+
+/// Everything the Timeline view needs: the day's context-runs, each with its segments.
+/// The "Away" idle gaps and the now-marker are derived on the frontend from run bounds.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct TimelineView {
+    pub runs: Vec<TimelineRun>,
+}
+
 fn duration(event: &ActivityLog) -> i64 {
     (event.end_time - event.start_time).max(0)
 }
@@ -230,6 +261,119 @@ pub fn build_week_view(days: Vec<DaySlice>) -> WeekView {
         deepest_day,
         days,
     }
+}
+
+/// In-progress timeline-run accumulator: like `RunBuilder`, but retains each event as a
+/// segment (the expand detail) and derives the project breakdown from those segments.
+struct TimelineRunBuilder {
+    slug: String,
+    name: String,
+    start: i64,
+    end: i64,
+    secs: i64,
+    apps: Vec<String>,
+    segments: Vec<TimelineSegment>,
+}
+
+impl TimelineRunBuilder {
+    fn new(event: &ActivityLog, slug: String, name: String, project: Option<String>) -> Self {
+        let mut builder = TimelineRunBuilder {
+            slug,
+            name,
+            start: event.start_time,
+            end: event.end_time,
+            secs: 0,
+            apps: Vec::new(),
+            segments: Vec::new(),
+        };
+        builder.add(event, project);
+        builder
+    }
+
+    fn add(&mut self, event: &ActivityLog, project: Option<String>) {
+        self.end = self.end.max(event.end_time);
+        let secs = duration(event);
+        self.secs += secs;
+        if !self.apps.iter().any(|a| a == &event.process_name) {
+            self.apps.push(event.process_name.clone());
+        }
+        self.segments.push(TimelineSegment {
+            start: event.start_time,
+            end: event.end_time,
+            app: event.process_name.clone(),
+            project,
+            secs,
+        });
+    }
+
+    fn finish(self) -> TimelineRun {
+        // Project breakdown from the segments (unresolved → the neutral "No project").
+        let mut totals: HashMap<String, i64> = HashMap::new();
+        for seg in &self.segments {
+            let name = seg
+                .project
+                .clone()
+                .unwrap_or_else(|| NO_PROJECT.to_string());
+            *totals.entry(name).or_insert(0) += seg.secs;
+        }
+        let mut projects: Vec<ProjectSlice> = totals
+            .into_iter()
+            .map(|(name, secs)| ProjectSlice { name, secs })
+            .collect();
+        projects.sort_by(|a, b| b.secs.cmp(&a.secs).then_with(|| a.name.cmp(&b.name)));
+        TimelineRun {
+            context_slug: self.slug,
+            context_name: self.name,
+            start: self.start,
+            end: self.end,
+            secs: self.secs,
+            projects,
+            apps: self.apps,
+            segments: self.segments,
+        }
+    }
+}
+
+/// Build the Timeline view: the day's context-runs (same segmentation as `build_runs` — a
+/// context change or a gap ≥ `IDLE_GAP_ENDS_RUN_SECS` ends a run) but with every event kept
+/// as a segment for the click-to-expand detail (D34). The current segmentation only — this
+/// view is the tool to evaluate the D34a excursion-absorb / sustained-shift refinements.
+pub fn build_timeline(
+    events: &[ActivityLog],
+    contexts: &HashMap<i64, ContextMeta>,
+    projects: &HashMap<i64, String>,
+) -> TimelineView {
+    let mut active: Vec<&ActivityLog> = events
+        .iter()
+        .filter(|e| !e.is_idle && duration(e) > 0)
+        .collect();
+    active.sort_by_key(|e| e.start_time);
+
+    let mut runs: Vec<TimelineRun> = Vec::new();
+    let mut current: Option<TimelineRunBuilder> = None;
+
+    for event in active {
+        let (slug, name) = context_of(event, contexts);
+        let project = event.project_id.and_then(|id| projects.get(&id).cloned());
+
+        match current.take() {
+            Some(mut run)
+                if run.slug == slug && event.start_time - run.end < IDLE_GAP_ENDS_RUN_SECS =>
+            {
+                run.add(event, project);
+                current = Some(run);
+            }
+            Some(run) => {
+                runs.push(run.finish());
+                current = Some(TimelineRunBuilder::new(event, slug, name, project));
+            }
+            None => current = Some(TimelineRunBuilder::new(event, slug, name, project)),
+        }
+    }
+    if let Some(run) = current {
+        runs.push(run.finish());
+    }
+    TimelineView { runs }
 }
 
 /// In-progress run accumulator (kept out of the public surface).
@@ -597,5 +741,54 @@ mod tests {
         let week = build_week_view(vec![flat.clone(), flat.clone(), flat]);
         assert_eq!(week.deepest_day, None);
         assert_eq!(week.avg_active_secs, 300);
+    }
+
+    #[test]
+    fn timeline_keeps_segments_and_projects_within_a_run() {
+        // Deep work bouncing usageos <-> nudge stays one run, with both events as segments.
+        let events = vec![
+            ev(0, 300, "Cursor", Some(1), Some(1)),
+            ev(300, 600, "iTerm", Some(1), Some(2)),
+        ];
+        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        assert_eq!(tl.runs.len(), 1);
+        let run = &tl.runs[0];
+        assert_eq!(run.segments.len(), 2);
+        assert_eq!(run.segments[0].app, "Cursor");
+        assert_eq!(run.segments[0].project.as_deref(), Some("usageos"));
+        assert_eq!(run.segments[1].app, "iTerm");
+        assert_eq!(run.secs, 600);
+        assert_eq!(run.projects.len(), 2, "two projects inside the run");
+    }
+
+    #[test]
+    fn timeline_splits_on_context_change_and_marks_no_project() {
+        let events = vec![
+            ev(0, 600, "Cursor", Some(1), Some(1)), // deep
+            ev(600, 900, "Slack", Some(2), None),   // comms → split
+        ];
+        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        assert_eq!(tl.runs.len(), 2);
+        assert_eq!(tl.runs[1].context_slug, "comms");
+        assert_eq!(
+            tl.runs[1].segments[0].project, None,
+            "unresolved project → None"
+        );
+    }
+
+    #[test]
+    fn timeline_splits_same_context_on_a_long_gap() {
+        let events = vec![
+            ev(0, 600, "Cursor", Some(1), Some(1)),
+            ev(
+                600 + IDLE_GAP_ENDS_RUN_SECS,
+                1200 + IDLE_GAP_ENDS_RUN_SECS,
+                "Cursor",
+                Some(1),
+                Some(1),
+            ),
+        ];
+        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        assert_eq!(tl.runs.len(), 2, "a gap ≥ threshold ends the run");
     }
 }

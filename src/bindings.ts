@@ -45,6 +45,19 @@ async getWeek(dayStarts: number[], weekEnd: number) : Promise<Result<WeekView, A
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Build the Timeline view — the day's context-runs, each with its inner app-switch
+ * segments (D34) — for a `[start_time, end_time]` Unix-second range. Same read-model
+ * inputs as `get_day`; numbers in Rust (hard rule 6).
+ */
+async getTimeline(startTime: number, endTime: number) : Promise<Result<TimelineView, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_timeline", { startTime, endTime }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getCategories() : Promise<Result<Category[], AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_categories") };
@@ -216,6 +229,23 @@ export type Rule = { id: number; category_id: number; match_field: string; patte
  * One persisted setting key/value (replaces the awkward `[string, string][]`).
  */
 export type Setting = { key: string; value: string }
+/**
+ * A context-run plus its inner app-switch segments — one expandable Timeline row (D34).
+ */
+export type TimelineRun = { context_slug: string; context_name: string; start: number; end: number; secs: number; projects: ProjectSlice[]; apps: string[]; segments: TimelineSegment[] }
+/**
+ * One focused-window event inside a context-run — the Timeline's click-to-expand detail.
+ */
+export type TimelineSegment = { start: number; end: number; app: string; 
+/**
+ * Resolved project name, or `None` when none was inferred (the UI shows "—").
+ */
+project: string | null; secs: number }
+/**
+ * Everything the Timeline view needs: the day's context-runs, each with its segments.
+ * The "Away" idle gaps and the now-marker are derived on the frontend from run bounds.
+ */
+export type TimelineView = { runs: TimelineRun[] }
 /**
  * Health of the background capture watcher (replaces an untyped `serde_json::Value`).
  */

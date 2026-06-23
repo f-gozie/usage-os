@@ -6,6 +6,7 @@ import { formatDayParts, formatWeekRange } from "@/lib/dates";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { DayView } from "@/views/DayView";
 import { Placeholder } from "@/views/Placeholder";
+import { TimelineView } from "@/views/TimelineView";
 import { WeekView } from "@/views/WeekView";
 
 function App() {
@@ -14,7 +15,7 @@ function App() {
 
   const parts = formatDayParts(date);
   const headerDate =
-    view === "day" ? (
+    view === "day" || view === "timeline" ? (
       <>
         {parts.weekday}
         <br />
@@ -42,7 +43,7 @@ function App() {
             }}
           />
         )}
-        {view === "timeline" && <Placeholder title="Timeline" />}
+        {view === "timeline" && <TimelineView date={date} onDateChange={setDate} />}
         {view === "settings" && <Placeholder title="Settings" />}
       </AppShell>
     </ThemeProvider>

@@ -14,6 +14,7 @@ import type {
   Result,
   Rule,
   Setting,
+  TimelineView,
   WatcherStatus,
   WeekView,
 } from '../bindings';
@@ -30,6 +31,9 @@ export type {
   Recap,
   Rule,
   Setting,
+  TimelineRun,
+  TimelineSegment,
+  TimelineView,
   WatcherStatus,
   WeekView,
 } from '../bindings';
@@ -72,6 +76,14 @@ export async function getDay(startTime: number, endTime: number): Promise<DayVie
  */
 export async function getWeek(dayStarts: number[], weekEnd: number): Promise<WeekView> {
   return unwrap(await commands.getWeek(dayStarts, weekEnd));
+}
+
+/**
+ * Fetch the computed Timeline view: the day's context-runs, each with its inner app-switch
+ * segments (the click-to-expand detail). Numbers are computed in Rust (hard rule 6).
+ */
+export async function getTimeline(startTime: number, endTime: number): Promise<TimelineView> {
+  return unwrap(await commands.getTimeline(startTime, endTime));
 }
 
 // --- Categories ---

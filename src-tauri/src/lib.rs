@@ -126,6 +126,29 @@ fn get_week(
     Ok(rollup::build_week_view(days))
 }
 
+/// Build the Timeline view — the day's context-runs, each with its inner app-switch
+/// segments (D34) — for a `[start_time, end_time]` Unix-second range. Same read-model
+/// inputs as `get_day`; numbers in Rust (hard rule 6).
+#[tauri::command]
+#[specta::specta]
+fn get_timeline(
+    db: State<DbState>,
+    start_time: i64,
+    end_time: i64,
+) -> Result<rollup::TimelineView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let events = db::get_activity_logs(&conn, start_time, end_time)?;
+    let contexts: HashMap<i64, rollup::ContextMeta> = db::get_context_metas(&conn)?
+        .into_iter()
+        .map(|(id, slug, name)| (id, rollup::ContextMeta { slug, name }))
+        .collect();
+    let projects: HashMap<i64, String> = db::get_projects(&conn)?
+        .into_iter()
+        .map(|p| (p.id, p.display_name))
+        .collect();
+    Ok(rollup::build_timeline(&events, &contexts, &projects))
+}
+
 #[tauri::command]
 #[specta::specta]
 fn get_categories(db: State<DbState>) -> Result<Vec<db::Category>, AppError> {
@@ -224,6 +247,7 @@ fn make_builder() -> Builder<tauri::Wry> {
         get_activity_stats,
         get_day,
         get_week,
+        get_timeline,
         get_categories,
         create_category,
         delete_category,
