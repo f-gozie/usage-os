@@ -45,8 +45,8 @@ From the shipped v0.1.0 + Tier-1 work, do **not** rebuild these:
 ## Phase 1 — Capture → the dial ("I open it and see MY actual day")
 
 - [ ] Replace the watcher with the event-driven capture impl (behind a `capture` trait, mockable).
-- [ ] New migrations for projects/sites/contexts + event columns; repository functions + tests.
-- [ ] Sensitive handling: exclusion list, per-app Private, incognito never recorded.
+- [x] **New migrations for projects/sites/contexts + event columns; repository functions + tests — ✅ DONE** (`phase1/data-model`, D31). Append-only migrations v5–v8: `projects`+`project_aliases` (D30 canonicalization), `sites` registry, `exclusions` (D8), and `url`/`site`/`project_id`/`project_abstain_reason`/`is_private` columns on `activity_logs`. Typed repository (`resolve_or_create_project`, `match_exclusion`, `insert_event`/`NewEvent`, …) + 14 new tests (40 Rust total). WAL on; `db` is now `pub mod`. Renames `activity_logs`→`events` / `categories`→`contexts` deferred to the UI rewrite (D31). Only `ActivityLog` touched `bindings.ts` (additive).
+- [ ] Sensitive handling: exclusion list, per-app Private, incognito never recorded. _(Schema + `match_exclusion` repository fn landed in 1.1; the capture-time wiring + the settings UI remain.)_
 - [ ] Fixed-24h dial from real data, click-to-inspect. (Default contexts via the existing rules engine; projects auto-inferred.)
 
 ## Phase 2 — Enrichment

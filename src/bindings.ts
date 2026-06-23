@@ -112,8 +112,34 @@ async updateSetting(key: string, value: string) : Promise<Result<null, AppError>
 
 /**
  * Activity log entry representing a time block of app usage.
+ * 
+ * Conceptually the redesign's "event" (the table rename `activity_logs`→`events`
+ * is deferred to the UI rewrite to avoid IPC churn). The enrichment fields
+ * (`url`/`site`/`project_id`/`project_abstain_reason`/`is_private`) are written by
+ * the capture + enrichment layers (Phase 1.2+); current capture leaves them empty.
  */
-export type ActivityLog = { id: number; process_name: string; window_title: string; start_time: number; end_time: number; is_idle: boolean; category_id: number | null }
+export type ActivityLog = { id: number; process_name: string; window_title: string; start_time: number; end_time: number; is_idle: boolean; category_id: number | null; 
+/**
+ * Browser URL for this span, if any. Omitted for private/incognito (D8).
+ */
+url: string | null; 
+/**
+ * Parsed host/site from `url` (e.g. "github.com").
+ */
+site: string | null; 
+/**
+ * Resolved project (D30). `None` = unassigned.
+ */
+project_id: number | null; 
+/**
+ * Why no project was assigned: `None` when assigned, else "no-signal" |
+ * "ambiguous". Phase 2 correlates "ambiguous" spans (never "no-signal").
+ */
+project_abstain_reason: string | null; 
+/**
+ * A "private" app (D8): time counts, but title/url are not recorded.
+ */
+is_private: boolean }
 /**
  * Typed error contract for every command (replaces `Result<_, String>`).
  * Crosses to TS as a discriminated union the frontend can `switch` on `kind`.
