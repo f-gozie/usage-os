@@ -55,5 +55,10 @@ No gamification (XP, streaks, goals, "boss fights" — all cut). No real-time in
   - **Impl-plans:** when a task's plan-mode plan is approved, save it as `impl-plans/YYYY-MM-DD-<task>.md` (the as-built detail behind its PR).
   - **Decisions** go in `context/decisions.md` (ADR-style, append-only — D1…). The *why*; cross-reference from plans/handoffs.
   - Process docs (plans/handoffs/decisions/registry) are committed to `main` directly (they're cross-cutting, not feature code). Not every session maps to a plan — one-off tasks need none.
+- **Definition of Done — docs move in lockstep with code (NO drift, NO staleness).** The plan/handoff/decisions are part of the change, not an afterthought. **Before opening or updating a PR, and before `/handoff`**, reconcile them against the **actual diff** (re-read what changed — not what you intended):
+  1. **plan.md** — tick/annotate the active plan's checkboxes for exactly what landed; add newly-discovered items; note what's deferred. It must read true against the current code.
+  2. **decisions.md** — append any new ADR (append-only).
+  3. **handoff** — at session end / `/handoff`, write a **new** `handoffs/` entry for the current state + next steps (never overwrite).
+  A PR/push is not "done" until these reflect the code as it now is. A **non-blocking `.githooks/pre-push`** tripwire reminds when a push changes `src/`/`src-tauri/src/` without touching `context/plans/` or `decisions.md` — a backstop, not a substitute for the reconciliation above. (One-time per clone: `git config core.hooksPath .githooks`.)
 - Mockups before UI changes (the `mockup` skill). Reviews before merge (the `code-review` skill / `/code-review`).
 - Distribution: notarized DMG + auto-update + Homebrew cask. Needs the Apple Developer cert.

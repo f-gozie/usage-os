@@ -1,0 +1,43 @@
+#!/bin/sh
+# Non-blocking drift tripwire (CLAUDE.md → Definition of Done).
+#
+# If a push includes code changes (src/ or src-tauri/src/) but touches no plan,
+# handoff, or decision, remind to reconcile the docs. NEVER blocks — always exits 0;
+# it's a nudge, not a gate. The real guarantee is the Definition-of-Done ritual.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+
+zero=$(git hash-object --stdin </dev/null | tr '[:xdigit:]' '0')
+base_default=$(git rev-parse origin/main 2>/dev/null || echo "")
+
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+    # Skip branch deletions.
+    [ "$local_sha" = "$zero" ] && continue
+
+    if [ "$remote_sha" = "$zero" ] || [ -z "$remote_sha" ]; then
+        base="$base_default" # new branch on the remote → compare against main
+    else
+        base="$remote_sha"
+    fi
+    [ -z "$base" ] && base=$(git rev-parse "$local_sha^" 2>/dev/null) || true
+    [ -z "$base" ] && continue
+
+    changed=$(git diff --name-only "$base" "$local_sha" 2>/dev/null)
+    [ -z "$changed" ] && continue
+
+    code=$(printf '%s\n' "$changed" | grep -E '^(src/|src-tauri/src/)' || true)
+    docs=$(printf '%s\n' "$changed" | grep -E '^context/(plans/|decisions\.md)' || true)
+
+    if [ -n "$code" ] && [ -z "$docs" ]; then
+        echo "──────────────────────────────────────────────────────────────────────"
+        echo "⚠  pre-push: this push changes code but no plan / handoff / decision."
+        echo "   Reconcile before the PR (CLAUDE.md → Definition of Done):"
+        echo "     • plan.md  — tick/annotate what landed"
+        echo "     • decisions.md — append any new ADR"
+        echo "     • handoffs/ — a new entry at session end (/handoff)"
+        echo "   (reminder only — the push continues)"
+        echo "──────────────────────────────────────────────────────────────────────"
+    fi
+done
+
+exit 0
