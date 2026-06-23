@@ -95,6 +95,37 @@ fn get_day(
     Ok(rollup::build_day_view(&events, &contexts, &projects))
 }
 
+/// Build the Week view — 7 day-slices (each a mini-dial's runs + totals) plus week-level
+/// aggregates (D34, hard rule 6). `day_starts` are the 7 local midnights (DST-correct,
+/// computed by the frontend like `get_day`'s bounds); `week_end` is the exclusive end of
+/// the last day. Each day's events are read for `[day_start, next_day_start | week_end)`.
+#[tauri::command]
+#[specta::specta]
+fn get_week(
+    db: State<DbState>,
+    day_starts: Vec<i64>,
+    week_end: i64,
+) -> Result<rollup::WeekView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let contexts: HashMap<i64, rollup::ContextMeta> = db::get_context_metas(&conn)?
+        .into_iter()
+        .map(|(id, slug, name)| (id, rollup::ContextMeta { slug, name }))
+        .collect();
+    let projects: HashMap<i64, String> = db::get_projects(&conn)?
+        .into_iter()
+        .map(|p| (p.id, p.display_name))
+        .collect();
+    let mut days = Vec::with_capacity(day_starts.len());
+    for (i, &start) in day_starts.iter().enumerate() {
+        let end = day_starts.get(i + 1).copied().unwrap_or(week_end);
+        let events = db::get_activity_logs(&conn, start, end)?;
+        days.push(rollup::build_day_slice(
+            start, &events, &contexts, &projects,
+        ));
+    }
+    Ok(rollup::build_week_view(days))
+}
+
 #[tauri::command]
 #[specta::specta]
 fn get_categories(db: State<DbState>) -> Result<Vec<db::Category>, AppError> {
@@ -192,6 +223,7 @@ fn make_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         get_activity_stats,
         get_day,
+        get_week,
         get_categories,
         create_category,
         delete_category,

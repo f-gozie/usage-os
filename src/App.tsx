@@ -2,10 +2,11 @@ import { useState } from "react";
 
 import { AppShell } from "@/components/shell/AppShell";
 import type { View } from "@/components/shell/TabNav";
-import { formatDayParts } from "@/lib/dates";
+import { formatDayParts, formatWeekRange } from "@/lib/dates";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { DayView } from "@/views/DayView";
 import { Placeholder } from "@/views/Placeholder";
+import { WeekView } from "@/views/WeekView";
 
 function App() {
   const [view, setView] = useState<View>("day");
@@ -19,13 +20,28 @@ function App() {
         <br />
         {parts.full}
       </>
+    ) : view === "week" ? (
+      <>
+        Week of
+        <br />
+        {formatWeekRange(date)}
+      </>
     ) : undefined;
 
   return (
     <ThemeProvider>
       <AppShell view={view} onViewChange={setView} headerDate={headerDate}>
         {view === "day" && <DayView date={date} onDateChange={setDate} />}
-        {view === "week" && <Placeholder title="Week" />}
+        {view === "week" && (
+          <WeekView
+            date={date}
+            onDateChange={setDate}
+            onOpenDay={(d) => {
+              setDate(d);
+              setView("day");
+            }}
+          />
+        )}
         {view === "timeline" && <Placeholder title="Timeline" />}
         {view === "settings" && <Placeholder title="Settings" />}
       </AppShell>

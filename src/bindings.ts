@@ -31,6 +31,20 @@ async getDay(startTime: number, endTime: number) : Promise<Result<DayView, AppEr
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Build the Week view — 7 day-slices (each a mini-dial's runs + totals) plus week-level
+ * aggregates (D34, hard rule 6). `day_starts` are the 7 local midnights (DST-correct,
+ * computed by the frontend like `get_day`'s bounds); `week_end` is the exclusive end of
+ * the last day. Each day's events are read for `[day_start, next_day_start | week_end)`.
+ */
+async getWeek(dayStarts: number[], weekEnd: number) : Promise<Result<WeekView, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_week", { dayStarts, weekEnd }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getCategories() : Promise<Result<Category[], AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_categories") };
@@ -176,6 +190,15 @@ secs: number; projects: ProjectSlice[]; apps: string[] }
  */
 export type ContextSlice = { slug: string; name: string; secs: number; pct: number }
 /**
+ * One day's compact summary for the Week view: a mini-dial's arcs plus the two totals
+ * the week summary needs. `deep_secs` is carried so "deepest day" is a Rust number (rule 6).
+ */
+export type DaySlice = { 
+/**
+ * Local midnight (Unix secs) — the mini-dial's angular origin.
+ */
+day_start: number; active_secs: number; deep_secs: number; runs: ContextRun[] }
+/**
  * Everything the Day view needs, computed from one day of events.
  */
 export type DayView = { active_secs: number; idle_secs: number; contexts: ContextSlice[]; runs: ContextRun[]; recap: Recap }
@@ -197,6 +220,14 @@ export type Setting = { key: string; value: string }
  * Health of the background capture watcher (replaces an untyped `serde_json::Value`).
  */
 export type WatcherStatus = { consecutive_errors: number; healthy: boolean }
+/**
+ * Everything the Week view needs: 7 day-slices + week-level aggregates (numbers in Rust).
+ */
+export type WeekView = { days: DaySlice[]; total_active_secs: number; avg_active_secs: number; 
+/**
+ * Index into `days` of the day with the most Deep-work time, or `None` if there was none.
+ */
+deepest_day: number | null }
 
 /** tauri-specta globals **/
 

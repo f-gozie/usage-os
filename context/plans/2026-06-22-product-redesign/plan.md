@@ -52,7 +52,7 @@ From the shipped v0.1.0 + Tier-1 work, do **not** rebuild these:
 ## Phase 2 — Enrichment
 
 - [ ] Embedding-based categorization + corrections memory; contexts/rules editor in Settings.
-- [ ] Week view (7 mini-dials) + linear timeline strip. **Timeline = context-runs with project shown inside (D34, Direction A);** dial arcs are context-runs too. A read-time rollup over `events` (no schema change). **Open:** the run-segmentation thresholds (excursion-absorb / idle-gap / sustained-shift) — resolve by **dogfooding real capture data + a session-explorer**, then lock (D34a). See `explorations/2026-06-23-sessionization.md`.
+- [~] **Week view (7 mini-dials) — ✅ DONE** (`phase1/bauhaus-day`; impl-plan `2026-06-23-week-view`): pure `rollup::build_day_slice`/`build_week_view` + the `get_week` command (per-day active/deep + dial runs, week totals — numbers in Rust, hard rule 6); React `WeekView` (summary tiles active / avg-per-day / deepest-day, week nav, click-a-day → Day view) + `MiniDial` (shared dial geometry). 76 Rust + 12 TS tests, vite + storybook builds green. **Linear timeline strip — pending (M3).** **Timeline = context-runs with project shown inside (D34, Direction A);** dial arcs are context-runs too. A read-time rollup over `events` (no schema change). **Open:** the run-segmentation thresholds (excursion-absorb / idle-gap / sustained-shift) — resolve by **dogfooding real capture data + a session-explorer**, then lock (D34a). See `explorations/2026-06-23-sessionization.md`.
 
 ## Phase 3 — The recap
 

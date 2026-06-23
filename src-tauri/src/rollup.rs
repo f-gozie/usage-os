@@ -33,6 +33,8 @@ pub struct ContextMeta {
 /// context at all (no rule matched). The frontend maps this slug to a neutral token.
 const OTHER_SLUG: &str = "other";
 const OTHER_NAME: &str = "Uncategorized";
+/// The canonical Deep-work context slug (the Week view's "deepest day" + per-day deep total).
+const DEEP_SLUG: &str = "deep";
 /// Shown for active time with no resolved project (D30/D34 — never a guessed project).
 const NO_PROJECT: &str = "No project";
 
@@ -82,6 +84,27 @@ pub struct DayView {
     pub contexts: Vec<ContextSlice>,
     pub runs: Vec<ContextRun>,
     pub recap: Recap,
+}
+
+/// One day's compact summary for the Week view: a mini-dial's arcs plus the two totals
+/// the week summary needs. `deep_secs` is carried so "deepest day" is a Rust number (rule 6).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct DaySlice {
+    /// Local midnight (Unix secs) — the mini-dial's angular origin.
+    pub day_start: i64,
+    pub active_secs: i64,
+    pub deep_secs: i64,
+    pub runs: Vec<ContextRun>,
+}
+
+/// Everything the Week view needs: 7 day-slices + week-level aggregates (numbers in Rust).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct WeekView {
+    pub days: Vec<DaySlice>,
+    pub total_active_secs: i64,
+    pub avg_active_secs: i64,
+    /// Index into `days` of the day with the most Deep-work time, or `None` if there was none.
+    pub deepest_day: Option<i64>,
 }
 
 fn duration(event: &ActivityLog) -> i64 {
@@ -157,6 +180,55 @@ pub fn build_day_view(
         contexts: context_slices,
         runs,
         recap,
+    }
+}
+
+/// One day's slice for the Week grid: per-day active + deep totals and the dial arcs. Reuses
+/// `build_runs`; no recap/ledger (the Week view doesn't show them). `day_start` is passed
+/// through as the mini-dial origin (the caller owns local day bounds, like `get_day`).
+pub fn build_day_slice(
+    day_start: i64,
+    events: &[ActivityLog],
+    contexts: &HashMap<i64, ContextMeta>,
+    projects: &HashMap<i64, String>,
+) -> DaySlice {
+    let mut active_secs = 0;
+    let mut deep_secs = 0;
+    for event in events {
+        let secs = duration(event);
+        if secs == 0 || event.is_idle {
+            continue;
+        }
+        active_secs += secs;
+        if context_of(event, contexts).0 == DEEP_SLUG {
+            deep_secs += secs;
+        }
+    }
+    DaySlice {
+        day_start,
+        active_secs,
+        deep_secs,
+        runs: build_runs(events, contexts, projects),
+    }
+}
+
+/// Assemble the Week view from its day slices: total + average active time and the deepest
+/// (most Deep-work) day. Average is over the slice count (a 7-day week → ÷7, matching the
+/// design). `deepest_day` is the argmax of `deep_secs`, only when some deep work exists.
+pub fn build_week_view(days: Vec<DaySlice>) -> WeekView {
+    let total_active_secs: i64 = days.iter().map(|d| d.active_secs).sum();
+    let divisor = days.len().max(1) as i64;
+    let deepest_day = days
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.deep_secs > 0)
+        .max_by_key(|(_, d)| d.deep_secs)
+        .map(|(i, _)| i as i64);
+    WeekView {
+        total_active_secs,
+        avg_active_secs: total_active_secs / divisor,
+        deepest_day,
+        days,
     }
 }
 
@@ -475,5 +547,55 @@ mod tests {
         let day = build_day_view(&events, &ctx_map(), &proj_map());
         assert!(day.recap.text.contains("Deep work led at"));
         assert!(day.recap.text.contains("Most of it on usageos."));
+    }
+
+    #[test]
+    fn day_slice_sums_active_and_deep_and_builds_runs() {
+        let events = vec![
+            ev(0, 600, "Cursor", Some(1), Some(1)), // 10m deep
+            ev(600, 900, "Slack", Some(2), None),   // 5m comms
+            idle(900, 1200),                        // ignored
+        ];
+        let slice = build_day_slice(42, &events, &ctx_map(), &proj_map());
+        assert_eq!(slice.day_start, 42, "origin passed through");
+        assert_eq!(slice.active_secs, 900);
+        assert_eq!(slice.deep_secs, 600, "only the deep-work time");
+        assert_eq!(slice.runs.len(), 2);
+    }
+
+    #[test]
+    fn week_view_totals_average_and_deepest_day() {
+        let day = |deep: i64| DaySlice {
+            day_start: 0,
+            active_secs: deep, // active == deep for this fixture
+            deep_secs: deep,
+            runs: vec![],
+        };
+        // 7 days; index 3 is the deepest (1800s).
+        let week = build_week_view(vec![
+            day(0),
+            day(300),
+            day(600),
+            day(1800),
+            day(600),
+            day(0),
+            day(900),
+        ]);
+        assert_eq!(week.total_active_secs, 4200);
+        assert_eq!(week.avg_active_secs, 600, "4200 / 7");
+        assert_eq!(week.deepest_day, Some(3));
+    }
+
+    #[test]
+    fn week_view_has_no_deepest_day_without_deep_work() {
+        let flat = DaySlice {
+            day_start: 0,
+            active_secs: 300,
+            deep_secs: 0,
+            runs: vec![],
+        };
+        let week = build_week_view(vec![flat.clone(), flat.clone(), flat]);
+        assert_eq!(week.deepest_day, None);
+        assert_eq!(week.avg_active_secs, 300);
     }
 }

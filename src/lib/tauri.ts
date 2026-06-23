@@ -15,6 +15,7 @@ import type {
   Rule,
   Setting,
   WatcherStatus,
+  WeekView,
 } from '../bindings';
 
 export type {
@@ -23,12 +24,14 @@ export type {
   Category,
   ContextRun,
   ContextSlice,
+  DaySlice,
   DayView,
   ProjectSlice,
   Recap,
   Rule,
   Setting,
   WatcherStatus,
+  WeekView,
 } from '../bindings';
 
 /** Unwrap a generated `Result`, throwing a readable `Error` on the typed failure. */
@@ -60,6 +63,15 @@ export async function getActivityStats(
  */
 export async function getDay(startTime: number, endTime: number): Promise<DayView> {
   return unwrap(await commands.getDay(startTime, endTime));
+}
+
+/**
+ * Fetch the computed Week view: 7 day-slices (mini-dial runs + per-day totals) plus
+ * week-level aggregates. `dayStarts` are the 7 local midnights (Unix secs); `weekEnd` is
+ * the exclusive end of the last day. All numbers are computed in Rust (hard rule 6).
+ */
+export async function getWeek(dayStarts: number[], weekEnd: number): Promise<WeekView> {
+  return unwrap(await commands.getWeek(dayStarts, weekEnd));
 }
 
 // --- Categories ---
