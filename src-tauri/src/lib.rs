@@ -13,6 +13,9 @@ pub mod capture;
 // `enrich` turns raw capture signals into stored facts (site, project — D30).
 // Cross-platform and CI-testable; consumed by `capture::process_focus_event`.
 mod enrich;
+// `migrations` is the forward-only SQL migration runner (per-file `.sql`, applied in
+// a transaction, checksum-guarded). Paired with the crate-root `migrations/` dir.
+mod migrations;
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};

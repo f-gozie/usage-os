@@ -179,9 +179,9 @@ mod tests {
 
     /// In-memory DB on the real migration chain.
     fn test_db() -> Connection {
-        let conn = Connection::open_in_memory().expect("open in-memory db");
+        let mut conn = Connection::open_in_memory().expect("open in-memory db");
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
-        db::run_migrations(&conn).expect("migrations");
+        crate::migrations::run_migrations(&mut conn).expect("migrations");
         conn
     }
 
