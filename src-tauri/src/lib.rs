@@ -7,7 +7,9 @@
 // repository API built ahead of its command/capture consumers (Phase 1.2+) is
 // reachable — otherwise not-yet-wired fns would trip `dead_code` under `-D warnings`.
 pub mod db;
-mod watcher;
+// `capture` is the observation boundary (hard rule 5): all native/objc2 code lives
+// behind the `CaptureSource` trait; tests use a fake. `pub` for the same reason as `db`.
+pub mod capture;
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -125,7 +127,7 @@ fn reprocess_logs(db: State<DbState>) -> Result<(), AppError> {
 #[tauri::command]
 #[specta::specta]
 fn get_watcher_status() -> Result<WatcherStatus, AppError> {
-    let errors = watcher::get_error_count();
+    let errors = capture::get_error_count();
     Ok(WatcherStatus {
         consecutive_errors: errors,
         healthy: errors < 6,
@@ -202,7 +204,7 @@ pub fn run() {
 
             app.manage(db_conn.clone());
 
-            tauri::async_runtime::spawn(watcher::start_watcher(db_conn));
+            tauri::async_runtime::spawn(capture::run(db_conn, capture::default_source()));
             Ok(())
         })
         .run(tauri::generate_context!());
