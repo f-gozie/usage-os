@@ -1,8 +1,9 @@
 //! Capture: the boundary that observes the active app/window (hard rule 5, D22).
 //!
-//! [`CaptureSource`] produces [`FocusEvent`]s; [`consume`] drains them into the
-//! repository via [`process_focus_event`], applying D8 sensitive handling and D30
-//! project inference. All platform/native code lives behind this trait — nothing
+//! [`CaptureSource`] produces [`FocusEvent`]s; [`consume`] is the single writer — a
+//! state machine that owns the one open span in memory, applies D8 sensitive handling
+//! and D30 project inference, and self-ticks (via `recv_timeout`) to extend the open
+//! span and detect idle. All platform/native code lives behind this trait — nothing
 //! above `capture/` imports objc2. Tests use [`FakeCapture`]; production uses the
 //! event-driven [`macos::MacosCapture`] on macOS, else [`PollingCapture`].
 
@@ -15,7 +16,7 @@ pub use fake::FakeCapture;
 pub use polling::PollingCapture;
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::time::Duration;
 
 use rusqlite::Connection;
@@ -94,92 +95,84 @@ pub fn default_source() -> Box<dyn CaptureSource> {
     }
 }
 
-// ── Heartbeat (keeps the current span growing during sustained single-app work) ──
+// ── Span state machine (the consumer is the SOLE writer) ─────────────────────────
 
-const HEARTBEAT_SECS: u64 = 20;
-/// Stop extending the current span once the user has been idle this long (stepped
-/// away), so leaving the machine focused on an app doesn't inflate active time.
-/// Placeholder — idle/heartbeat tuning is part of the deferred C2 work.
-const HEARTBEAT_IDLE_GATE_SECS: u64 = 120;
+/// How often the consumer wakes (when no events arrive) to re-check idle and extend
+/// the open span — the resolution of tail time and the max lost on a crash.
+const TICK_SECS: i64 = 20;
+/// Input-idle at/over this is "away": the open span is closed and time stops accruing.
+/// Also the reading/watching allowance — scroll/trackpad count as input, so genuine
+/// reading rarely trips it. The one knob with a real UX trade-off; tune via dogfooding
+/// (D34a). Erring toward an *honest* mirror, we keep this modest (don't over-count).
+const GATE_SECS: i64 = 120;
 
-/// Periodically extend the current active span to "now". Without this, a long stretch
-/// in one window (deep work in a single editor file) fires no focus/title events and so
-/// would never accrue time. Runs on its own thread; gated on system idle (no perms —
-/// `user_idle` reads aggregate input idle, capture standard C10).
-pub fn heartbeat(db_conn: DbConnection) {
-    println!(
-        "[Capture] heartbeat up ({}s, idle gate {}s)",
-        HEARTBEAT_SECS, HEARTBEAT_IDLE_GATE_SECS
-    );
-    loop {
-        std::thread::sleep(Duration::from_secs(HEARTBEAT_SECS));
-        let idle = user_idle::UserIdle::get_time()
-            .map(|t| t.as_seconds())
-            .unwrap_or(0);
-        if idle >= HEARTBEAT_IDLE_GATE_SECS {
-            continue; // away — don't extend
-        }
-        match db_conn.lock() {
-            Ok(conn) => {
-                if let Err(e) = db::extend_current_span(&conn, db::now_unix()) {
-                    eprintln!("[Capture] heartbeat extend failed: {}", e);
-                }
-            }
-            Err(e) => eprintln!("[Capture] heartbeat: db lock poisoned: {}", e),
-        }
+/// The resolved identity of a focused window — what we write and compare for
+/// coalescing. Already privacy-sanitized (title/url blanked when private).
+#[derive(Debug, Clone)]
+struct Focus {
+    app: String,
+    title: String,
+    url: Option<String>,
+    site: Option<String>,
+    project_id: Option<i64>,
+    project_abstain_reason: Option<String>,
+    is_private: bool,
+}
+
+impl Focus {
+    /// Same window doing the same thing → coalesce rather than open a new span.
+    fn same_window(&self, other: &Focus) -> bool {
+        self.app == other.app
+            && self.title == other.title
+            && self.url == other.url
+            && self.is_private == other.is_private
     }
 }
 
-// ── Consumer (runs on a dedicated thread — SQLite + git shell are blocking) ───
-
-/// Drain capture events into the repository until the channel closes. Runs on its
-/// own `std::thread` (R57 direction): per-event processing does blocking SQLite
-/// writes and a `git` shell (project inference), neither of which may run on the
-/// async executor.
-pub fn consume(db_conn: DbConnection, rx: Receiver<FocusEvent>) {
-    println!("[Capture] consumer thread up");
-    for ev in rx {
-        match db_conn.lock() {
-            Ok(conn) => {
-                if let Err(e) = process_focus_event(&conn, &ev) {
-                    eprintln!("[Capture] failed to write event: {}", e);
-                }
-            }
-            Err(e) => eprintln!("[Capture] db lock poisoned, dropping event: {}", e),
-        }
-    }
-    println!("[Capture] channel closed; consumer stopped");
+/// The one span currently being written, held in memory by the sole writer.
+struct OpenSpan {
+    id: i64,
+    focus: Focus,
+    end: i64,
 }
 
-/// Turn one [`FocusEvent`] into a stored span. Order matters: sensitive handling
-/// (D8) is applied first — an `Exclude` match is dropped entirely; a private span
-/// (an `incognito` browser window the source flagged, or a `Private` exclusion
-/// rule) records time + app but omits title/url/site and skips project inference.
-/// Otherwise the url is parsed to a site and the live signals are resolved to a
-/// project (D30) before the coalescing write.
-pub fn process_focus_event(conn: &Connection, ev: &FocusEvent) -> rusqlite::Result<()> {
+/// The consumer's entire mutable state. `last_focus` lets us reopen the *same* window
+/// after an idle-close (macOS emits no event when you return to an unchanged window —
+/// debate decision A); it's cleared after an excluded app (nothing to resume).
+#[derive(Default)]
+struct SpanState {
+    current: Option<OpenSpan>,
+    last_focus: Option<Focus>,
+}
+
+/// Exclusion/enrichment outcome for one event (D8/D30).
+enum Resolved {
+    /// Excluded — drop entirely; close any open span, clear `last_focus`.
+    Excluded,
+    /// A trackable focus (possibly private/blanked).
+    Track(Focus),
+}
+
+fn resolve_focus(conn: &Connection, ev: &FocusEvent) -> rusqlite::Result<Resolved> {
     let title = ev.window_title.as_deref().unwrap_or("");
     let site = ev.url.as_deref().and_then(enrich::parse_site);
 
     let exclusion = db::match_exclusion(conn, &ev.app_name, title, site.as_deref())?;
     if matches!(exclusion, Some(ExclusionMode::Exclude)) {
-        return Ok(()); // D8: never written
+        return Ok(Resolved::Excluded);
     }
-    // Private if the capture source flagged it (incognito) or a Private exclusion matched.
+    // Private if the source flagged it (incognito) or a Private exclusion matched.
     if ev.is_private || matches!(exclusion, Some(ExclusionMode::Private)) {
-        return db::log_focus(
-            conn,
-            &NewEvent {
-                process_name: &ev.app_name,
-                window_title: "", // D8: omit title
-                is_private: true,
-                is_idle: ev.is_idle,
-                timestamp: ev.timestamp,
-                ..Default::default()
-            },
-        );
+        return Ok(Resolved::Track(Focus {
+            app: ev.app_name.clone(),
+            title: String::new(), // D8: omit title/url/site, skip project
+            url: None,
+            site: None,
+            project_id: None,
+            project_abstain_reason: None,
+            is_private: true,
+        }));
     }
-
     let (project_id, project_abstain_reason) = match enrich::infer_project(
         conn,
         &ProjectSignals {
@@ -189,24 +182,159 @@ pub fn process_focus_event(conn: &Connection, ev: &FocusEvent) -> rusqlite::Resu
         },
     )? {
         ProjectAssignment::Assigned(id) => (Some(id), None),
-        ProjectAssignment::Abstain(reason) => (None, Some(reason)),
+        ProjectAssignment::Abstain(reason) => (None, Some(reason.to_string())),
     };
+    Ok(Resolved::Track(Focus {
+        app: ev.app_name.clone(),
+        title: title.to_string(),
+        url: ev.url.clone(),
+        site,
+        project_id,
+        project_abstain_reason,
+        is_private: false,
+    }))
+}
 
-    db::log_focus(
+/// Insert a fresh open span for `focus`, starting at `ts`. Category is computed here.
+fn open_span(conn: &Connection, focus: &Focus, ts: i64) -> rusqlite::Result<OpenSpan> {
+    let category_id = match db::find_category(conn, &focus.app, &focus.title) {
+        Ok(id) => id,
+        Err(e) => {
+            eprintln!("[Capture] category lookup failed: {}", e);
+            None
+        }
+    };
+    let id = db::insert_event(
         conn,
         &NewEvent {
-            process_name: &ev.app_name,
-            window_title: title,
-            url: ev.url.as_deref(),
-            site: site.as_deref(),
-            project_id,
-            project_abstain_reason,
-            is_private: false,
-            is_idle: ev.is_idle,
-            category_id: None,
-            timestamp: ev.timestamp,
+            process_name: &focus.app,
+            window_title: &focus.title,
+            url: focus.url.as_deref(),
+            site: focus.site.as_deref(),
+            project_id: focus.project_id,
+            project_abstain_reason: focus.project_abstain_reason.as_deref(),
+            is_private: focus.is_private,
+            is_idle: false,
+            category_id,
+            timestamp: ts,
         },
-    )
+    )?;
+    Ok(OpenSpan {
+        id,
+        focus: focus.clone(),
+        end: ts,
+    })
+}
+
+/// Handle one focus change: coalesce into the open span if it's the same window, else
+/// close the open span at the switch and open a new one. Excluded → close + drop.
+fn on_focus(conn: &Connection, state: &mut SpanState, ev: &FocusEvent) -> rusqlite::Result<()> {
+    let focus = match resolve_focus(conn, ev)? {
+        Resolved::Excluded => {
+            if let Some(open) = state.current.take() {
+                db::set_span_end(conn, open.id, ev.timestamp)?;
+            }
+            state.last_focus = None;
+            return Ok(());
+        }
+        Resolved::Track(focus) => focus,
+    };
+
+    // Same window re-fire (e.g. a duplicate title event) → just extend in place.
+    if let Some(open) = state.current.as_mut() {
+        if open.focus.same_window(&focus) {
+            db::set_span_end(conn, open.id, ev.timestamp)?;
+            open.end = ev.timestamp;
+            state.last_focus = Some(focus);
+            return Ok(());
+        }
+    }
+    // Switched: close the old span at the switch instant, open a new one.
+    if let Some(open) = state.current.take() {
+        db::set_span_end(conn, open.id, ev.timestamp)?;
+    }
+    state.current = Some(open_span(conn, &focus, ev.timestamp)?);
+    state.last_focus = Some(focus);
+    Ok(())
+}
+
+/// The wall-clock tick: extend the open span while active, or close it when idle (away).
+/// On a return from idle to the *same* window (no focus event) reopen it (decision A).
+/// `idle_secs` is passed in so this is deterministically testable.
+fn on_tick(
+    conn: &Connection,
+    state: &mut SpanState,
+    now: i64,
+    idle_secs: i64,
+) -> rusqlite::Result<()> {
+    if idle_secs >= GATE_SECS {
+        // Away: close the open span (leave its end at the last tick) but remember the
+        // focus so we can resume the same window when the user comes back.
+        state.current = None;
+        return Ok(());
+    }
+    if let Some(open) = state.current.as_mut() {
+        if now > open.end {
+            db::set_span_end(conn, open.id, now)?;
+            open.end = now;
+        }
+    } else if let Some(focus) = state.last_focus.clone() {
+        // Active again, same window, no focus event from macOS → resume from now.
+        state.current = Some(open_span(conn, &focus, now)?);
+    }
+    Ok(())
+}
+
+fn current_idle_secs() -> i64 {
+    user_idle::UserIdle::get_time()
+        .map(|t| t.as_seconds() as i64)
+        .unwrap_or(0)
+}
+
+// ── Consumer (the sole DB writer; SQLite + git shell are blocking, so own thread) ─
+
+/// Drain focus events and self-tick into the repository until the channel closes. The
+/// idle gate is driven by a **wall-clock deadline checked on every wake** (not by the
+/// bare `recv_timeout` firing) — otherwise a chatty event stream (a live-updating tab
+/// title) while you're away would starve the gate and balloon the span.
+pub fn consume(db_conn: DbConnection, rx: Receiver<FocusEvent>) {
+    println!(
+        "[Capture] consumer up (tick {}s, idle gate {}s)",
+        TICK_SECS, GATE_SECS
+    );
+    let mut state = SpanState::default();
+    let mut next_tick = db::now_unix() + TICK_SECS;
+
+    loop {
+        let wait = (next_tick - db::now_unix()).max(0) as u64;
+        match rx.recv_timeout(Duration::from_secs(wait)) {
+            Ok(ev) => match db_conn.lock() {
+                Ok(conn) => {
+                    if let Err(e) = on_focus(&conn, &mut state, &ev) {
+                        eprintln!("[Capture] focus write failed: {}", e);
+                    }
+                }
+                Err(e) => eprintln!("[Capture] db lock poisoned: {}", e),
+            },
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+
+        let now = db::now_unix();
+        if now >= next_tick {
+            let idle = current_idle_secs();
+            match db_conn.lock() {
+                Ok(conn) => {
+                    if let Err(e) = on_tick(&conn, &mut state, now, idle) {
+                        eprintln!("[Capture] tick write failed: {}", e);
+                    }
+                }
+                Err(e) => eprintln!("[Capture] db lock poisoned: {}", e),
+            }
+            next_tick = now + TICK_SECS;
+        }
+    }
+    println!("[Capture] channel closed; consumer stopped");
 }
 
 #[cfg(test)]
@@ -236,10 +364,16 @@ mod tests {
         db::get_activity_logs(conn, 0, i64::MAX).unwrap()
     }
 
+    /// Drive a focus event through the state machine.
+    fn feed(conn: &Connection, state: &mut SpanState, ev: &FocusEvent) {
+        on_focus(conn, state, ev).unwrap();
+    }
+
     #[test]
-    fn normal_event_is_written() {
+    fn first_event_opens_a_span() {
         let conn = test_db();
-        process_focus_event(&conn, &focus("Code", Some("main.rs"), 1000)).unwrap();
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
         let logs = all_logs(&conn);
         assert_eq!(logs.len(), 1);
         assert_eq!(logs[0].process_name, "Code");
@@ -248,138 +382,181 @@ mod tests {
     }
 
     #[test]
-    fn excluded_app_is_dropped() {
+    fn switching_closes_previous_and_opens_new() {
         let conn = test_db();
-        db::create_exclusion(&conn, "app", "1Password", "exclude").unwrap();
-        process_focus_event(&conn, &focus("1Password", Some("Vault"), 1000)).unwrap();
-        assert_eq!(
-            all_logs(&conn).len(),
-            0,
-            "excluded event must never be written"
-        );
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
+        feed(&conn, &mut st, &focus("Slack", Some("general"), 1090));
+        let logs = all_logs(&conn);
+        assert_eq!(logs.len(), 2);
+        assert_eq!(logs[0].process_name, "Code");
+        assert_eq!(logs[0].start_time, 1000);
+        assert_eq!(logs[0].end_time, 1090, "previous span closed at the switch");
+        assert_eq!(logs[1].process_name, "Slack");
+        assert_eq!(logs[1].start_time, 1090);
     }
 
     #[test]
-    fn private_app_records_time_without_title() {
+    fn same_window_event_extends_in_place() {
+        let conn = test_db();
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1005));
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1010));
+        let logs = all_logs(&conn);
+        assert_eq!(logs.len(), 1, "same window coalesces");
+        assert_eq!(logs[0].end_time, 1010);
+    }
+
+    #[test]
+    fn excluded_app_drops_and_closes_previous() {
+        let conn = test_db();
+        db::create_exclusion(&conn, "app", "1Password", "exclude").unwrap();
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
+        feed(&conn, &mut st, &focus("1Password", Some("Vault"), 1050));
+        let logs = all_logs(&conn);
+        assert_eq!(logs.len(), 1, "excluded event is never written");
+        assert_eq!(logs[0].process_name, "Code");
+        assert_eq!(logs[0].end_time, 1050, "previous span closed at the switch");
+        assert!(st.current.is_none() && st.last_focus.is_none());
+    }
+
+    #[test]
+    fn private_records_time_without_title_or_url() {
         let conn = test_db();
         db::create_exclusion(&conn, "app", "Banking", "private").unwrap();
-        process_focus_event(&conn, &focus("Banking App", Some("Acct 1234"), 1000)).unwrap();
+        let mut st = SpanState::default();
+        feed(
+            &conn,
+            &mut st,
+            &focus("Banking App", Some("Acct 1234"), 1000),
+        );
         let logs = all_logs(&conn);
         assert_eq!(logs.len(), 1);
         assert!(logs[0].is_private);
-        assert_eq!(
-            logs[0].window_title, "",
-            "title must be omitted for private (D8)"
-        );
-        assert_eq!(
-            logs[0].process_name, "Banking App",
-            "time + app still recorded"
-        );
-    }
-
-    #[test]
-    fn switching_apps_closes_the_previous_span() {
-        let conn = test_db();
-        process_focus_event(&conn, &focus("Code", Some("main.rs"), 1000)).unwrap();
-        process_focus_event(&conn, &focus("Slack", Some("general"), 1090)).unwrap();
-        let logs = all_logs(&conn);
-        assert_eq!(logs.len(), 2);
-        // Code's span is closed up to the switch — it was a zero-width point before.
-        assert_eq!(logs[0].process_name, "Code");
-        assert_eq!(logs[0].start_time, 1000);
-        assert_eq!(logs[0].end_time, 1090);
-    }
-
-    #[test]
-    fn away_gap_is_not_absorbed_into_the_previous_span() {
-        let conn = test_db();
-        process_focus_event(&conn, &focus("Code", Some("main.rs"), 1000)).unwrap();
-        // A long gap with no events (sleep/away) — far beyond MAX_OPEN_SPAN_GAP.
-        process_focus_event(&conn, &focus("Slack", Some("general"), 1000 + 10_000)).unwrap();
-        let logs = all_logs(&conn);
-        assert_eq!(logs[0].end_time, 1000, "away time must stay untracked");
-    }
-
-    #[test]
-    fn repeated_event_coalesces() {
-        let conn = test_db();
-        process_focus_event(&conn, &focus("Code", Some("main.rs"), 1000)).unwrap();
-        process_focus_event(&conn, &focus("Code", Some("main.rs"), 1005)).unwrap();
-        process_focus_event(&conn, &focus("Code", Some("main.rs"), 1010)).unwrap();
-        let logs = all_logs(&conn);
-        assert_eq!(logs.len(), 1, "identical consecutive spans coalesce");
-        assert_eq!(logs[0].end_time, 1010);
+        assert_eq!(logs[0].window_title, "", "title omitted for private (D8)");
+        assert_eq!(logs[0].process_name, "Banking App");
     }
 
     #[test]
     fn browser_event_sets_site_and_project() {
         let conn = test_db();
-        let ev = FocusEvent {
-            app_name: "Google Chrome".to_string(),
-            pid: 2,
-            window_title: Some("usenudgeai/nudge".to_string()),
-            url: Some("https://github.com/usenudgeai/nudge".to_string()),
-            timestamp: 1000,
-            ..Default::default()
-        };
-        process_focus_event(&conn, &ev).unwrap();
-        let logs = all_logs(&conn);
-        assert_eq!(logs.len(), 1);
-        assert_eq!(logs[0].site.as_deref(), Some("github.com"));
-        assert!(
-            logs[0].project_id.is_some(),
-            "github url should resolve a project"
+        let mut st = SpanState::default();
+        feed(
+            &conn,
+            &mut st,
+            &FocusEvent {
+                app_name: "Google Chrome".to_string(),
+                window_title: Some("usenudgeai/nudge".to_string()),
+                url: Some("https://github.com/usenudgeai/nudge".to_string()),
+                timestamp: 1000,
+                ..Default::default()
+            },
         );
+        let logs = all_logs(&conn);
+        assert_eq!(logs[0].site.as_deref(), Some("github.com"));
+        assert!(logs[0].project_id.is_some());
         assert_eq!(logs[0].project_abstain_reason, None);
     }
 
     #[test]
     fn ambiguous_url_persists_abstain_reason() {
         let conn = test_db();
-        let ev = FocusEvent {
-            app_name: "Google Chrome".to_string(),
-            pid: 2,
-            window_title: Some("Grafana".to_string()),
-            url: Some("https://acme.grafana.net/d/x".to_string()),
-            timestamp: 1000,
-            ..Default::default()
-        };
-        process_focus_event(&conn, &ev).unwrap();
+        let mut st = SpanState::default();
+        feed(
+            &conn,
+            &mut st,
+            &FocusEvent {
+                app_name: "Google Chrome".to_string(),
+                window_title: Some("Grafana".to_string()),
+                url: Some("https://acme.grafana.net/d/x".to_string()),
+                timestamp: 1000,
+                ..Default::default()
+            },
+        );
         let logs = all_logs(&conn);
         assert_eq!(logs[0].project_id, None);
         assert_eq!(logs[0].project_abstain_reason.as_deref(), Some("ambiguous"));
     }
 
     #[test]
-    fn private_flag_blanks_title_and_url() {
-        // An incognito browser window: the source flags is_private. D8 — record
-        // time + app, but neither the title nor the url.
+    fn incognito_flag_blanks_title_and_url() {
         let conn = test_db();
-        let ev = FocusEvent {
-            app_name: "Google Chrome".to_string(),
-            pid: 2,
-            window_title: Some("Secret Incognito Page".to_string()),
-            url: Some("https://secret.example/x".to_string()),
-            is_private: true,
-            timestamp: 1000,
-            ..Default::default()
-        };
-        process_focus_event(&conn, &ev).unwrap();
-        let logs = all_logs(&conn);
-        assert_eq!(logs.len(), 1);
-        assert!(logs[0].is_private);
-        assert_eq!(
-            logs[0].window_title, "",
-            "incognito title must not be recorded (D8)"
+        let mut st = SpanState::default();
+        feed(
+            &conn,
+            &mut st,
+            &FocusEvent {
+                app_name: "Google Chrome".to_string(),
+                window_title: Some("Secret Page".to_string()),
+                url: Some("https://secret.example/x".to_string()),
+                is_private: true,
+                timestamp: 1000,
+                ..Default::default()
+            },
         );
-        assert_eq!(logs[0].url, None, "incognito url must not be recorded (D8)");
+        let logs = all_logs(&conn);
+        assert!(logs[0].is_private);
+        assert_eq!(logs[0].window_title, "");
+        assert_eq!(logs[0].url, None);
         assert_eq!(logs[0].project_id, None);
     }
 
     #[test]
-    fn fake_source_feeds_the_spine() {
-        // The whole capture spine, exercised without a Mac (hard rule 5).
+    fn tick_extends_open_span_while_active() {
         let conn = test_db();
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
+        on_tick(&conn, &mut st, 1020, 5).unwrap(); // active
+        assert_eq!(all_logs(&conn)[0].end_time, 1020, "sustained work accrues");
+    }
+
+    #[test]
+    fn tick_never_extends_backward() {
+        let conn = test_db();
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
+        on_tick(&conn, &mut st, 990, 5).unwrap(); // clock skewed backward
+        assert_eq!(all_logs(&conn)[0].end_time, 1000);
+    }
+
+    #[test]
+    fn idle_closes_span_without_inflating_it() {
+        let conn = test_db();
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
+        on_tick(&conn, &mut st, 1000 + GATE_SECS, GATE_SECS).unwrap(); // away
+        assert!(st.current.is_none(), "the open span is closed when away");
+        assert_eq!(
+            all_logs(&conn)[0].end_time,
+            1000,
+            "the idle gap stays untracked"
+        );
+    }
+
+    #[test]
+    fn returns_to_same_window_after_idle_reopen_a_span() {
+        // read → walk away → come back to the SAME window (macOS fires no event).
+        let conn = test_db();
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
+        on_tick(&conn, &mut st, 1200, GATE_SECS).unwrap(); // away → close
+        on_tick(&conn, &mut st, 1230, 3).unwrap(); // active again, same window
+        let logs = all_logs(&conn);
+        assert_eq!(logs.len(), 2, "a fresh span resumes the same window");
+        assert_eq!(logs[1].process_name, "Code");
+        assert_eq!(
+            logs[1].start_time, 1230,
+            "resumes at now, not across the gap"
+        );
+    }
+
+    #[test]
+    fn fake_source_feeds_the_spine() {
+        // The whole capture write path, exercised without a Mac (hard rule 5).
+        let conn = test_db();
+        let mut st = SpanState::default();
         let events = vec![
             focus("Code", Some("main.rs"), 1000),
             focus("Slack", Some("general"), 1100),
@@ -387,7 +564,7 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::channel::<FocusEvent>();
         Box::new(FakeCapture::new(events)).start(tx);
         for ev in rx {
-            process_focus_event(&conn, &ev).unwrap();
+            feed(&conn, &mut st, &ev);
         }
         let logs = all_logs(&conn);
         assert_eq!(logs.len(), 2);

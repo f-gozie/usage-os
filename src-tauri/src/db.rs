@@ -88,9 +88,8 @@ pub enum ExclusionMode {
     Private,
 }
 
-/// A fully-enriched event to insert (the write path the capture/enrichment layers
-/// use, Phase 1.2+). The legacy `insert_activity_log`/`log_activity` path stays for
-/// the current watcher and writes empty enrichment fields.
+/// A fully-enriched event to insert (the write path the capture state machine uses).
+/// `insert_activity_log` is a simpler bare-app+title insert kept for tests/utilities.
 #[derive(Debug, Clone, Default)]
 pub struct NewEvent<'a> {
     pub process_name: &'a str,
@@ -171,18 +170,6 @@ fn row_to_activity_log(row: &rusqlite::Row) -> Result<ActivityLog> {
     })
 }
 
-pub fn get_last_activity_log(conn: &Connection) -> Result<Option<ActivityLog>> {
-    let sql = format!("SELECT {ACTIVITY_LOG_COLUMNS} FROM activity_logs ORDER BY id DESC LIMIT 1");
-    let mut stmt = conn.prepare(&sql)?;
-    let mut rows = stmt.query([])?;
-
-    if let Some(row) = rows.next()? {
-        Ok(Some(row_to_activity_log(row)?))
-    } else {
-        Ok(None)
-    }
-}
-
 pub fn insert_activity_log(
     conn: &Connection,
     process_name: &str,
@@ -199,11 +186,9 @@ pub fn insert_activity_log(
     Ok(())
 }
 
-/// Insert a fully-enriched event (the capture/enrichment write path, Phase 1.2+).
-///
-/// `start_time` and `end_time` both start at `timestamp`; the coalescing logic in
-/// [`log_activity`] extends `end_time`. For private events (D8), the caller must omit
-/// `window_title`/`url`/`site` and set `is_private` — this function does not filter.
+/// Insert a fresh open span. `start_time` and `end_time` both start at `timestamp`;
+/// the capture state machine later extends `end_time` via [`set_span_end`]. For private
+/// events (D8) the caller omits `window_title`/`url`/`site` — this function does not filter.
 pub fn insert_event(conn: &Connection, event: &NewEvent) -> Result<i64> {
     conn.execute(
         "INSERT INTO activity_logs
@@ -226,123 +211,15 @@ pub fn insert_event(conn: &Connection, event: &NewEvent) -> Result<i64> {
     Ok(conn.last_insert_rowid())
 }
 
-pub fn update_last_activity_end_time(conn: &Connection, id: i64, timestamp: i64) -> Result<()> {
+/// Set a span's `end_time` by id — the only mutation the capture write path needs.
+/// The consumer state machine owns the open span, so there's no "find the last row"
+/// guesswork here (see `capture::consume`).
+pub fn set_span_end(conn: &Connection, id: i64, end_time: i64) -> Result<()> {
     conn.execute(
         "UPDATE activity_logs SET end_time = ?1 WHERE id = ?2",
-        (timestamp, id),
+        (end_time, id),
     )?;
     Ok(())
-}
-
-/// How close two consecutive spans must be (seconds) to coalesce into one. Larger
-/// gaps start a fresh entry, so closing the app for hours doesn't inflate a span.
-const MAX_COALESCE_GAP_SECONDS: i64 = 30;
-
-/// On a focus change, the largest gap we'll absorb when closing the previous span up to
-/// the switch. Beyond this (the machine slept/was away with no events) the old span
-/// keeps its heartbeat end and the gap stays untracked. Placeholder — tuned alongside
-/// idle handling (the deferred C2 heartbeat / D34a).
-const MAX_OPEN_SPAN_GAP_SECONDS: i64 = 180;
-
-/// The heartbeat won't extend a span whose end is already older than this — it means the
-/// heartbeat was paused (e.g. sleep), so we must not stretch the span across the gap.
-const STALE_SPAN_SECONDS: i64 = 90;
-
-/// Log a focus span with smart coalescing — the capture write path (Phase 1.2).
-///
-/// If the last entry matches this one (app/title/idle/private/url) and the gap is
-/// `<= MAX_COALESCE_GAP_SECONDS`, extends its `end_time`; otherwise inserts a new
-/// span. The category is (re)computed from app+title here, so callers leave
-/// `ev.category_id` unset. Callers own sensitive handling (D8): for a private span
-/// pass `is_private = true` with `window_title`/`url` already omitted — this fn
-/// does not filter. `project_id`/`project_abstain_reason`/`site` flow through from
-/// the enrichment pass.
-pub fn log_focus(conn: &Connection, ev: &NewEvent) -> Result<()> {
-    let category_id = match find_category(conn, ev.process_name, ev.window_title) {
-        Ok(id) => id,
-        Err(e) => {
-            eprintln!("[Capture] category lookup failed: {}", e);
-            None
-        }
-    };
-
-    if let Some(last) = get_last_activity_log(conn)? {
-        let gap = ev.timestamp - last.end_time;
-        let is_same = last.process_name == ev.process_name
-            && last.window_title == ev.window_title
-            && last.is_idle == ev.is_idle
-            && last.is_private == ev.is_private
-            && last.url.as_deref() == ev.url;
-        if is_same && gap <= MAX_COALESCE_GAP_SECONDS {
-            update_last_activity_end_time(conn, last.id, ev.timestamp)?;
-            return Ok(());
-        }
-        // Focus changed: close the previous span up to this switch so it gets a real
-        // duration (without this, every span is a zero-width point). Bounded — if the
-        // gap is large (asleep/away with no events) leave the old span where the
-        // heartbeat left it and let the gap stay untracked.
-        if gap > 0 && gap <= MAX_OPEN_SPAN_GAP_SECONDS {
-            update_last_activity_end_time(conn, last.id, ev.timestamp)?;
-        }
-    }
-
-    insert_event(
-        conn,
-        &NewEvent {
-            category_id,
-            ..ev.clone()
-        },
-    )?;
-    Ok(())
-}
-
-/// Heartbeat write: extend the current (last, active, fresh) span's end to `now` so a
-/// sustained single-window stretch — which fires no focus/title events — still accrues
-/// time. No-op if the last span is idle or already stale (the heartbeat was paused).
-pub fn extend_current_span(conn: &Connection, now: i64) -> Result<()> {
-    if let Some(last) = get_last_activity_log(conn)? {
-        if !last.is_idle && now > last.end_time && now - last.end_time <= STALE_SPAN_SECONDS {
-            update_last_activity_end_time(conn, last.id, now)?;
-        }
-    }
-    Ok(())
-}
-
-/// Log activity with smart coalescing — the legacy app+title write path (kept so
-/// existing callers/tests are unchanged). Delegates to [`log_focus`] with no url
-/// and `is_private = false`.
-pub fn log_activity(
-    conn: &Connection,
-    process_name: &str,
-    window_title: &str,
-    is_idle: bool,
-    timestamp: i64,
-) -> Result<()> {
-    log_focus(
-        conn,
-        &NewEvent {
-            process_name,
-            window_title,
-            is_idle,
-            timestamp,
-            ..Default::default()
-        },
-    )
-}
-
-/// Thread-safe wrapper for logging activity.
-pub fn log_activity_safe(
-    db_conn: &DbConnection,
-    process_name: &str,
-    window_title: &str,
-    is_idle: bool,
-    timestamp: i64,
-) -> Result<(), String> {
-    let conn = db_conn
-        .lock()
-        .map_err(|e| format!("Failed to lock database: {}", e))?;
-    log_activity(&conn, process_name, window_title, is_idle, timestamp)
-        .map_err(|e| format!("Database error: {}", e))
 }
 
 /// Query activity logs within a time range.
@@ -851,93 +728,8 @@ mod tests {
         assert_eq!(logs[1].process_name, "code");
     }
 
-    #[test]
-    fn extend_current_span_extends_a_fresh_active_span() {
-        let conn = setup_test_db();
-        insert_activity_log(&conn, "Code", "main.rs", false, 1000, None).unwrap();
-        extend_current_span(&conn, 1015).unwrap(); // within the stale window
-        let logs = get_activity_logs(&conn, 0, i64::MAX).unwrap();
-        assert_eq!(logs[0].end_time, 1015);
-    }
-
-    #[test]
-    fn extend_current_span_ignores_a_stale_span() {
-        let conn = setup_test_db();
-        insert_activity_log(&conn, "Code", "main.rs", false, 1000, None).unwrap();
-        extend_current_span(&conn, 1000 + 1000).unwrap(); // gap > STALE_SPAN_SECONDS
-        let logs = get_activity_logs(&conn, 0, i64::MAX).unwrap();
-        assert_eq!(logs[0].end_time, 1000, "a stale span must not be stretched");
-    }
-
-    // --- Coalescing tests ---
-
-    #[test]
-    fn test_coalesce_same_process_within_30s() {
-        let conn = setup_test_db();
-        let t = 1000;
-        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
-        log_activity(&conn, "firefox", "GitHub", false, t + 5).unwrap();
-        log_activity(&conn, "firefox", "GitHub", false, t + 10).unwrap();
-
-        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs.len(), 1, "Should coalesce into a single entry");
-        assert_eq!(logs[0].start_time, t);
-        assert_eq!(logs[0].end_time, t + 10);
-    }
-
-    #[test]
-    fn test_coalesce_same_process_after_30s_gap() {
-        let conn = setup_test_db();
-        let t = 1000;
-        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
-        // Gap of 31s — exceeds MAX_GAP_SECONDS
-        log_activity(&conn, "firefox", "GitHub", false, t + 31).unwrap();
-
-        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs.len(), 2, "Should create a new entry after 30s gap");
-        assert_eq!(logs[0].start_time, t);
-        assert_eq!(logs[1].start_time, t + 31);
-    }
-
-    #[test]
-    fn test_coalesce_different_process_new_entry() {
-        let conn = setup_test_db();
-        let t = 1000;
-        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
-        log_activity(&conn, "code", "main.rs", false, t + 5).unwrap();
-
-        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs.len(), 2, "Different process should create new entry");
-        assert_eq!(logs[0].process_name, "firefox");
-        assert_eq!(logs[1].process_name, "code");
-    }
-
-    #[test]
-    fn test_coalesce_idle_state_change() {
-        let conn = setup_test_db();
-        let t = 1000;
-        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
-        // Same process but now idle
-        log_activity(&conn, "firefox", "GitHub", true, t + 5).unwrap();
-
-        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs.len(), 2, "Idle state change should create new entry");
-        assert!(!logs[0].is_idle);
-        assert!(logs[1].is_idle);
-    }
-
-    #[test]
-    fn test_coalesce_boundary_exactly_30s() {
-        let conn = setup_test_db();
-        let t = 1000;
-        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
-        // Exactly 30s gap — should still coalesce (MAX_GAP_SECONDS is <=)
-        log_activity(&conn, "firefox", "GitHub", false, t + 30).unwrap();
-
-        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs.len(), 1, "Exactly 30s gap should still coalesce");
-        assert_eq!(logs[0].end_time, t + 30);
-    }
+    // (Span coalescing / close-on-switch / idle behaviour now lives in the capture
+    // state machine — see `crate::capture` tests.)
 
     // --- find_category tests ---
 
