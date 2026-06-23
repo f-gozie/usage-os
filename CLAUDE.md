@@ -14,7 +14,7 @@ This file is the contract every agent (and human) reads first. If something here
 2. `context/vision.md` — what we're building and why.
 3. `context/decisions.md` — the locked decisions and their rationale (don't relitigate without reason).
 4. `context/architecture.md` — system shape, layer boundaries, data model.
-5. `context/plans/` — the active redesign plan (latest dated file) and prior plans.
+5. `context/plans/README.md` — the **plans registry**. Pick the `active` plan, then read its `plan.md` (roadmap) + the **newest file in its `handoffs/`** (current state). That latest handoff is the fastest "where are we now."
 6. `context/design-system.md` — the visual contract (mirrored in the Claude Design project).
 7. `context/standards/*` — detailed conventions (drafted in Phase 0 from grounded desk research; native/version claims are **provisional until the spike confirms them**).
 8. `context/feasibility/` — the whole-project feasibility audit (verdict, the R1–R83 risk register, and the spike plan).
@@ -49,6 +49,11 @@ No gamification (XP, streaks, goals, "boss fights" — all cut). No real-time in
 ## Dev workflow
 
 - Branch from `main`; never commit the working direction straight to `main` without review.
-- Plans live in `context/plans/` (dated, task/workflow-numbered, following the existing convention); update the active plan as work lands. Decisions go in `context/decisions.md` (ADR-style) — append, don't rewrite history.
+- **Plans, handoffs & decisions — three artifacts, three lifecycles (don't conflate them):**
+  - A **plan** is a multi-session body of work, one folder under `context/plans/<date>-<slug>/`, registered in `context/plans/README.md`. It contains `plan.md` (the roadmap — the one *living* doc; check off / annotate as work lands, don't rewrite), `handoffs/`, and `impl-plans/`.
+  - **Handoffs are append-only history.** At the **end of a plan session** (or `/handoff`), write a **new** file `handoffs/YYYY-MM-DD-NN-slug.md` — **never overwrite** an existing one. At the **start** of a session, read the active plan's `plan.md` + the **newest** handoff. The chain of handoffs is the project's narrative; preserving it is the point.
+  - **Impl-plans:** when a task's plan-mode plan is approved, save it as `impl-plans/YYYY-MM-DD-<task>.md` (the as-built detail behind its PR).
+  - **Decisions** go in `context/decisions.md` (ADR-style, append-only — D1…). The *why*; cross-reference from plans/handoffs.
+  - Process docs (plans/handoffs/decisions/registry) are committed to `main` directly (they're cross-cutting, not feature code). Not every session maps to a plan — one-off tasks need none.
 - Mockups before UI changes (the `mockup` skill). Reviews before merge (the `code-review` skill / `/code-review`).
 - Distribution: notarized DMG + auto-update + Homebrew cask. Needs the Apple Developer cert.
