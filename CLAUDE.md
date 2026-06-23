@@ -29,7 +29,7 @@ This file is the contract every agent (and human) reads first. If something here
 - **IPC:** `tauri-specta` generates the TypeScript client + types from Rust commands. The frontend cannot call a command with the wrong shape.
 - **Frontend:** React + TypeScript + Vite + Tailwind. Custom SVG for the dial (no chart library). Bauhaus design system.
 
-**Already in place** (shipped v0.1.0 + Tier-1 hygiene — keep, don't rebuild): rusqlite + versioned migrations (`schema_migrations`), ~25 Rust + 28 TS tests (the TS suite is pure-logic; React Testing Library is net-new for the redesign UI), GitHub Actions CI (Linux/macOS/Windows), data retention, the category rules engine. **New in the redesign:** tauri-specta IPC, objc2 event-driven capture, the Swift Foundation Models sidecar, the Bauhaus dial UI. **We evolve this codebase — we do not restart it.**
+**Already in place** (shipped v0.1.0 + Tier-1 hygiene — keep, don't rebuild): rusqlite + versioned migrations (`schema_migrations`), ~25 Rust + 28 TS tests (the TS suite is pure-logic; React Testing Library is net-new for the redesign UI), GitHub Actions CI (Linux + macOS; Windows dropped — macOS-only product, and the specta IPC stack won't link there), data retention, the category rules engine. **New in the redesign:** tauri-specta IPC, objc2 event-driven capture, the Swift Foundation Models sidecar, the Bauhaus dial UI. **We evolve this codebase — we do not restart it.**
 
 ## Hard rules (non-negotiable — drift here is a build failure, not a judgment call)
 

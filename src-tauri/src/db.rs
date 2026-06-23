@@ -18,7 +18,7 @@ fn now_unix() -> i64 {
 }
 
 /// Activity log entry representing a time block of app usage.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ActivityLog {
     pub id: i64,
     pub process_name: String,
@@ -29,14 +29,14 @@ pub struct ActivityLog {
     pub category_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Category {
     pub id: i64,
     pub name: String,
     pub color: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Rule {
     pub id: i64,
     pub category_id: i64,

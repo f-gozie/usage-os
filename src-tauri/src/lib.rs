@@ -7,65 +7,94 @@ mod db;
 mod watcher;
 
 use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
+use tauri_specta::{collect_commands, Builder};
 
 type DbState = Arc<Mutex<Connection>>;
 
-/// Tauri command to fetch activity logs for a given time range.
-///
-/// # Arguments
-/// * `db` - Managed database connection state
-/// * `start_time` - Unix timestamp for range start
-/// * `end_time` - Unix timestamp for range end
-///
-/// # Returns
-/// Vector of activity logs or error message
+/// Typed error contract for every command (replaces `Result<_, String>`).
+/// Crosses to TS as a discriminated union the frontend can `switch` on `kind`.
+#[derive(Debug, thiserror::Error, Serialize, specta::Type)]
+#[serde(tag = "kind", content = "message")]
+pub enum AppError {
+    #[error("database error: {0}")]
+    Db(String),
+    #[error("database lock was poisoned")]
+    LockPoisoned,
+}
+
+impl From<rusqlite::Error> for AppError {
+    fn from(e: rusqlite::Error) -> Self {
+        AppError::Db(e.to_string())
+    }
+}
+
+/// Health of the background capture watcher (replaces an untyped `serde_json::Value`).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct WatcherStatus {
+    pub consecutive_errors: u64,
+    pub healthy: bool,
+}
+
+/// One persisted setting key/value (replaces the awkward `[string, string][]`).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct Setting {
+    pub key: String,
+    pub value: String,
+}
+
+/// Fetch activity logs for a `[start_time, end_time]` Unix-second range.
 #[tauri::command]
+#[specta::specta]
 fn get_activity_stats(
     db: State<DbState>,
     start_time: i64,
     end_time: i64,
-) -> Result<Vec<db::ActivityLog>, String> {
-    let conn = db
-        .lock()
-        .map_err(|e| format!("Failed to lock database: {}", e))?;
-    db::get_activity_logs(&conn, start_time, end_time).map_err(|e| format!("Database error: {}", e))
+) -> Result<Vec<db::ActivityLog>, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::get_activity_logs(&conn, start_time, end_time).map_err(AppError::from)
 }
 
 #[tauri::command]
-fn get_categories(db: State<DbState>) -> Result<Vec<db::Category>, String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    db::get_categories(&conn).map_err(|e| e.to_string())
+#[specta::specta]
+fn get_categories(db: State<DbState>) -> Result<Vec<db::Category>, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::get_categories(&conn).map_err(AppError::from)
 }
 
 #[tauri::command]
-fn create_category(db: State<DbState>, name: String, color: String) -> Result<i64, String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    db::create_category(&conn, &name, &color).map_err(|e| e.to_string())
+#[specta::specta]
+fn create_category(db: State<DbState>, name: String, color: String) -> Result<i64, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::create_category(&conn, &name, &color).map_err(AppError::from)
 }
 
 #[tauri::command]
-fn delete_category(db: State<DbState>, id: i64) -> Result<(), String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    db::delete_category(&conn, id).map_err(|e| e.to_string())
+#[specta::specta]
+fn delete_category(db: State<DbState>, id: i64) -> Result<(), AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::delete_category(&conn, id).map_err(AppError::from)
 }
 
 #[tauri::command]
-fn get_rules(db: State<DbState>) -> Result<Vec<db::Rule>, String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    db::get_rules(&conn).map_err(|e| e.to_string())
+#[specta::specta]
+fn get_rules(db: State<DbState>) -> Result<Vec<db::Rule>, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::get_rules(&conn).map_err(AppError::from)
 }
 
 #[tauri::command]
+#[specta::specta]
 fn create_rule(
     db: State<DbState>,
     category_id: i64,
     match_field: String,
     pattern: String,
     ignore_title: Option<bool>,
-) -> Result<i64, String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
+) -> Result<i64, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     db::create_rule(
         &conn,
         category_id,
@@ -73,59 +102,77 @@ fn create_rule(
         &pattern,
         ignore_title.unwrap_or(false),
     )
-    .map_err(|e| e.to_string())
+    .map_err(AppError::from)
 }
 
 #[tauri::command]
-fn delete_rule(db: State<DbState>, id: i64) -> Result<(), String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    db::delete_rule(&conn, id).map_err(|e| e.to_string())
+#[specta::specta]
+fn delete_rule(db: State<DbState>, id: i64) -> Result<(), AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::delete_rule(&conn, id).map_err(AppError::from)
 }
 
 #[tauri::command]
-fn reprocess_logs(db: State<DbState>) -> Result<(), String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    db::reprocess_logs(&conn).map_err(|e| e.to_string())
+#[specta::specta]
+fn reprocess_logs(db: State<DbState>) -> Result<(), AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::reprocess_logs(&conn).map_err(AppError::from)
 }
 
 #[tauri::command]
-fn get_watcher_status() -> Result<serde_json::Value, String> {
+#[specta::specta]
+fn get_watcher_status() -> Result<WatcherStatus, AppError> {
     let errors = watcher::get_error_count();
-    Ok(serde_json::json!({
-        "consecutive_errors": errors,
-        "healthy": errors < 6
-    }))
+    Ok(WatcherStatus {
+        consecutive_errors: errors,
+        healthy: errors < 6,
+    })
 }
 
 #[tauri::command]
-fn get_settings(db: State<DbState>) -> Result<Vec<(String, String)>, String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    db::get_all_settings(&conn).map_err(|e| e.to_string())
+#[specta::specta]
+fn get_settings(db: State<DbState>) -> Result<Vec<Setting>, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let rows = db::get_all_settings(&conn).map_err(AppError::from)?;
+    Ok(rows
+        .into_iter()
+        .map(|(key, value)| Setting { key, value })
+        .collect())
 }
 
 #[tauri::command]
-fn update_setting(db: State<DbState>, key: String, value: String) -> Result<(), String> {
-    let conn = db.lock().map_err(|e| e.to_string())?;
-    db::set_setting(&conn, &key, &value).map_err(|e| e.to_string())
+#[specta::specta]
+fn update_setting(db: State<DbState>, key: String, value: String) -> Result<(), AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::set_setting(&conn, &key, &value).map_err(AppError::from)
+}
+
+/// The single source of command registration. Both the runtime invoke handler
+/// and the generated TS bindings come from this Builder, so they cannot disagree
+/// (hard rule 2). Events stay empty until issue #211 is de-risked (commands-only).
+fn make_builder() -> Builder<tauri::Wry> {
+    Builder::<tauri::Wry>::new().commands(collect_commands![
+        get_activity_stats,
+        get_categories,
+        create_category,
+        delete_category,
+        get_rules,
+        create_rule,
+        delete_rule,
+        reprocess_logs,
+        get_watcher_status,
+        get_settings,
+        update_setting,
+    ])
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let builder = make_builder();
+
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![
-            get_activity_stats,
-            get_categories,
-            create_category,
-            delete_category,
-            get_rules,
-            create_rule,
-            delete_rule,
-            reprocess_logs,
-            get_watcher_status,
-            get_settings,
-            update_setting
-        ])
+        .invoke_handler(builder.invoke_handler())
         .setup(|app| {
             let db_path = db::get_db_path(app.handle())?;
 
@@ -160,5 +207,30 @@ pub fn run() {
     if let Err(e) = result {
         eprintln!("[Fatal] Error while running tauri application: {}", e);
         std::process::exit(1);
+    }
+}
+
+/// Codegen for the IPC bindings. Lives in a test (debug-only) path, so the
+/// `expect()` here does NOT violate hard rule 3 (Pattern 8). The freshness gate
+/// (CI) regenerates this and fails if the committed `src/bindings.ts` drifts.
+#[cfg(test)]
+mod export_bindings {
+    use specta_typescript::{BigIntExportBehavior, Typescript};
+
+    #[test]
+    fn export_bindings() {
+        super::make_builder()
+            .export(
+                Typescript::new()
+                    .bigint(BigIntExportBehavior::Number)
+                    // @ts-nocheck: the generated file emits events/channel boilerplate
+                    // that trips the app's strict `noUnusedLocals`; it's generated, not
+                    // authored, so we don't lint it (the freshness gate is its check).
+                    .header(
+                        "// @ts-nocheck\n// @generated by tauri-specta — DO NOT EDIT. Run `cargo test export_bindings`.\n",
+                    ),
+                "../src/bindings.ts",
+            )
+            .expect("failed to export IPC bindings");
     }
 }
