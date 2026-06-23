@@ -34,3 +34,35 @@ user-idle = "0.6"
 rusqlite = { version = "0.31", features = ["bundled"] }
 tokio = { version = "1", features = ["rt", "time", "sync"] }
 
+# Native macOS capture (Phase 1.2b, D29/D32). Behind the `capture` trait and
+# `#[cfg(target_os = "macos")]` — never imported above `capture/macos/`. Exact pins
+# proven by the spikes (objc2 0.6.4 / objc2-* 0.3.2 / block2 0.6.2). The whole AX
+# surface (incl. the AXObserver family) lives in objc2-application-services — no
+# accessibility-sys (D29). libc also backs proc_pidinfo (terminal cwd).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3.2", features = [
+    "NSWorkspace",
+    "NSRunningApplication",
+    "libc",
+] }
+objc2-foundation = { version = "0.3.2", features = [
+    "NSString",
+    "NSNotification",
+    "NSOperation",
+    "block2",
+] }
+objc2-application-services = { version = "0.3.2", features = [
+    "AXUIElement",
+    "AXError",
+    "libc",
+] }
+objc2-core-foundation = { version = "0.3.2", features = [
+    "CFString",
+    "CFDictionary",
+    "CFNumber",
+    "CFRunLoop",
+] }
+block2 = "0.6"
+libc = "0.2"
+
