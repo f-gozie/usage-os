@@ -40,6 +40,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "recategorize_claude_as_deep",
         sql: include_str!("../migrations/0004_recategorize_claude_as_deep.sql"),
     },
+    Migration {
+        version: 5,
+        name: "drop_away_app_spans",
+        sql: include_str!("../migrations/0005_drop_away_app_spans.sql"),
+    },
 ];
 
 /// FNV-1a (64-bit): a small, stable, dependency-free hash. Not cryptographic — its only
