@@ -5,7 +5,7 @@ import type { View } from "@/components/shell/TabNav";
 import { formatDayParts, formatWeekRange } from "@/lib/dates";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { DayView } from "@/views/DayView";
-import { Placeholder } from "@/views/Placeholder";
+import { SettingsView } from "@/views/SettingsView";
 import { TimelineView } from "@/views/TimelineView";
 import { WeekView } from "@/views/WeekView";
 
@@ -44,7 +44,7 @@ function App() {
           />
         )}
         {view === "timeline" && <TimelineView date={date} onDateChange={setDate} />}
-        {view === "settings" && <Placeholder title="Settings" />}
+        {view === "settings" && <SettingsView />}
       </AppShell>
     </ThemeProvider>
   );

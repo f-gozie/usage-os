@@ -1,5 +1,7 @@
 use rusqlite::{Connection, OptionalExtension, Result};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -104,9 +106,16 @@ pub struct NewEvent<'a> {
     pub timestamp: i64,
 }
 
+/// A context (the redesign's noun for the legacy `categories` table — the SQL table
+/// and column names stay `categories`/`category_id` per D31; only the IPC surface is
+/// renamed). `slug` carries the canonical identity (`deep`|`research`|`comms`|`breaks`)
+/// the UI maps to a colour token `--c-<slug>`; `None` = a user-created context (it
+/// supplies its own `color`). Exposing `slug` lets the editor protect the canonical
+/// four from deletion and colour their swatches from the theme-aware token.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct Category {
+pub struct Context {
     pub id: i64,
+    pub slug: Option<String>,
     pub name: String,
     pub color: String,
 }
@@ -114,7 +123,10 @@ pub struct Category {
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Rule {
     pub id: i64,
-    pub category_id: i64,
+    // The owning context. The SQL column stays `category_id` (D31); the IPC field is
+    // `context_id`. (`ActivityLog.category_id` keeps the legacy name — it's read in the
+    // hot rollup/capture paths and renaming it buys no IPC-naming win.)
+    pub context_id: i64,
     pub match_field: String, // "process" or "title"
     pub pattern: String,
     pub ignore_title: bool,
@@ -248,15 +260,17 @@ pub fn get_activity_logs(
     logs.collect()
 }
 
-// --- Category CRUD ---
+// --- Context CRUD (the `categories` table; IPC noun is "context", D31) ---
 
-pub fn get_categories(conn: &Connection) -> Result<Vec<Category>> {
-    let mut stmt = conn.prepare("SELECT id, name, color FROM categories ORDER BY name ASC")?;
+pub fn get_contexts(conn: &Connection) -> Result<Vec<Context>> {
+    let mut stmt =
+        conn.prepare("SELECT id, slug, name, color FROM categories ORDER BY name ASC")?;
     let rows = stmt.query_map([], |row| {
-        Ok(Category {
+        Ok(Context {
             id: row.get(0)?,
-            name: row.get(1)?,
-            color: row.get(2)?,
+            slug: row.get(1)?,
+            name: row.get(2)?,
+            color: row.get(3)?,
         })
     })?;
     rows.collect()
@@ -271,7 +285,7 @@ pub fn get_context_metas(conn: &Connection) -> Result<Vec<(i64, Option<String>, 
     rows.collect()
 }
 
-pub fn create_category(conn: &Connection, name: &str, color: &str) -> Result<i64> {
+pub fn create_context(conn: &Connection, name: &str, color: &str) -> Result<i64> {
     conn.execute(
         "INSERT INTO categories (name, color) VALUES (?1, ?2)",
         (name, color),
@@ -279,7 +293,18 @@ pub fn create_category(conn: &Connection, name: &str, color: &str) -> Result<i64
     Ok(conn.last_insert_rowid())
 }
 
-pub fn delete_category(conn: &Connection, id: i64) -> Result<()> {
+/// Rename / recolour a context (name + colour only — `slug` is immutable canonical
+/// identity, never edited). The Settings editor uses this for both canonical and
+/// user-created contexts.
+pub fn update_context(conn: &Connection, id: i64, name: &str, color: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE categories SET name = ?1, color = ?2 WHERE id = ?3",
+        (name, color, id),
+    )?;
+    Ok(())
+}
+
+pub fn delete_context(conn: &Connection, id: i64) -> Result<()> {
     conn.execute(
         "UPDATE activity_logs SET category_id = NULL WHERE category_id = ?1",
         [id],
@@ -297,7 +322,7 @@ pub fn get_rules(conn: &Connection) -> Result<Vec<Rule>> {
     let rows = stmt.query_map([], |row| {
         Ok(Rule {
             id: row.get(0)?,
-            category_id: row.get(1)?,
+            context_id: row.get(1)?,
             match_field: row.get(2)?,
             pattern: row.get(3)?,
             ignore_title: row.get::<_, i64>(4)? != 0,
@@ -308,14 +333,14 @@ pub fn get_rules(conn: &Connection) -> Result<Vec<Rule>> {
 
 pub fn create_rule(
     conn: &Connection,
-    category_id: i64,
+    context_id: i64,
     match_field: &str,
     pattern: &str,
     ignore_title: bool,
 ) -> Result<i64> {
     conn.execute(
         "INSERT INTO rules (category_id, match_field, pattern, ignore_title) VALUES (?1, ?2, ?3, ?4)",
-        (category_id, match_field, pattern, ignore_title as i64),
+        (context_id, match_field, pattern, ignore_title as i64),
     )?;
     Ok(conn.last_insert_rowid())
 }
@@ -344,7 +369,7 @@ pub fn find_category(
             .to_lowercase()
             .contains(&rule.pattern.to_lowercase())
         {
-            return Ok(Some(rule.category_id));
+            return Ok(Some(rule.context_id));
         }
     }
     Ok(None)
@@ -365,12 +390,12 @@ pub fn reprocess_logs(conn: &Connection) -> Result<()> {
         if rule.match_field == "process" {
             conn.execute(
                 "UPDATE activity_logs SET category_id = ?1 WHERE category_id IS NULL AND lower(process_name) LIKE lower(?2)",
-                (rule.category_id, pattern),
+                (rule.context_id, pattern),
             )?;
         } else {
             conn.execute(
                 "UPDATE activity_logs SET category_id = ?1 WHERE category_id IS NULL AND lower(window_title) LIKE lower(?2)",
-                (rule.category_id, pattern),
+                (rule.context_id, pattern),
             )?;
         }
     }
@@ -394,6 +419,86 @@ pub fn cleanup_old_data(conn: &Connection, retention_days: i64) -> Result<usize>
         );
     }
     Ok(deleted)
+}
+
+// --- Data ownership: export / wipe ---
+
+/// Map an `io::Error` (from writing the CSV) into a `rusqlite::Error` so the export
+/// can share the repository's `Result` type; the underlying message is preserved.
+fn io_to_db_err(e: std::io::Error) -> rusqlite::Error {
+    rusqlite::Error::ToSqlConversionFailure(Box::new(e))
+}
+
+/// Escape one CSV field per RFC 4180: wrap in double-quotes and double any internal
+/// quote when the field contains `"`, `,`, CR or LF. Borrows when no escaping is needed.
+fn csv_field(s: &str) -> Cow<'_, str> {
+    if s.contains(['"', ',', '\n', '\r']) {
+        Cow::Owned(format!("\"{}\"", s.replace('"', "\"\"")))
+    } else {
+        Cow::Borrowed(s)
+    }
+}
+
+/// An optional text column: escaped when present, an empty field when absent.
+fn csv_opt(v: Option<&str>) -> Cow<'_, str> {
+    v.map(csv_field).unwrap_or(Cow::Borrowed(""))
+}
+
+/// Stream every event to `w` as RFC-4180 CSV: a header row then one row per event,
+/// oldest first. Reuses [`ACTIVITY_LOG_COLUMNS`] + [`row_to_activity_log`] so the export
+/// shape can never drift from [`ActivityLog`]. Rows are written as they're read (flat
+/// memory). Returns the number of data rows written.
+pub fn export_events_csv<W: Write>(conn: &Connection, w: &mut W) -> Result<usize> {
+    writeln!(
+        w,
+        "id,process_name,window_title,start_time,end_time,is_idle,category_id,url,site,project_id,project_abstain_reason,is_private"
+    )
+    .map_err(io_to_db_err)?;
+
+    let sql = format!("SELECT {ACTIVITY_LOG_COLUMNS} FROM activity_logs ORDER BY start_time ASC");
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query([])?;
+    let mut count = 0usize;
+    while let Some(row) = rows.next()? {
+        let e = row_to_activity_log(row)?;
+        let num = |v: Option<i64>| v.map(|n| n.to_string()).unwrap_or_default();
+        writeln!(
+            w,
+            "{},{},{},{},{},{},{},{},{},{},{},{}",
+            e.id,
+            csv_field(&e.process_name),
+            csv_field(&e.window_title),
+            e.start_time,
+            e.end_time,
+            e.is_idle as i64,
+            num(e.category_id),
+            csv_opt(e.url.as_deref()),
+            csv_opt(e.site.as_deref()),
+            num(e.project_id),
+            csv_opt(e.project_abstain_reason.as_deref()),
+            e.is_private as i64,
+        )
+        .map_err(io_to_db_err)?;
+        count += 1;
+    }
+    Ok(count)
+}
+
+/// Wipe the captured record — events plus the registries derived purely from them
+/// (projects + their aliases via cascade, sites) — in a single transaction. **Preserves**
+/// user configuration: contexts (`categories`), rules, exclusions, settings, and the
+/// migration ledger. The capture writer shares this connection's `Mutex`, so it can't
+/// interleave; its in-memory open-span id simply becomes a no-op `UPDATE` after the wipe
+/// (the next focus change opens a fresh span). No `VACUUM` — freed pages are reclaimed
+/// lazily; immediate reclaim isn't worth rewriting the whole file here.
+pub fn delete_all_data(conn: &mut Connection) -> Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM activity_logs", [])?;
+    tx.execute("DELETE FROM project_aliases", [])?;
+    tx.execute("DELETE FROM projects", [])?;
+    tx.execute("DELETE FROM sites", [])?;
+    tx.commit()?;
+    Ok(())
 }
 
 // --- Settings ---
@@ -736,7 +841,7 @@ mod tests {
     #[test]
     fn test_find_category_matches_process_name() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
+        let cat_id = create_context(&conn, "Browsers", "#ff0000").unwrap();
         create_rule(&conn, cat_id, "process", "firefox", false).unwrap();
 
         let result = find_category(&conn, "firefox", "Some Page").unwrap();
@@ -746,7 +851,7 @@ mod tests {
     #[test]
     fn test_find_category_case_insensitive() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
+        let cat_id = create_context(&conn, "Browsers", "#ff0000").unwrap();
         create_rule(&conn, cat_id, "process", "firefox", false).unwrap();
 
         let result = find_category(&conn, "Firefox", "Some Page").unwrap();
@@ -756,7 +861,7 @@ mod tests {
     #[test]
     fn test_find_category_matches_window_title() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Development", "#00ff00").unwrap();
+        let cat_id = create_context(&conn, "Development", "#00ff00").unwrap();
         create_rule(&conn, cat_id, "title", "github", false).unwrap();
 
         let result = find_category(&conn, "firefox", "GitHub - Pull Request").unwrap();
@@ -766,7 +871,7 @@ mod tests {
     #[test]
     fn test_find_category_no_match() {
         let conn = setup_test_db();
-        create_category(&conn, "Browsers", "#ff0000").unwrap();
+        create_context(&conn, "Browsers", "#ff0000").unwrap();
         // No rules created
 
         let result = find_category(&conn, "firefox", "Some Page").unwrap();
@@ -785,7 +890,7 @@ mod tests {
     #[test]
     fn test_reprocess_logs_clears_and_reapplies() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
+        let cat_id = create_context(&conn, "Browsers", "#ff0000").unwrap();
 
         // Insert logs without category
         insert_activity_log(&conn, "firefox", "GitHub", false, 1000, None).unwrap();
@@ -812,18 +917,18 @@ mod tests {
     // --- Category CRUD tests ---
 
     #[test]
-    fn test_category_crud() {
+    fn test_context_crud() {
         let conn = setup_test_db();
         // The 4 canonical contexts are seeded by migration 2, so assert against that
         // baseline rather than an empty table.
-        let baseline = get_categories(&conn).unwrap().len();
+        let baseline = get_contexts(&conn).unwrap().len();
 
         // Create
-        let id = create_category(&conn, "Work", "#0000ff").unwrap();
+        let id = create_context(&conn, "Work", "#0000ff").unwrap();
         assert!(id > 0);
 
         // Read
-        let cats = get_categories(&conn).unwrap();
+        let cats = get_contexts(&conn).unwrap();
         assert_eq!(cats.len(), baseline + 1);
         let work = cats
             .iter()
@@ -832,30 +937,30 @@ mod tests {
         assert_eq!(work.color, "#0000ff");
 
         // Delete
-        delete_category(&conn, id).unwrap();
-        assert_eq!(get_categories(&conn).unwrap().len(), baseline);
+        delete_context(&conn, id).unwrap();
+        assert_eq!(get_contexts(&conn).unwrap().len(), baseline);
     }
 
     #[test]
-    fn test_delete_category_cascades_rules() {
+    fn test_delete_context_cascades_rules() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Work", "#0000ff").unwrap();
+        let cat_id = create_context(&conn, "Work", "#0000ff").unwrap();
         create_rule(&conn, cat_id, "process", "slack", false).unwrap();
 
         assert_eq!(get_rules(&conn).unwrap().len(), 1);
 
-        delete_category(&conn, cat_id).unwrap();
+        delete_context(&conn, cat_id).unwrap();
         // Rules should be cascade-deleted
         assert_eq!(get_rules(&conn).unwrap().len(), 0);
     }
 
     #[test]
-    fn test_delete_category_nullifies_activity_logs() {
+    fn test_delete_context_nullifies_activity_logs() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Work", "#0000ff").unwrap();
+        let cat_id = create_context(&conn, "Work", "#0000ff").unwrap();
         insert_activity_log(&conn, "slack", "General", false, 1000, Some(cat_id)).unwrap();
 
-        delete_category(&conn, cat_id).unwrap();
+        delete_context(&conn, cat_id).unwrap();
 
         let logs = get_activity_logs(&conn, 0, 2000).unwrap();
         assert_eq!(
@@ -869,7 +974,7 @@ mod tests {
     #[test]
     fn test_rule_crud() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Dev", "#00ff00").unwrap();
+        let cat_id = create_context(&conn, "Dev", "#00ff00").unwrap();
 
         // Create
         let rule_id = create_rule(&conn, cat_id, "process", "code", false).unwrap();
@@ -878,7 +983,7 @@ mod tests {
         // Read
         let rules = get_rules(&conn).unwrap();
         assert_eq!(rules.len(), 1);
-        assert_eq!(rules[0].category_id, cat_id);
+        assert_eq!(rules[0].context_id, cat_id);
         assert_eq!(rules[0].match_field, "process");
         assert_eq!(rules[0].pattern, "code");
 
@@ -890,7 +995,7 @@ mod tests {
     #[test]
     fn test_rule_ignore_title() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Dev", "#00ff00").unwrap();
+        let cat_id = create_context(&conn, "Dev", "#00ff00").unwrap();
         create_rule(&conn, cat_id, "process", "code", true).unwrap();
 
         let rules = get_rules(&conn).unwrap();
@@ -1259,5 +1364,145 @@ mod tests {
         assert_eq!(logs[0].project_id, None);
         assert_eq!(logs[0].project_abstain_reason, None);
         assert!(!logs[0].is_private);
+    }
+
+    // --- Context update test ---
+
+    #[test]
+    fn test_update_context_persists_name_and_color() {
+        let conn = setup_test_db();
+        let id = create_context(&conn, "Old", "#000000").unwrap();
+        update_context(&conn, id, "New", "#ffffff").unwrap();
+        let c = get_contexts(&conn)
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == id)
+            .expect("context");
+        assert_eq!(c.name, "New");
+        assert_eq!(c.color, "#ffffff");
+    }
+
+    #[test]
+    fn test_get_contexts_exposes_canonical_slug() {
+        let conn = setup_test_db();
+        // The 4 canonical seeds (migration 2) carry slugs; a user context does not.
+        assert!(get_contexts(&conn)
+            .unwrap()
+            .iter()
+            .any(|c| c.slug.as_deref() == Some("deep")));
+        let id = create_context(&conn, "Mine", "#123456").unwrap();
+        assert!(get_contexts(&conn)
+            .unwrap()
+            .iter()
+            .any(|c| c.id == id && c.slug.is_none()));
+    }
+
+    // --- Data ownership: CSV export + delete-all ---
+
+    #[test]
+    fn test_export_events_csv_header_and_rows() {
+        let conn = setup_test_db();
+        insert_activity_log(&conn, "firefox", "GitHub", false, 1000, None).unwrap();
+        insert_activity_log(&conn, "code", "main.rs", false, 1010, None).unwrap();
+
+        let mut buf: Vec<u8> = Vec::new();
+        let n = export_events_csv(&conn, &mut buf).unwrap();
+        assert_eq!(n, 2);
+        let csv = String::from_utf8(buf).unwrap();
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines.len(), 3, "header + 2 rows");
+        assert!(lines[0].starts_with("id,process_name,window_title,"));
+        assert_eq!(lines[0].split(',').count(), 12, "12 columns");
+        assert!(lines[1].contains("firefox"));
+        assert!(lines[2].contains("code"));
+    }
+
+    #[test]
+    fn test_export_events_csv_escapes_special_chars() {
+        let conn = setup_test_db();
+        // A title with a comma, embedded quotes, and a newline — the load-bearing case.
+        insert_activity_log(&conn, "chrome", "He said \"hi\", bye\nx", false, 1000, None).unwrap();
+
+        let mut buf: Vec<u8> = Vec::new();
+        export_events_csv(&conn, &mut buf).unwrap();
+        let csv = String::from_utf8(buf).unwrap();
+        assert!(
+            csv.contains("\"He said \"\"hi\"\", bye\nx\""),
+            "field must be quoted with doubled internal quotes; got: {csv}"
+        );
+    }
+
+    #[test]
+    fn test_export_events_csv_empty_db_and_empty_optionals() {
+        let conn = setup_test_db();
+        // Empty DB → header only.
+        let mut buf: Vec<u8> = Vec::new();
+        let n = export_events_csv(&conn, &mut buf).unwrap();
+        assert_eq!(n, 0);
+        assert_eq!(String::from_utf8(buf).unwrap().lines().count(), 1);
+
+        // A bare event leaves url/site/project/abstain/category empty (not "None").
+        insert_activity_log(&conn, "code", "main.rs", false, 1000, None).unwrap();
+        let mut buf2: Vec<u8> = Vec::new();
+        export_events_csv(&conn, &mut buf2).unwrap();
+        let body = String::from_utf8(buf2).unwrap();
+        let row = body.lines().nth(1).expect("data row");
+        let cols: Vec<&str> = row.split(',').collect();
+        assert_eq!(cols.len(), 12);
+        assert_eq!(cols[6], "", "category_id empty");
+        assert_eq!(cols[7], "", "url empty");
+        assert_eq!(cols[8], "", "site empty");
+        assert_eq!(cols[9], "", "project_id empty");
+        assert_eq!(cols[10], "", "abstain empty");
+        assert_eq!(cols[11], "0", "is_private");
+        assert!(!row.contains("None"));
+    }
+
+    #[test]
+    fn test_delete_all_data_wipes_record_preserves_config() {
+        let mut conn = setup_test_db();
+        // Captured record: event + project(+alias) + site.
+        let pid =
+            resolve_or_create_project(&conn, "owner/repo", "repo", None, &[("folder", "repo")])
+                .unwrap();
+        insert_event(
+            &conn,
+            &NewEvent {
+                process_name: "code",
+                window_title: "x",
+                project_id: Some(pid),
+                timestamp: 1000,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        resolve_or_create_site(&conn, "github.com", None, "project-host").unwrap();
+        // Config that must survive.
+        let ctx = create_context(&conn, "Mine", "#123456").unwrap();
+        create_rule(&conn, ctx, "process", "zed", false).unwrap();
+        create_exclusion(&conn, "app", "1Password", "exclude").unwrap();
+        set_setting(&conn, "theme", "warm").unwrap();
+
+        delete_all_data(&mut conn).unwrap();
+
+        // Record gone (incl. cascaded aliases).
+        assert!(get_activity_logs(&conn, 0, 9999).unwrap().is_empty());
+        assert!(get_projects(&conn).unwrap().is_empty());
+        let aliases: i64 = conn
+            .query_row("SELECT COUNT(*) FROM project_aliases", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(aliases, 0, "aliases cascade with projects");
+        assert!(get_sites(&conn).unwrap().is_empty());
+        // Config preserved.
+        assert!(get_contexts(&conn)
+            .unwrap()
+            .iter()
+            .any(|c| c.name == "Mine"));
+        assert_eq!(get_rules(&conn).unwrap().len(), 1);
+        assert_eq!(get_exclusions(&conn).unwrap().len(), 1);
+        assert_eq!(
+            get_setting(&conn, "theme").unwrap(),
+            Some("warm".to_string())
+        );
     }
 }

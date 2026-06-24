@@ -151,23 +151,35 @@ fn get_timeline(
 
 #[tauri::command]
 #[specta::specta]
-fn get_categories(db: State<DbState>) -> Result<Vec<db::Category>, AppError> {
+fn get_contexts(db: State<DbState>) -> Result<Vec<db::Context>, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    db::get_categories(&conn).map_err(AppError::from)
+    db::get_contexts(&conn).map_err(AppError::from)
 }
 
 #[tauri::command]
 #[specta::specta]
-fn create_category(db: State<DbState>, name: String, color: String) -> Result<i64, AppError> {
+fn create_context(db: State<DbState>, name: String, color: String) -> Result<i64, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    db::create_category(&conn, &name, &color).map_err(AppError::from)
+    db::create_context(&conn, &name, &color).map_err(AppError::from)
 }
 
 #[tauri::command]
 #[specta::specta]
-fn delete_category(db: State<DbState>, id: i64) -> Result<(), AppError> {
+fn update_context(
+    db: State<DbState>,
+    id: i64,
+    name: String,
+    color: String,
+) -> Result<(), AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    db::delete_category(&conn, id).map_err(AppError::from)
+    db::update_context(&conn, id, &name, &color).map_err(AppError::from)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn delete_context(db: State<DbState>, id: i64) -> Result<(), AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::delete_context(&conn, id).map_err(AppError::from)
 }
 
 #[tauri::command]
@@ -181,7 +193,7 @@ fn get_rules(db: State<DbState>) -> Result<Vec<db::Rule>, AppError> {
 #[specta::specta]
 fn create_rule(
     db: State<DbState>,
-    category_id: i64,
+    context_id: i64,
     match_field: String,
     pattern: String,
     ignore_title: Option<bool>,
@@ -189,7 +201,7 @@ fn create_rule(
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     db::create_rule(
         &conn,
-        category_id,
+        context_id,
         &match_field,
         &pattern,
         ignore_title.unwrap_or(false),
@@ -239,6 +251,81 @@ fn update_setting(db: State<DbState>, key: String, value: String) -> Result<(), 
     db::set_setting(&conn, &key, &value).map_err(AppError::from)
 }
 
+/// Persist the retention window **and** immediately prune anything older. Distinct from
+/// the generic `update_setting` because retention has a side effect (deleting rows) that
+/// a plain key/value setter must not carry. `days <= 0` = "keep forever" (a no-op prune).
+/// Returns the number of rows deleted so the UI can confirm.
+#[tauri::command]
+#[specta::specta]
+fn set_retention_days(db: State<DbState>, days: i64) -> Result<usize, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::set_setting(&conn, "data_retention_days", &days.to_string())?;
+    db::cleanup_old_data(&conn, days).map_err(AppError::from)
+}
+
+// --- Exclusions (D8): thin passthroughs over the repository ---
+
+#[tauri::command]
+#[specta::specta]
+fn get_exclusions(db: State<DbState>) -> Result<Vec<db::Exclusion>, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::get_exclusions(&conn).map_err(AppError::from)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn create_exclusion(
+    db: State<DbState>,
+    match_type: String,
+    pattern: String,
+    mode: String,
+) -> Result<i64, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::create_exclusion(&conn, &match_type, &pattern, &mode).map_err(AppError::from)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn delete_exclusion(db: State<DbState>, id: i64) -> Result<(), AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::delete_exclusion(&conn, id).map_err(AppError::from)
+}
+
+// --- Data ownership ---
+
+/// Absolute path to the SQLite file, so the frontend can reveal it in Finder via the
+/// `opener` plugin (path resolution lives in Rust — one source of truth).
+#[tauri::command]
+#[specta::specta]
+fn get_database_path(app: tauri::AppHandle) -> Result<String, AppError> {
+    db::get_db_path(&app)
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(AppError::Db)
+}
+
+/// Export all events as RFC-4180 CSV to a file next to the DB (an app-owned dir that
+/// already exists — no new fs scope), returning its absolute path for the frontend to
+/// reveal. SQL + the file write stay in Rust (hard rule 4); nothing leaves the machine.
+#[tauri::command]
+#[specta::specta]
+fn export_events_csv(app: tauri::AppHandle, db: State<DbState>) -> Result<String, AppError> {
+    let db_path = db::get_db_path(&app).map_err(AppError::Db)?;
+    let out = db_path.with_file_name(format!("usageos-export-{}.csv", db::now_unix()));
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let mut file = std::fs::File::create(&out).map_err(|e| AppError::Db(e.to_string()))?;
+    db::export_events_csv(&conn, &mut file)?;
+    Ok(out.to_string_lossy().into_owned())
+}
+
+/// Erase the captured record (events + derived projects/sites), preserving the user's
+/// configuration (contexts, rules, exclusions, settings). One transaction (see `db`).
+#[tauri::command]
+#[specta::specta]
+fn delete_all_data(db: State<DbState>) -> Result<(), AppError> {
+    let mut conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::delete_all_data(&mut conn).map_err(AppError::from)
+}
+
 /// The single source of command registration. Both the runtime invoke handler
 /// and the generated TS bindings come from this Builder, so they cannot disagree
 /// (hard rule 2). Events stay empty until issue #211 is de-risked (commands-only).
@@ -248,16 +335,24 @@ fn make_builder() -> Builder<tauri::Wry> {
         get_day,
         get_week,
         get_timeline,
-        get_categories,
-        create_category,
-        delete_category,
+        get_contexts,
+        create_context,
+        update_context,
+        delete_context,
         get_rules,
         create_rule,
         delete_rule,
         reprocess_logs,
+        get_exclusions,
+        create_exclusion,
+        delete_exclusion,
         get_watcher_status,
         get_settings,
         update_setting,
+        set_retention_days,
+        get_database_path,
+        export_events_csv,
+        delete_all_data,
     ])
 }
 

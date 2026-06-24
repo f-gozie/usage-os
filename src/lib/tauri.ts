@@ -9,8 +9,9 @@ import { commands } from '../bindings';
 import type {
   ActivityLog,
   AppError,
-  Category,
+  Context,
   DayView,
+  Exclusion,
   Result,
   Rule,
   Setting,
@@ -22,11 +23,12 @@ import type {
 export type {
   ActivityLog,
   AppError,
-  Category,
+  Context,
   ContextRun,
   ContextSlice,
   DaySlice,
   DayView,
+  Exclusion,
   ProjectSlice,
   Recap,
   Rule,
@@ -86,18 +88,22 @@ export async function getTimeline(startTime: number, endTime: number): Promise<T
   return unwrap(await commands.getTimeline(startTime, endTime));
 }
 
-// --- Categories ---
+// --- Contexts (the `categories` table; IPC noun is "context", D31) ---
 
-export async function getCategories(): Promise<Category[]> {
-  return unwrap(await commands.getCategories());
+export async function getContexts(): Promise<Context[]> {
+  return unwrap(await commands.getContexts());
 }
 
-export async function createCategory(name: string, color: string): Promise<number> {
-  return unwrap(await commands.createCategory(name, color));
+export async function createContext(name: string, color: string): Promise<number> {
+  return unwrap(await commands.createContext(name, color));
 }
 
-export async function deleteCategory(id: number): Promise<void> {
-  unwrap(await commands.deleteCategory(id));
+export async function updateContext(id: number, name: string, color: string): Promise<void> {
+  unwrap(await commands.updateContext(id, name, color));
+}
+
+export async function deleteContext(id: number): Promise<void> {
+  unwrap(await commands.deleteContext(id));
 }
 
 // --- Rules ---
@@ -107,12 +113,12 @@ export async function getRules(): Promise<Rule[]> {
 }
 
 export async function createRule(
-  categoryId: number,
+  contextId: number,
   matchField: string,
   pattern: string,
   ignoreTitle: boolean = false,
 ): Promise<number> {
-  return unwrap(await commands.createRule(categoryId, matchField, pattern, ignoreTitle));
+  return unwrap(await commands.createRule(contextId, matchField, pattern, ignoreTitle));
 }
 
 export async function deleteRule(id: number): Promise<void> {
@@ -121,6 +127,24 @@ export async function deleteRule(id: number): Promise<void> {
 
 export async function reprocessLogs(): Promise<void> {
   unwrap(await commands.reprocessLogs());
+}
+
+// --- Exclusions (D8) ---
+
+export async function getExclusions(): Promise<Exclusion[]> {
+  return unwrap(await commands.getExclusions());
+}
+
+export async function createExclusion(
+  matchType: string,
+  pattern: string,
+  mode: string,
+): Promise<number> {
+  return unwrap(await commands.createExclusion(matchType, pattern, mode));
+}
+
+export async function deleteExclusion(id: number): Promise<void> {
+  unwrap(await commands.deleteExclusion(id));
 }
 
 // --- Watcher Status ---
@@ -137,4 +161,26 @@ export async function getSettings(): Promise<Setting[]> {
 
 export async function updateSetting(key: string, value: string): Promise<void> {
   unwrap(await commands.updateSetting(key, value));
+}
+
+/** Persist the retention window and prune older rows now. Returns rows deleted. `0` = keep forever. */
+export async function setRetentionDays(days: number): Promise<number> {
+  return unwrap(await commands.setRetentionDays(days));
+}
+
+// --- Data ownership ---
+
+/** Absolute path to the SQLite file (for revealing it in Finder). */
+export async function getDatabasePath(): Promise<string> {
+  return unwrap(await commands.getDatabasePath());
+}
+
+/** Write all events to a CSV next to the DB; returns its absolute path. */
+export async function exportEventsCsv(): Promise<string> {
+  return unwrap(await commands.exportEventsCsv());
+}
+
+/** Erase the captured record (events + derived projects/sites); preserves config. */
+export async function deleteAllData(): Promise<void> {
+  unwrap(await commands.deleteAllData());
 }

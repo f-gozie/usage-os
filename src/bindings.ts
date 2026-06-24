@@ -58,25 +58,33 @@ async getTimeline(startTime: number, endTime: number) : Promise<Result<TimelineV
     else return { status: "error", error: e  as any };
 }
 },
-async getCategories() : Promise<Result<Category[], AppError>> {
+async getContexts() : Promise<Result<Context[], AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_categories") };
+    return { status: "ok", data: await TAURI_INVOKE("get_contexts") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async createCategory(name: string, color: string) : Promise<Result<number, AppError>> {
+async createContext(name: string, color: string) : Promise<Result<number, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("create_category", { name, color }) };
+    return { status: "ok", data: await TAURI_INVOKE("create_context", { name, color }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async deleteCategory(id: number) : Promise<Result<null, AppError>> {
+async updateContext(id: number, name: string, color: string) : Promise<Result<null, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_category", { id }) };
+    return { status: "ok", data: await TAURI_INVOKE("update_context", { id, name, color }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteContext(id: number) : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_context", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -90,9 +98,9 @@ async getRules() : Promise<Result<Rule[], AppError>> {
     else return { status: "error", error: e  as any };
 }
 },
-async createRule(categoryId: number, matchField: string, pattern: string, ignoreTitle: boolean | null) : Promise<Result<number, AppError>> {
+async createRule(contextId: number, matchField: string, pattern: string, ignoreTitle: boolean | null) : Promise<Result<number, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("create_rule", { categoryId, matchField, pattern, ignoreTitle }) };
+    return { status: "ok", data: await TAURI_INVOKE("create_rule", { contextId, matchField, pattern, ignoreTitle }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -109,6 +117,30 @@ async deleteRule(id: number) : Promise<Result<null, AppError>> {
 async reprocessLogs() : Promise<Result<null, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("reprocess_logs") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async getExclusions() : Promise<Result<Exclusion[], AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_exclusions") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async createExclusion(matchType: string, pattern: string, mode: string) : Promise<Result<number, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("create_exclusion", { matchType, pattern, mode }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async deleteExclusion(id: number) : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_exclusion", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -133,6 +165,57 @@ async getSettings() : Promise<Result<Setting[], AppError>> {
 async updateSetting(key: string, value: string) : Promise<Result<null, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_setting", { key, value }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Persist the retention window **and** immediately prune anything older. Distinct from
+ * the generic `update_setting` because retention has a side effect (deleting rows) that
+ * a plain key/value setter must not carry. `days <= 0` = "keep forever" (a no-op prune).
+ * Returns the number of rows deleted so the UI can confirm.
+ */
+async setRetentionDays(days: number) : Promise<Result<number, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_retention_days", { days }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Absolute path to the SQLite file, so the frontend can reveal it in Finder via the
+ * `opener` plugin (path resolution lives in Rust — one source of truth).
+ */
+async getDatabasePath() : Promise<Result<string, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_database_path") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Export all events as RFC-4180 CSV to a file next to the DB (an app-owned dir that
+ * already exists — no new fs scope), returning its absolute path for the frontend to
+ * reveal. SQL + the file write stay in Rust (hard rule 4); nothing leaves the machine.
+ */
+async exportEventsCsv() : Promise<Result<string, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("export_events_csv") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Erase the captured record (events + derived projects/sites), preserving the user's
+ * configuration (contexts, rules, exclusions, settings). One transaction (see `db`).
+ */
+async deleteAllData() : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_all_data") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -185,7 +268,15 @@ is_private: boolean }
  * Crosses to TS as a discriminated union the frontend can `switch` on `kind`.
  */
 export type AppError = { kind: "Db"; message: string } | { kind: "LockPoisoned" }
-export type Category = { id: number; name: string; color: string }
+/**
+ * A context (the redesign's noun for the legacy `categories` table — the SQL table
+ * and column names stay `categories`/`category_id` per D31; only the IPC surface is
+ * renamed). `slug` carries the canonical identity (`deep`|`research`|`comms`|`breaks`)
+ * the UI maps to a colour token `--c-<slug>`; `None` = a user-created context (it
+ * supplies its own `color`). Exposing `slug` lets the editor protect the canonical
+ * four from deletion and colour their swatches from the theme-aware token.
+ */
+export type Context = { id: number; slug: string | null; name: string; color: string }
 /**
  * A continuous stretch of one context — a dial arc, click-to-inspect.
  */
@@ -216,6 +307,11 @@ day_start: number; active_secs: number; deep_secs: number; runs: ContextRun[] }
  */
 export type DayView = { active_secs: number; idle_secs: number; contexts: ContextSlice[]; runs: ContextRun[]; recap: Recap }
 /**
+ * A sensitive-handling rule (D8): match an app/site/title and either drop the
+ * event (`mode = "exclude"`) or record time without title/url (`mode = "private"`).
+ */
+export type Exclusion = { id: number; match_type: string; pattern: string; mode: string; created_at: number }
+/**
  * A project's share of time *inside* a context-run (shown as a text line, never a bar).
  */
 export type ProjectSlice = { name: string; secs: number }
@@ -224,7 +320,7 @@ export type ProjectSlice = { name: string; secs: number }
  * Models prose (Phase 3) will reuse the same facts behind the `ai` trait.
  */
 export type Recap = { text: string; generated_by: string }
-export type Rule = { id: number; category_id: number; match_field: string; pattern: string; ignore_title: boolean }
+export type Rule = { id: number; context_id: number; match_field: string; pattern: string; ignore_title: boolean }
 /**
  * One persisted setting key/value (replaces the awkward `[string, string][]`).
  */
