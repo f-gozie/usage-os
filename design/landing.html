@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — understand your days</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616;
+  --now:#161616; --casing:#161616; --on-ink:#EEEBE1; --bar-bg:#161616; --bar-fg:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8;
+  --now:#EDE9DD; --casing:transparent; --on-ink:#1A1916; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4;
+  --now:#F4F4F2; --casing:transparent; --on-ink:#0E0E0E; --bar-bg:#000000; --bar-fg:#F4F4F2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+a{color:inherit;text-decoration:none;}
+.up{opacity:0;animation:up .6s cubic-bezier(.25,.85,.3,1) forwards;}
+@keyframes up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.pg{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);overflow:hidden;}
+
+.nav{display:flex;align-items:center;justify-content:space-between;padding:15px 28px;border-bottom:3px solid var(--edge);}
+.logo{font-family:'Anton',sans-serif;font-size:24px;letter-spacing:.02em;text-transform:uppercase;}
+.logo .o{color:var(--c-research);}
+.nl{display:flex;align-items:center;gap:16px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;}
+.nl a.muted{color:var(--muted);}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-weight:600;font-size:10px;letter-spacing:.08em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 9px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+.btn{font-weight:600;font-size:12px;letter-spacing:.08em;text-transform:uppercase;background:var(--edge);color:var(--bg);border:2px solid var(--edge);padding:9px 16px;display:inline-block;cursor:pointer;}
+.btn.out{background:transparent;color:var(--fg);}
+
+.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:28px;padding:52px 28px;align-items:center;}
+.eye{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--c-deep);margin-bottom:16px;}
+.h1{font-family:'Anton',sans-serif;font-size:78px;line-height:.84;text-transform:uppercase;letter-spacing:.005em;}
+.h1 .r{color:var(--c-research);}
+.sub{font-size:18px;line-height:1.5;font-weight:500;margin:22px 0 26px;max-width:32em;color:var(--fg);}
+.cta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.fine{font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:16px;}
+.herovis{position:relative;display:flex;align-items:center;justify-content:center;min-height:330px;}
+.circ{position:absolute;width:280px;height:280px;border-radius:50%;background:var(--c-comms);z-index:0;}
+.quart{position:absolute;width:104px;height:104px;background:var(--c-research);border-radius:0 0 0 104px;top:8px;right:14px;z-index:0;}
+.dialc{position:relative;width:86%;max-width:300px;z-index:1;}
+.dialc svg{width:100%;display:block;}
+.cen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.cen .b{font-family:'Anton',sans-serif;font-size:38px;line-height:.85;}
+.cen .l{font-size:10px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;margin-top:5px;color:var(--muted);}
+
+.marq{background:var(--bar-bg);color:var(--bar-fg);overflow:hidden;border-top:3px solid var(--edge);border-bottom:3px solid var(--edge);}
+.track{display:inline-flex;white-space:nowrap;animation:scroll 22s linear infinite;}
+@keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.track span{font-family:'Anton',sans-serif;font-size:20px;letter-spacing:.04em;text-transform:uppercase;padding:12px 0;}
+.mdot{display:inline-block;width:11px;height:11px;border-radius:50%;margin:0 22px;vertical-align:middle;}
+
+.sec{padding:50px 28px;}
+.seye{font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--c-research);}
+.sh{font-family:'Anton',sans-serif;font-size:42px;line-height:.92;text-transform:uppercase;margin:9px 0 30px;}
+.feat{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.fc{background:var(--surface);border:3px solid var(--edge);padding:24px 22px;}
+.fi{width:46px;height:46px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;}
+.ft{font-family:'Anton',sans-serif;font-size:21px;text-transform:uppercase;line-height:.95;margin-bottom:10px;}
+.fb{font-size:14.5px;line-height:1.5;color:var(--muted);}
+
+.week{padding:46px 28px;border-top:3px solid var(--edge);}
+.week .seye{color:var(--c-deep);}
+.wgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:6px;}
+.wd{text-align:center;}
+.wd svg{width:100%;display:block;}
+.wd .dl{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:8px;}
+.wd.tdy .dl{color:var(--c-research);}
+.wd .dt{font-family:'Anton',sans-serif;font-size:16px;}
+
+.nums{display:grid;grid-template-columns:repeat(4,1fr);background:var(--bar-bg);}
+.num{padding:32px 14px;text-align:center;}
+.num+.num{border-left:2px solid rgba(255,255,255,.14);}
+.num .n{font-family:'Anton',sans-serif;font-size:46px;line-height:.85;color:var(--bar-fg);}
+.num .n.r{color:var(--c-research);}.num .n.y{color:var(--c-comms);}.num .n.b{color:var(--c-deep);}
+.num .k{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.55);margin-top:11px;}
+
+.man{background:var(--bar-bg);color:var(--bar-fg);padding:64px 28px;text-align:center;border-top:3px solid var(--edge);}
+.man .dot{display:inline-block;width:24px;height:24px;border-radius:50%;background:var(--c-research);margin-bottom:22px;}
+.man h3{font-family:'Anton',sans-serif;font-size:58px;line-height:.9;text-transform:uppercase;}
+.man p{font-size:15px;font-weight:500;color:rgba(255,255,255,.62);max-width:38em;margin:18px auto 0;line-height:1.55;}
+
+.final{padding:60px 28px;text-align:center;border-top:3px solid var(--edge);}
+.final h3{font-family:'Anton',sans-serif;font-size:64px;line-height:.88;text-transform:uppercase;margin-bottom:26px;}
+.final h3 .y{color:var(--c-comms);-webkit-text-stroke:2px var(--edge);}
+.foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:18px 28px;font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;border-top:3px solid var(--edge);}
+@media(max-width:720px){.hero{grid-template-columns:1fr;}.h1{font-size:52px;}.feat{grid-template-columns:1fr;}.nl a.muted{display:none;}}
+</style>
+</head>
+<body>
+<div class="pg">
+  <div class="nav up">
+    <div class="logo">USAGE<span class="o">OS</span></div>
+    <div class="nl">
+      <a class="muted" href="#feat">Features</a>
+      <a class="muted" href="#priv">Privacy</a>
+      <a class="muted" href="index.html">← Gallery</a>
+      <div class="themesw" id="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+      <a class="btn" href="day.html">Open app ↗</a>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="up" style="animation-delay:.08s">
+      <div class="eye">A private time tracker for Mac</div>
+      <div class="h1">Where did your <span class="r">day</span> go?</div>
+      <div class="sub">UsageOS quietly keeps track of what you're working on, then each evening tells you the story of your day — where you focused, what pulled you away, and where the hours actually went. All of it stays on your Mac.</div>
+      <div class="cta"><a class="btn" href="day.html">↓ Open the app</a><a class="btn out" href="#">★ Star on GitHub</a></div>
+      <div class="fine">Free · open source · MIT</div>
+    </div>
+    <div class="herovis up" style="animation-delay:.16s">
+      <div class="quart"></div><div class="circ"></div>
+      <div class="dialc">
+        <svg id="heroDial" viewBox="0 0 300 300" role="img" aria-label="24-hour day dial"></svg>
+        <div class="cen"><div class="b">7h 15m</div><div class="l">Active today</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="marq"><div class="track" id="track"></div></div>
+
+  <div class="sec" id="feat">
+    <div class="seye">Features</div>
+    <div class="sh">What UsageOS does</div>
+    <div class="feat">
+      <div class="fc"><div class="fi" style="color:var(--c-deep)"><svg width="44" height="44" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="17" stroke="currentColor" stroke-width="3"/><circle cx="20" cy="20" r="8" stroke="currentColor" stroke-width="3"/><line x1="20" y1="20" x2="32" y2="11" stroke="var(--c-research)" stroke-width="3"/></svg></div><div class="ft">The whole day, one dial</div><div class="fb">Your last 24 hours as a chronometer. You can see the shape of your day — the focus, the drift, the gaps.</div></div>
+      <div class="fc"><div class="fi" style="color:var(--c-research)"><svg width="44" height="44" viewBox="0 0 40 40"><rect x="5" y="9" width="30" height="4" fill="currentColor"/><rect x="5" y="18" width="24" height="4" fill="currentColor"/><rect x="5" y="27" width="18" height="4" fill="var(--c-deep)"/></svg></div><div class="ft">A recap, not a spreadsheet</div><div class="fb">Each evening, a few honest sentences about where your time actually went — written for you, on your machine.</div></div>
+      <div class="fc"><div class="fi" style="color:var(--c-comms)"><svg width="44" height="44" viewBox="0 0 40 40" fill="none"><rect x="10" y="10" width="20" height="20" stroke="currentColor" stroke-width="3"/><rect x="16" y="16" width="8" height="8" fill="var(--fg)"/><line x1="14" y1="5" x2="14" y2="10" stroke="currentColor" stroke-width="3"/><line x1="26" y1="5" x2="26" y2="10" stroke="currentColor" stroke-width="3"/><line x1="14" y1="30" x2="14" y2="35" stroke="currentColor" stroke-width="3"/><line x1="26" y1="30" x2="26" y2="35" stroke="currentColor" stroke-width="3"/></svg></div><div class="ft">Smart, but local</div><div class="fb">Optional on-device AI sorts your time and writes the recap. The model runs on your Mac — never on a server.</div></div>
+      <div class="fc"><div class="fi" style="color:var(--fg)"><svg width="44" height="44" viewBox="0 0 40 40" fill="none"><rect x="9" y="18" width="22" height="16" fill="currentColor"/><path d="M13 18 v-4 a7 7 0 0 1 14 0 v4" stroke="currentColor" stroke-width="3"/><circle cx="20" cy="25" r="2.5" fill="var(--c-research)"/></svg></div><div class="ft">Private by design</div><div class="fb">No cloud, no account, no telemetry. Nothing about your day ever leaves this Mac.</div></div>
+    </div>
+  </div>
+
+  <div class="week">
+    <div class="seye">Zoom out</div>
+    <div class="sh">Your week</div>
+    <div class="wgrid" id="wgrid"></div>
+  </div>
+
+  <div class="nums">
+    <div class="num"><div class="n y">100%</div><div class="k">On device</div></div>
+    <div class="num"><div class="n">0</div><div class="k">Servers</div></div>
+    <div class="num"><div class="n r">&lt;1%</div><div class="k">CPU when idle</div></div>
+    <div class="num"><div class="n b">MIT</div><div class="k">Open source</div></div>
+  </div>
+
+  <div class="man" id="priv">
+    <span class="dot"></span>
+    <h3>Nothing leaves<br>this machine.</h3>
+    <p>UsageOS has no servers and no account. Your data is one file on your Mac, and the code is open for anyone to check.</p>
+  </div>
+
+  <div class="final">
+    <h3>Get usage<span class="y">os</span></h3>
+    <a class="btn" style="font-size:14px;padding:13px 26px;" href="day.html">↓ Open the app</a>
+    <div class="fine" style="margin-top:16px;">Free for macOS</div>
+  </div>
+
+  <div class="foot"><span>USAGEOS</span><span style="color:var(--muted)">A private time tracker for Mac</span><span>MIT © 2026</span></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var NS="http://www.w3.org/2000/svg";
+function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function pol(cx,cy,t,r){var a=t/1440*2*Math.PI;return[cx+r*Math.sin(a),cy-r*Math.cos(a)];}
+function arc(cx,cy,r,a,b){var lg=(b-a)>720?1:0,p0=pol(cx,cy,a,r),p1=pol(cx,cy,b,r);
+  return "M"+p0[0].toFixed(2)+" "+p0[1].toFixed(2)+" A"+r+" "+r+" 0 "+lg+" 1 "+p1[0].toFixed(2)+" "+p1[1].toFixed(2);}
+function el(t,a){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
+var CV={deep:"--c-deep",research:"--c-research",comms:"--c-comms",breaks:"--c-breaks"};
+var SEGS=[[450,480,"comms"],[480,570,"deep"],[570,585,"breaks"],[585,675,"deep"],[675,705,"research"],[750,780,"comms"],[780,855,"deep"],[855,885,"breaks"],[885,930,"research"]];
+var NOW=930;
+
+function drawHero(animate){
+  var svg=document.getElementById("heroDial");while(svg.firstChild)svg.removeChild(svg.firstChild);
+  var cased=cssv("--casing")!=="transparent"&&cssv("--casing")!=="";
+  svg.appendChild(el("circle",{cx:150,cy:150,r:99,fill:"none",stroke:cssv("--track"),"stroke-width":20}));
+  svg.appendChild(el("circle",{cx:150,cy:150,r:110,fill:"none",stroke:cssv("--edge"),"stroke-width":2}));
+  svg.appendChild(el("circle",{cx:150,cy:150,r:89,fill:"none",stroke:cssv("--edge"),"stroke-width":2}));
+  [0,6,12,18].forEach(function(h){var t=h*60,pi=pol(150,150,t,89),po=pol(150,150,t,110);
+    svg.appendChild(el("line",{x1:pi[0].toFixed(1),y1:pi[1].toFixed(1),x2:po[0].toFixed(1),y2:po[1].toFixed(1),stroke:cssv("--edge"),"stroke-width":2}));
+    var pl=pol(150,150,t,128),tx=el("text",{x:pl[0].toFixed(1),y:(pl[1]+5).toFixed(1),"text-anchor":"middle","font-family":"'Anton',sans-serif","font-size":14,fill:cssv("--muted")});tx.textContent=(h===0?"24":h);svg.appendChild(tx);});
+  var arcs=[];
+  SEGS.forEach(function(sg){var s=sg[0],e=sg[1],a=s+4,b=(e-4>s+4)?e-4:e;
+    if(cased)svg.appendChild(el("path",{d:arc(150,150,99,a,b),stroke:cssv("--casing"),"stroke-width":21,fill:"none"}));
+    var p=el("path",{d:arc(150,150,99,a,b),stroke:cssv(CV[sg[2]]),"stroke-width":cased?18:20,fill:"none"});svg.appendChild(p);arcs.push(p);
+    if(animate){var L=p.getTotalLength();p.style.strokeDasharray=L;p.style.strokeDashoffset=L;p.style.transition="stroke-dashoffset .55s cubic-bezier(.3,.9,.3,1) "+(0.3+arcs.length*0.05)+"s";}});
+  var b1=pol(150,150,NOW,112),b2=pol(150,150,NOW-9,126),b3=pol(150,150,NOW+9,126);
+  svg.appendChild(el("polygon",{points:b1[0].toFixed(1)+","+b1[1].toFixed(1)+" "+b2[0].toFixed(1)+","+b2[1].toFixed(1)+" "+b3[0].toFixed(1)+","+b3[1].toFixed(1),fill:cssv("--now")}));
+  if(animate)requestAnimationFrame(function(){requestAnimationFrame(function(){arcs.forEach(function(p){p.style.strokeDashoffset=0;});});});
+}
+
+var WEEK=[
+ {d:"Sun",t:"2h 30m",s:[[600,660,"research"],[840,900,"comms"],[1080,1140,"deep"]]},
+ {d:"Mon",t:"8h",s:[[540,720,"deep"],[720,780,"comms"],[780,960,"deep"],[960,1080,"research"]]},
+ {d:"Tue",t:"7h",s:[[510,540,"comms"],[540,720,"deep"],[750,900,"deep"],[960,1050,"research"]]},
+ {d:"Wed",t:"9h",s:[[480,540,"comms"],[540,750,"deep"],[810,960,"deep"],[960,1110,"research"],[1110,1140,"breaks"]]},
+ {d:"Thu",t:"6h 30m",s:[[600,720,"deep"],[720,750,"comms"],[780,870,"research"],[930,1050,"deep"],[1050,1080,"breaks"]]},
+ {d:"Fri",t:"7h 30m",s:[[510,540,"comms"],[540,690,"deep"],[690,720,"research"],[780,840,"comms"],[840,960,"deep"],[990,1080,"deep"]]},
+ {d:"Sat",t:"7h 15m",today:true,now:930,s:SEGS}
+];
+function drawWeek(){
+  var g=document.getElementById("wgrid");g.innerHTML="";
+  var cased=cssv("--casing")!=="transparent"&&cssv("--casing")!=="";
+  WEEK.forEach(function(day){var cell=document.createElement("div");cell.className="wd"+(day.today?" tdy":"");
+    var s=el("svg",{viewBox:"0 0 80 80",width:"100%",role:"img","aria-label":day.d});
+    s.appendChild(el("circle",{cx:40,cy:40,r:29,fill:"none",stroke:cssv("--track"),"stroke-width":6}));
+    day.s.forEach(function(seg){var a=seg[0]+3,b=(seg[1]-3>seg[0]+3)?seg[1]-3:seg[1];
+      if(cased)s.appendChild(el("path",{d:arc(40,40,29,a,b),stroke:cssv("--casing"),"stroke-width":8,fill:"none"}));
+      s.appendChild(el("path",{d:arc(40,40,29,a,b),stroke:cssv(CV[seg[2]]),"stroke-width":6,fill:"none"}));});
+    if(day.now){var t1=pol(40,40,day.now,34),t2=pol(40,40,day.now-20,41),t3=pol(40,40,day.now+20,41);
+      s.appendChild(el("polygon",{points:t1[0].toFixed(1)+","+t1[1].toFixed(1)+" "+t2[0].toFixed(1)+","+t2[1].toFixed(1)+" "+t3[0].toFixed(1)+","+t3[1].toFixed(1),fill:cssv("--now")}));}
+    cell.appendChild(s);
+    var dl=document.createElement("div");dl.className="dl";dl.textContent=day.d;cell.appendChild(dl);
+    var dt=document.createElement("div");dt.className="dt";dt.textContent=day.t;cell.appendChild(dt);
+    g.appendChild(cell);});
+}
+var items=[["Runs on your Mac","--c-research"],["No cloud","--c-comms"],["No telemetry","--c-deep"],["Open source","--bar-fg"]],html="";
+for(var rep=0;rep<2;rep++){items.forEach(function(it){html+='<span>'+it[0]+'<span class="mdot" style="background:'+cssv(it[1])+'"></span></span>';});}
+document.getElementById("track").innerHTML=html;
+
+document.getElementById("themesw").addEventListener("click",function(e){var b=e.target.closest("button[data-t]");if(!b)return;
+  document.documentElement.setAttribute("data-theme",b.dataset.t);
+  document.querySelectorAll("#themesw button").forEach(function(x){x.classList.toggle("on",x===b);});
+  drawHero(false);drawWeek();});
+drawHero(true);drawWeek();
+})();
+</script>
+</body>
+</html>

@@ -88,9 +88,8 @@ pub enum ExclusionMode {
     Private,
 }
 
-/// A fully-enriched event to insert (the write path the capture/enrichment layers
-/// use, Phase 1.2+). The legacy `insert_activity_log`/`log_activity` path stays for
-/// the current watcher and writes empty enrichment fields.
+/// A fully-enriched event to insert (the write path the capture state machine uses).
+/// `insert_activity_log` is a simpler bare-app+title insert kept for tests/utilities.
 #[derive(Debug, Clone, Default)]
 pub struct NewEvent<'a> {
     pub process_name: &'a str,
@@ -136,202 +135,15 @@ pub fn get_db_path(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(app_data_dir.join("usage.db"))
 }
 
-// --- Migration System ---
-
-/// A database migration with a version number and apply function.
-struct Migration {
-    version: i64,
-    name: &'static str,
-    sql: &'static str,
-}
-
-/// All migrations in order. Each runs exactly once.
-const MIGRATIONS: &[Migration] = &[
-    Migration {
-        version: 1,
-        name: "initial_schema",
-        sql: "
-            CREATE TABLE IF NOT EXISTS categories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                color TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS rules (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
-                match_field TEXT NOT NULL,
-                pattern TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS activity_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                process_name TEXT NOT NULL,
-                window_title TEXT NOT NULL,
-                start_time INTEGER NOT NULL,
-                end_time INTEGER NOT NULL,
-                is_idle INTEGER NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_start_time ON activity_logs(start_time);
-        ",
-    },
-    Migration {
-        version: 2,
-        name: "add_category_id_to_activity_logs",
-        sql: "
-            ALTER TABLE activity_logs ADD COLUMN category_id INTEGER REFERENCES categories(id);
-        ",
-    },
-    Migration {
-        version: 3,
-        name: "add_settings_table",
-        sql: "
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-        ",
-    },
-    Migration {
-        version: 4,
-        name: "add_ignore_title_to_rules",
-        sql: "
-            ALTER TABLE rules ADD COLUMN ignore_title INTEGER NOT NULL DEFAULT 0;
-        ",
-    },
-    // --- Redesign data model (Phase 1.1, D30/D8). Append-only; see ADR D31. ---
-    Migration {
-        version: 5,
-        name: "create_projects",
-        // Project identity is canonicalized on the git remote `owner/repo` (D30);
-        // the folder name, title-derived name, and any github URL are aliases that
-        // resolve to the same project. `canonical_key UNIQUE` + the alias unique
-        // index are what stop one project fragmenting into several.
-        sql: "
-            CREATE TABLE IF NOT EXISTS projects (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                canonical_key TEXT NOT NULL UNIQUE,
-                display_name TEXT NOT NULL,
-                remote_url TEXT,
-                created_at INTEGER NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS project_aliases (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-                alias_kind TEXT NOT NULL,
-                alias_value TEXT NOT NULL,
-                UNIQUE(alias_kind, alias_value)
-            );
-            CREATE INDEX IF NOT EXISTS idx_project_aliases_lookup
-                ON project_aliases(alias_kind, alias_value);
-        ",
-    },
-    Migration {
-        version: 6,
-        name: "create_sites",
-        // Site registry — kind seeds D30's ambiguous-vs-general distinction
-        // ('dashboard' = work-but-project-unknown, correlated later in Phase 2).
-        sql: "
-            CREATE TABLE IF NOT EXISTS sites (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                host TEXT NOT NULL UNIQUE,
-                display_name TEXT,
-                kind TEXT NOT NULL DEFAULT 'unknown',
-                created_at INTEGER NOT NULL
-            );
-        ",
-    },
-    Migration {
-        version: 7,
-        name: "create_exclusions",
-        // Sensitive handling (D8). mode='exclude' drops the event entirely;
-        // mode='private' records time + app but omits title/url at write time
-        // (R58: omit, never store-then-filter), flagged by activity_logs.is_private.
-        sql: "
-            CREATE TABLE IF NOT EXISTS exclusions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                match_type TEXT NOT NULL,
-                pattern TEXT NOT NULL,
-                mode TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                UNIQUE(match_type, pattern, mode)
-            );
-        ",
-    },
-    Migration {
-        version: 8,
-        name: "add_event_enrichment_columns",
-        // The evolved event shape. project_id NULL = 'unassigned';
-        // project_abstain_reason persists the abstain *kind* ('no-signal' |
-        // 'ambiguous') so Phase 2 can temporally correlate ambiguous events
-        // (never no-signal) to the active project (D30). The
-        // `REFERENCES … DEFAULT NULL` ADD COLUMN pattern is proven by v2.
-        sql: "
-            ALTER TABLE activity_logs ADD COLUMN url TEXT;
-            ALTER TABLE activity_logs ADD COLUMN site TEXT;
-            ALTER TABLE activity_logs ADD COLUMN project_id INTEGER REFERENCES projects(id);
-            ALTER TABLE activity_logs ADD COLUMN project_abstain_reason TEXT;
-            ALTER TABLE activity_logs ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0;
-            CREATE INDEX IF NOT EXISTS idx_activity_project ON activity_logs(project_id);
-        ",
-    },
-];
-
-/// Ensure the schema_migrations table exists.
-fn ensure_migrations_table(conn: &Connection) -> Result<()> {
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS schema_migrations (
-            version INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            applied_at INTEGER NOT NULL
-        );",
-    )?;
-    Ok(())
-}
-
-/// Get the highest applied migration version, or 0 if none.
-fn get_current_version(conn: &Connection) -> Result<i64> {
-    let version: i64 = conn.query_row(
-        "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
-        [],
-        |row| row.get(0),
-    )?;
-    Ok(version)
-}
-
-/// Run all pending migrations.
-pub fn run_migrations(conn: &Connection) -> Result<()> {
-    ensure_migrations_table(conn)?;
-    let current = get_current_version(conn)?;
-
-    for migration in MIGRATIONS {
-        if migration.version <= current {
-            continue;
-        }
-        println!(
-            "[Database] Running migration {}: {}",
-            migration.version, migration.name
-        );
-        conn.execute_batch(migration.sql)?;
-
-        let now = now_unix();
-
-        conn.execute(
-            "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?1, ?2, ?3)",
-            (migration.version, migration.name, now),
-        )?;
-    }
-
-    Ok(())
-}
-
 /// Initialize the SQLite database with migration-based schema management.
 ///
 /// Returns a thread-safe database connection wrapped in Arc<Mutex>.
 pub fn init_database(db_path: &PathBuf) -> Result<DbConnection> {
-    let conn = Connection::open(db_path)?;
+    let mut conn = Connection::open(db_path)?;
     // WAL lets the dial read while capture writes (R57); persistent in the file
     // header, so it's set once. foreign_keys must be enabled per-connection.
     conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
-    run_migrations(&conn)?;
+    crate::migrations::run_migrations(&mut conn)?;
     println!("[Database] Initialized database at {:?}", db_path);
     Ok(Arc::new(Mutex::new(conn)))
 }
@@ -358,18 +170,6 @@ fn row_to_activity_log(row: &rusqlite::Row) -> Result<ActivityLog> {
     })
 }
 
-pub fn get_last_activity_log(conn: &Connection) -> Result<Option<ActivityLog>> {
-    let sql = format!("SELECT {ACTIVITY_LOG_COLUMNS} FROM activity_logs ORDER BY id DESC LIMIT 1");
-    let mut stmt = conn.prepare(&sql)?;
-    let mut rows = stmt.query([])?;
-
-    if let Some(row) = rows.next()? {
-        Ok(Some(row_to_activity_log(row)?))
-    } else {
-        Ok(None)
-    }
-}
-
 pub fn insert_activity_log(
     conn: &Connection,
     process_name: &str,
@@ -386,11 +186,9 @@ pub fn insert_activity_log(
     Ok(())
 }
 
-/// Insert a fully-enriched event (the capture/enrichment write path, Phase 1.2+).
-///
-/// `start_time` and `end_time` both start at `timestamp`; the coalescing logic in
-/// [`log_activity`] extends `end_time`. For private events (D8), the caller must omit
-/// `window_title`/`url`/`site` and set `is_private` — this function does not filter.
+/// Insert a fresh open span. `start_time` and `end_time` both start at `timestamp`;
+/// the capture state machine later extends `end_time` via [`set_span_end`]. For private
+/// events (D8) the caller omits `window_title`/`url`/`site` — this function does not filter.
 pub fn insert_event(conn: &Connection, event: &NewEvent) -> Result<i64> {
     conn.execute(
         "INSERT INTO activity_logs
@@ -413,94 +211,15 @@ pub fn insert_event(conn: &Connection, event: &NewEvent) -> Result<i64> {
     Ok(conn.last_insert_rowid())
 }
 
-pub fn update_last_activity_end_time(conn: &Connection, id: i64, timestamp: i64) -> Result<()> {
+/// Set a span's `end_time` by id — the only mutation the capture write path needs.
+/// The consumer state machine owns the open span, so there's no "find the last row"
+/// guesswork here (see `capture::consume`).
+pub fn set_span_end(conn: &Connection, id: i64, end_time: i64) -> Result<()> {
     conn.execute(
         "UPDATE activity_logs SET end_time = ?1 WHERE id = ?2",
-        (timestamp, id),
+        (end_time, id),
     )?;
     Ok(())
-}
-
-/// How close two consecutive spans must be (seconds) to coalesce into one. Larger
-/// gaps start a fresh entry, so closing the app for hours doesn't inflate a span.
-const MAX_COALESCE_GAP_SECONDS: i64 = 30;
-
-/// Log a focus span with smart coalescing — the capture write path (Phase 1.2).
-///
-/// If the last entry matches this one (app/title/idle/private/url) and the gap is
-/// `<= MAX_COALESCE_GAP_SECONDS`, extends its `end_time`; otherwise inserts a new
-/// span. The category is (re)computed from app+title here, so callers leave
-/// `ev.category_id` unset. Callers own sensitive handling (D8): for a private span
-/// pass `is_private = true` with `window_title`/`url` already omitted — this fn
-/// does not filter. `project_id`/`project_abstain_reason`/`site` flow through from
-/// the enrichment pass.
-pub fn log_focus(conn: &Connection, ev: &NewEvent) -> Result<()> {
-    let category_id = match find_category(conn, ev.process_name, ev.window_title) {
-        Ok(id) => id,
-        Err(e) => {
-            eprintln!("[Capture] category lookup failed: {}", e);
-            None
-        }
-    };
-
-    if let Some(last) = get_last_activity_log(conn)? {
-        let gap = ev.timestamp - last.end_time;
-        let is_same = last.process_name == ev.process_name
-            && last.window_title == ev.window_title
-            && last.is_idle == ev.is_idle
-            && last.is_private == ev.is_private
-            && last.url.as_deref() == ev.url;
-        if is_same && gap <= MAX_COALESCE_GAP_SECONDS {
-            update_last_activity_end_time(conn, last.id, ev.timestamp)?;
-            return Ok(());
-        }
-    }
-
-    insert_event(
-        conn,
-        &NewEvent {
-            category_id,
-            ..ev.clone()
-        },
-    )?;
-    Ok(())
-}
-
-/// Log activity with smart coalescing — the legacy app+title write path (kept so
-/// existing callers/tests are unchanged). Delegates to [`log_focus`] with no url
-/// and `is_private = false`.
-pub fn log_activity(
-    conn: &Connection,
-    process_name: &str,
-    window_title: &str,
-    is_idle: bool,
-    timestamp: i64,
-) -> Result<()> {
-    log_focus(
-        conn,
-        &NewEvent {
-            process_name,
-            window_title,
-            is_idle,
-            timestamp,
-            ..Default::default()
-        },
-    )
-}
-
-/// Thread-safe wrapper for logging activity.
-pub fn log_activity_safe(
-    db_conn: &DbConnection,
-    process_name: &str,
-    window_title: &str,
-    is_idle: bool,
-    timestamp: i64,
-) -> Result<(), String> {
-    let conn = db_conn
-        .lock()
-        .map_err(|e| format!("Failed to lock database: {}", e))?;
-    log_activity(&conn, process_name, window_title, is_idle, timestamp)
-        .map_err(|e| format!("Database error: {}", e))
 }
 
 /// Query activity logs within a time range.
@@ -540,6 +259,15 @@ pub fn get_categories(conn: &Connection) -> Result<Vec<Category>> {
             color: row.get(2)?,
         })
     })?;
+    rows.collect()
+}
+
+/// Context identity for the rollup: `(id, slug, name)`. `slug` (e.g. "deep") maps to a
+/// colour token in the UI; `None` for a user-created context. Kept separate from
+/// [`get_categories`] so the slug stays out of the legacy IPC `Category` shape.
+pub fn get_context_metas(conn: &Connection) -> Result<Vec<(i64, Option<String>, String)>> {
+    let mut stmt = conn.prepare("SELECT id, slug, name FROM categories")?;
+    let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
     rows.collect()
 }
 
@@ -947,11 +675,14 @@ mod tests {
     use super::*;
     use rusqlite::Connection;
 
-    /// Create an in-memory database using the migration system.
+    /// Create an in-memory database using the migration system. The starter rules
+    /// (migration 3) are cleared so rules-engine tests control their own rule set;
+    /// the seed itself is verified in `crate::migrations`.
     fn setup_test_db() -> Connection {
-        let conn = Connection::open_in_memory().expect("Failed to open in-memory db");
+        let mut conn = Connection::open_in_memory().expect("Failed to open in-memory db");
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
-        run_migrations(&conn).expect("Migrations should succeed");
+        crate::migrations::run_migrations(&mut conn).expect("Migrations should succeed");
+        conn.execute("DELETE FROM rules", []).unwrap();
         conn
     }
 
@@ -973,48 +704,15 @@ mod tests {
         assert!(tables.contains(&"rules".to_string()));
         assert!(tables.contains(&"settings".to_string()));
         assert!(tables.contains(&"schema_migrations".to_string()));
-        // Redesign tables (v5–v8).
+        // Redesign data-model tables (D30/D8).
         assert!(tables.contains(&"projects".to_string()));
         assert!(tables.contains(&"project_aliases".to_string()));
         assert!(tables.contains(&"sites".to_string()));
         assert!(tables.contains(&"exclusions".to_string()));
     }
 
-    #[test]
-    fn test_migrations_are_idempotent() {
-        let conn = setup_test_db();
-        let v1 = get_current_version(&conn).unwrap();
-        // Running migrations again should be a no-op
-        run_migrations(&conn).unwrap();
-        let v2 = get_current_version(&conn).unwrap();
-        assert_eq!(v1, v2);
-        assert_eq!(v2, 8); // We have 8 migrations
-    }
-
-    #[test]
-    fn test_migration_versions_recorded() {
-        let conn = setup_test_db();
-        let mut stmt = conn
-            .prepare("SELECT version, name FROM schema_migrations ORDER BY version")
-            .unwrap();
-        let migrations: Vec<(i64, String)> = stmt
-            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-            .unwrap()
-            .filter_map(|r| r.ok())
-            .collect();
-        assert_eq!(migrations.len(), 8);
-        assert_eq!(migrations[0].0, 1);
-        assert_eq!(migrations[0].1, "initial_schema");
-        assert_eq!(migrations[1].0, 2);
-        assert_eq!(migrations[2].0, 3);
-        assert_eq!(migrations[3].0, 4);
-        assert_eq!(migrations[3].1, "add_ignore_title_to_rules");
-        assert_eq!(migrations[4].1, "create_projects");
-        assert_eq!(migrations[5].1, "create_sites");
-        assert_eq!(migrations[6].1, "create_exclusions");
-        assert_eq!(migrations[7].0, 8);
-        assert_eq!(migrations[7].1, "add_event_enrichment_columns");
-    }
+    // (Migration-runner behaviour — versioning, idempotency, checksums, drift — is
+    // tested in `crate::migrations`.)
 
     // --- Activity log round-trip ---
 
@@ -1030,75 +728,8 @@ mod tests {
         assert_eq!(logs[1].process_name, "code");
     }
 
-    // --- Coalescing tests ---
-
-    #[test]
-    fn test_coalesce_same_process_within_30s() {
-        let conn = setup_test_db();
-        let t = 1000;
-        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
-        log_activity(&conn, "firefox", "GitHub", false, t + 5).unwrap();
-        log_activity(&conn, "firefox", "GitHub", false, t + 10).unwrap();
-
-        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs.len(), 1, "Should coalesce into a single entry");
-        assert_eq!(logs[0].start_time, t);
-        assert_eq!(logs[0].end_time, t + 10);
-    }
-
-    #[test]
-    fn test_coalesce_same_process_after_30s_gap() {
-        let conn = setup_test_db();
-        let t = 1000;
-        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
-        // Gap of 31s — exceeds MAX_GAP_SECONDS
-        log_activity(&conn, "firefox", "GitHub", false, t + 31).unwrap();
-
-        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs.len(), 2, "Should create a new entry after 30s gap");
-        assert_eq!(logs[0].start_time, t);
-        assert_eq!(logs[1].start_time, t + 31);
-    }
-
-    #[test]
-    fn test_coalesce_different_process_new_entry() {
-        let conn = setup_test_db();
-        let t = 1000;
-        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
-        log_activity(&conn, "code", "main.rs", false, t + 5).unwrap();
-
-        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs.len(), 2, "Different process should create new entry");
-        assert_eq!(logs[0].process_name, "firefox");
-        assert_eq!(logs[1].process_name, "code");
-    }
-
-    #[test]
-    fn test_coalesce_idle_state_change() {
-        let conn = setup_test_db();
-        let t = 1000;
-        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
-        // Same process but now idle
-        log_activity(&conn, "firefox", "GitHub", true, t + 5).unwrap();
-
-        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs.len(), 2, "Idle state change should create new entry");
-        assert!(!logs[0].is_idle);
-        assert!(logs[1].is_idle);
-    }
-
-    #[test]
-    fn test_coalesce_boundary_exactly_30s() {
-        let conn = setup_test_db();
-        let t = 1000;
-        log_activity(&conn, "firefox", "GitHub", false, t).unwrap();
-        // Exactly 30s gap — should still coalesce (MAX_GAP_SECONDS is <=)
-        log_activity(&conn, "firefox", "GitHub", false, t + 30).unwrap();
-
-        let logs = get_activity_logs(&conn, 0, 2000).unwrap();
-        assert_eq!(logs.len(), 1, "Exactly 30s gap should still coalesce");
-        assert_eq!(logs[0].end_time, t + 30);
-    }
+    // (Span coalescing / close-on-switch / idle behaviour now lives in the capture
+    // state machine — see `crate::capture` tests.)
 
     // --- find_category tests ---
 
@@ -1183,6 +814,9 @@ mod tests {
     #[test]
     fn test_category_crud() {
         let conn = setup_test_db();
+        // The 4 canonical contexts are seeded by migration 2, so assert against that
+        // baseline rather than an empty table.
+        let baseline = get_categories(&conn).unwrap().len();
 
         // Create
         let id = create_category(&conn, "Work", "#0000ff").unwrap();
@@ -1190,14 +824,16 @@ mod tests {
 
         // Read
         let cats = get_categories(&conn).unwrap();
-        assert_eq!(cats.len(), 1);
-        assert_eq!(cats[0].name, "Work");
-        assert_eq!(cats[0].color, "#0000ff");
+        assert_eq!(cats.len(), baseline + 1);
+        let work = cats
+            .iter()
+            .find(|c| c.name == "Work")
+            .expect("Work category");
+        assert_eq!(work.color, "#0000ff");
 
         // Delete
         delete_category(&conn, id).unwrap();
-        let cats = get_categories(&conn).unwrap();
-        assert_eq!(cats.len(), 0);
+        assert_eq!(get_categories(&conn).unwrap().len(), baseline);
     }
 
     #[test]

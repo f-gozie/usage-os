@@ -13,9 +13,16 @@ pub mod capture;
 // `enrich` turns raw capture signals into stored facts (site, project — D30).
 // Cross-platform and CI-testable; consumed by `capture::process_focus_event`.
 mod enrich;
+// `migrations` is the forward-only SQL migration runner (per-file `.sql`, applied in
+// a transaction, checksum-guarded). Paired with the crate-root `migrations/` dir.
+mod migrations;
+// `rollup` is the pure read-time layer that turns a day's events into the view the
+// dial renders (per-axis aggregates + context-runs + template recap — D34, hard rule 6).
+mod rollup;
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, State};
 use tauri_specta::{collect_commands, Builder};
@@ -63,6 +70,83 @@ fn get_activity_stats(
 ) -> Result<Vec<db::ActivityLog>, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     db::get_activity_logs(&conn, start_time, end_time).map_err(AppError::from)
+}
+
+/// Build the Day view — per-axis context aggregates, context-runs, and the template
+/// recap (D34) — for a `[start_time, end_time]` Unix-second range. Numbers are computed
+/// in Rust (hard rule 6); the frontend only renders this.
+#[tauri::command]
+#[specta::specta]
+fn get_day(
+    db: State<DbState>,
+    start_time: i64,
+    end_time: i64,
+) -> Result<rollup::DayView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let events = db::get_activity_logs(&conn, start_time, end_time)?;
+    let contexts: HashMap<i64, rollup::ContextMeta> = db::get_context_metas(&conn)?
+        .into_iter()
+        .map(|(id, slug, name)| (id, rollup::ContextMeta { slug, name }))
+        .collect();
+    let projects: HashMap<i64, String> = db::get_projects(&conn)?
+        .into_iter()
+        .map(|p| (p.id, p.display_name))
+        .collect();
+    Ok(rollup::build_day_view(&events, &contexts, &projects))
+}
+
+/// Build the Week view — 7 day-slices (each a mini-dial's runs + totals) plus week-level
+/// aggregates (D34, hard rule 6). `day_starts` are the 7 local midnights (DST-correct,
+/// computed by the frontend like `get_day`'s bounds); `week_end` is the exclusive end of
+/// the last day. Each day's events are read for `[day_start, next_day_start | week_end)`.
+#[tauri::command]
+#[specta::specta]
+fn get_week(
+    db: State<DbState>,
+    day_starts: Vec<i64>,
+    week_end: i64,
+) -> Result<rollup::WeekView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let contexts: HashMap<i64, rollup::ContextMeta> = db::get_context_metas(&conn)?
+        .into_iter()
+        .map(|(id, slug, name)| (id, rollup::ContextMeta { slug, name }))
+        .collect();
+    let projects: HashMap<i64, String> = db::get_projects(&conn)?
+        .into_iter()
+        .map(|p| (p.id, p.display_name))
+        .collect();
+    let mut days = Vec::with_capacity(day_starts.len());
+    for (i, &start) in day_starts.iter().enumerate() {
+        let end = day_starts.get(i + 1).copied().unwrap_or(week_end);
+        let events = db::get_activity_logs(&conn, start, end)?;
+        days.push(rollup::build_day_slice(
+            start, &events, &contexts, &projects,
+        ));
+    }
+    Ok(rollup::build_week_view(days))
+}
+
+/// Build the Timeline view — the day's context-runs, each with its inner app-switch
+/// segments (D34) — for a `[start_time, end_time]` Unix-second range. Same read-model
+/// inputs as `get_day`; numbers in Rust (hard rule 6).
+#[tauri::command]
+#[specta::specta]
+fn get_timeline(
+    db: State<DbState>,
+    start_time: i64,
+    end_time: i64,
+) -> Result<rollup::TimelineView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let events = db::get_activity_logs(&conn, start_time, end_time)?;
+    let contexts: HashMap<i64, rollup::ContextMeta> = db::get_context_metas(&conn)?
+        .into_iter()
+        .map(|(id, slug, name)| (id, rollup::ContextMeta { slug, name }))
+        .collect();
+    let projects: HashMap<i64, String> = db::get_projects(&conn)?
+        .into_iter()
+        .map(|p| (p.id, p.display_name))
+        .collect();
+    Ok(rollup::build_timeline(&events, &contexts, &projects))
 }
 
 #[tauri::command]
@@ -161,6 +245,9 @@ fn update_setting(db: State<DbState>, key: String, value: String) -> Result<(), 
 fn make_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         get_activity_stats,
+        get_day,
+        get_week,
+        get_timeline,
         get_categories,
         create_category,
         delete_category,
@@ -213,6 +300,8 @@ pub fn run() {
             // block, so they must stay off the async executor; R57).
             let (tx, rx) = std::sync::mpsc::channel();
             capture::default_source().start(tx);
+            // The consumer is the sole DB writer: it owns the open span, self-ticks to
+            // extend it during sustained single-window work, and gates on idle.
             std::thread::spawn(move || capture::consume(db_conn, rx));
             Ok(())
         })

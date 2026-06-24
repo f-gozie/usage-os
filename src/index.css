@@ -1,141 +1,68 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+/*
+ * Global base. Tokens live in src/styles/tokens.css; fonts are bundled locally via
+ * @fontsource (no runtime CDN — hard rule 1). Components style with Tailwind utilities
+ * mapped to the tokens; this file only sets element defaults + theme-wide niceties.
+ */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 5%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 5%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-    --radius: 0.5rem;
-    
-    --neon-cyan: 189 100% 62%;
-    --neon-purple: 280 100% 70%;
-    --neon-green: 142 76% 56%;
-  }
-}
-
-@layer base {
   * {
-    @apply border-border;
+    box-sizing: border-box;
   }
+
+  html {
+    background: var(--bg);
+    transition: background 0.25s, color 0.25s;
+  }
+
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-bg text-fg font-sans antialiased;
+  }
+
+  /* The dial draws itself once on load; a flat-fill, hard-edged system has no other
+     chrome motion. Respect the OS reduced-motion setting everywhere. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
   }
 }
 
-@layer utilities {
-  .glow-cyan {
-    box-shadow: 0 0 10px hsla(var(--neon-cyan), 0.3),
-                0 0 20px hsla(var(--neon-cyan), 0.2),
-                0 0 30px hsla(var(--neon-cyan), 0.1);
-  }
-  
-  .glow-purple {
-    box-shadow: 0 0 10px hsla(var(--neon-purple), 0.3),
-                0 0 20px hsla(var(--neon-purple), 0.2),
-                0 0 30px hsla(var(--neon-purple), 0.1);
-  }
-  
-  .glow-green {
-    box-shadow: 0 0 10px hsla(var(--neon-green), 0.3),
-                0 0 20px hsla(var(--neon-green), 0.2),
-                0 0 30px hsla(var(--neon-green), 0.1);
-  }
-  
-  .scanline::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(
-      to bottom,
-      transparent 50%,
-      rgba(0, 0, 0, 0.05) 50%
-    );
-    background-size: 100% 4px;
-    pointer-events: none;
-    opacity: 0.02;
-  }
-  
-  .fade-in {
-    animation: fadeIn 200ms ease-in;
-  }
-  
-  .scale-pulse {
-    animation: scalePulse 150ms ease-in-out;
-  }
-  
-  .usage-logo {
-    letter-spacing: 0.6rem;
-  }
-  
-  .usage-logo__glyph {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: hsla(var(--neon-cyan), 0.3);
-    color: hsl(var(--foreground));
-    padding: 0 0.4rem;
-    margin: 0 0.2rem;
-    border-radius: 4px;
-    box-shadow: 0 0 10px hsla(var(--neon-cyan), 0.4);
-  }
-}
-
-@keyframes fadeIn {
+/* Loading shimmer (used by the Skeleton component). Paused under reduced-motion via
+   the global media query above. */
+@keyframes shimmer {
   from {
-    opacity: 0;
+    background-position: 200% 0;
   }
   to {
-    opacity: 1;
+    background-position: -200% 0;
   }
 }
-
-@keyframes scalePulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.02);
-  }
+.skeleton {
+  background: linear-gradient(90deg, var(--track), var(--surface), var(--track));
+  background-size: 200% 100%;
+  animation: shimmer 1.3s linear infinite;
 }
 
+/* Themed scrollbar (kept subtle; matches the active theme). */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
-
 ::-webkit-scrollbar-track {
-  background: hsl(var(--background));
+  background: var(--surface);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
-  border-radius: 4px;
+  background: var(--track);
+  border: 2px solid var(--surface);
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--neon-cyan));
+  background: var(--muted);
 }
-

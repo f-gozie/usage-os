@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Components &amp; States</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616;
+  --now:#161616; --casing:#161616; --on-ink:#EEEBE1; --bar-bg:#161616; --bar-fg:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8;
+  --now:#EDE9DD; --casing:transparent; --on-ink:#1A1916; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4;
+  --now:#F4F4F2; --casing:transparent; --on-ink:#0E0E0E; --bar-bg:#000000; --bar-fg:#F4F4F2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;}
+button{font-family:inherit;cursor:pointer;}
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);min-height:100vh;}
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:13px 24px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.brand{font-family:'Anton',sans-serif;font-size:24px;letter-spacing:.02em;text-transform:uppercase;}
+.brand .o{color:var(--c-research);}
+.brand small{font-family:'Jost';font-size:11px;font-weight:600;letter-spacing:.16em;color:var(--muted);}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:8px 13px;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+section{padding:34px 24px;border-bottom:3px solid var(--edge);}
+.eyebrow{font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--c-deep);margin-bottom:6px;}
+.shead{font-family:'Anton',sans-serif;font-size:30px;line-height:.92;text-transform:uppercase;margin-bottom:22px;}
+.subhead{font-weight:600;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:24px 0 12px;display:flex;align-items:center;gap:10px;}
+.subhead::after{content:"";flex:1;height:2px;background:var(--rule);}
+.specimens{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;}
+.spec{display:flex;flex-direction:column;gap:8px;}
+.spec .st{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+
+/* controls */
+.btn{font-weight:600;font-size:12px;letter-spacing:.08em;text-transform:uppercase;background:var(--edge);color:var(--bg);border:2px solid var(--edge);padding:9px 16px;}
+.btn.out{background:transparent;color:var(--fg);}
+.btn.danger{background:transparent;border-color:var(--c-research);color:var(--c-research);}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--c-deep);}
+.btn.is-hover{background:var(--c-deep);border-color:var(--c-deep);color:var(--bg);}
+.btn.out.is-hover{background:var(--edge);color:var(--bg);}
+.btn.is-active{transform:translateY(1px);}
+.btn:disabled,.btn.is-disabled{opacity:.4;cursor:not-allowed;}
+.btn:hover:not(:disabled):not(.is-disabled){background:var(--c-deep);border-color:var(--c-deep);color:var(--bg);}
+.pill{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:2px solid var(--edge);padding:5px 11px;background:var(--bg);color:var(--fg);}
+.pill.ok{background:var(--edge);color:var(--bg);}
+.pill.danger{border-color:var(--c-research);color:var(--c-research);}
+.tag{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border:2px solid var(--edge);padding:3px 8px;color:var(--muted);}
+.toggle{width:54px;height:29px;border:2px solid var(--edge);background:var(--bg);position:relative;cursor:pointer;display:inline-block;}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:21px;height:21px;background:var(--edge);transition:left .18s;}
+.toggle.on{background:var(--c-deep);border-color:var(--c-deep);}
+.toggle.on::after{left:29px;background:var(--bg);}
+.toggle.is-disabled{opacity:.4;}
+.seg{display:flex;border:2px solid var(--edge);width:max-content;}
+.seg button{font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 13px;}
+.seg button+button{border-left:2px solid var(--edge);}
+.seg button.on{background:var(--edge);color:var(--bg);}
+.chip{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border:2px solid var(--edge);padding:6px 11px;background:var(--bg);color:var(--fg);}
+.chip .s{width:12px;height:12px;border:1px solid var(--edge);}
+.chip.on{background:var(--edge);color:var(--bg);}
+
+/* inputs */
+.field{max-width:320px;}
+.field label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:6px;}
+.input{font-family:'Jost';font-weight:500;font-size:14px;color:var(--fg);background:var(--bg);border:2px solid var(--edge);padding:9px 12px;width:100%;}
+.input::placeholder{color:var(--muted);}
+.input.is-focus,.input:focus{outline:none;border-color:var(--c-deep);box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--c-deep);}
+.input.is-error{border-color:var(--c-research);}
+.input.is-disabled{opacity:.45;}
+.err{color:var(--c-research);font-size:11px;font-weight:600;margin-top:6px;}
+.val{border:2px solid var(--edge);background:var(--bg);color:var(--fg);font-weight:600;font-size:13px;padding:9px 13px;display:inline-flex;align-items:center;gap:10px;width:max-content;}
+.val::after{content:"⌄";font-size:15px;line-height:0;margin-top:-3px;color:var(--muted);}
+.menu{border:2px solid var(--edge);background:var(--bg);width:200px;}
+.menu .mi{padding:9px 13px;font-weight:600;font-size:13px;border-top:2px solid var(--edge);}
+.menu .mi:first-child{border-top:none;}
+.menu .mi.sel{background:var(--edge);color:var(--bg);}
+.menu .mi.sel::after{content:"✓";float:right;}
+.menu .mi:hover:not(.sel){background:var(--surface);}
+.radio{display:flex;align-items:center;gap:9px;font-weight:600;font-size:14px;cursor:pointer;}
+.radio .dot{width:18px;height:18px;border:2px solid var(--edge);flex-shrink:0;position:relative;}
+.radio.on .dot::after{content:"";position:absolute;inset:3px;background:var(--c-deep);}
+.swatches{display:flex;gap:8px;}
+.swatches .sw{width:30px;height:30px;border:2px solid var(--edge);cursor:pointer;}
+.swatches .sw.sel{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--fg);}
+
+/* cards/rows */
+.recap{background:var(--surface);border:3px solid var(--edge);padding:15px 17px;max-width:520px;}
+.recap .rt{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
+.recap .eye{font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+.recap .ai{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border:2px solid var(--c-deep);color:var(--c-deep);}
+.recap .ai.tmpl{border-color:var(--muted);color:var(--muted);}
+.recap p{font-size:15.5px;line-height:1.45;font-weight:500;}
+.recap p .hl{color:var(--c-deep);}
+.detail{border:2px dashed var(--edge);padding:13px 15px;min-height:60px;display:flex;align-items:center;gap:14px;max-width:520px;}
+.detail .empty{font-size:13px;color:var(--muted);font-weight:500;}
+.detail .blk{width:30px;height:30px;flex-shrink:0;border:1px solid var(--edge);}
+.detail .info .a{font-weight:600;font-size:15px;}
+.detail .info .t{font-size:13px;color:var(--muted);}
+.detail .when{margin-left:auto;text-align:right;font-family:'Anton',sans-serif;font-size:18px;}
+.detail .when .r{font-size:12px;color:var(--muted);font-weight:500;font-family:'Jost';}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border:2px solid var(--edge);max-width:520px;}
+.setrow .lab{font-weight:600;font-size:14px;}
+.setrow .des{font-size:12px;color:var(--muted);margin-top:2px;}
+
+/* skeleton */
+.sk{background:linear-gradient(90deg,var(--track),var(--surface),var(--track));background-size:200% 100%;animation:sh 1.3s linear infinite;}
+@keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skline{height:13px;margin-bottom:9px;}
+
+/* modal stages */
+.stage{position:relative;border:2px dashed var(--rule);min-height:360px;display:flex;align-items:center;justify-content:center;padding:24px;overflow:hidden;}
+.stage .ov{position:absolute;inset:0;background:rgba(0,0,0,.5);}
+.modal{position:relative;background:var(--bg);border:3px solid var(--edge);width:100%;max-width:430px;}
+.modal h3{font-family:'Anton',sans-serif;font-size:16px;text-transform:uppercase;letter-spacing:.03em;background:var(--bar-bg);color:var(--bar-fg);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;}
+.modal h3 .x{font-family:'Jost';font-size:18px;color:var(--bar-fg);opacity:.7;cursor:pointer;}
+.modal .mb{padding:18px 16px;display:flex;flex-direction:column;gap:16px;}
+.modal .mf{display:flex;justify-content:flex-end;gap:10px;padding:14px 16px;border-top:2px solid var(--edge);}
+.danger-note{font-size:12.5px;color:var(--c-research);font-weight:600;line-height:1.5;}
+.foot{padding:16px 24px;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;}
+@media(max-width:760px){.cols{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="brand" href="index.html" style="text-decoration:none;color:inherit;">← USAGE<span class="o">OS</span> <small>· COMPONENTS &amp; STATES</small></a>
+    <div class="themesw" id="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+  </div>
+
+  <section>
+    <div class="eyebrow">03 — Components</div>
+    <div class="shead">Controls</div>
+    <div class="subhead">Buttons — default · hover · active · disabled</div>
+    <div class="specimens">
+      <div class="spec"><span class="st">Default</span><button class="btn">Primary</button></div>
+      <div class="spec"><span class="st">Hover</span><button class="btn is-hover">Primary</button></div>
+      <div class="spec"><span class="st">Active</span><button class="btn is-active">Primary</button></div>
+      <div class="spec"><span class="st">Disabled</span><button class="btn is-disabled" disabled>Primary</button></div>
+      <div class="spec"><span class="st">Secondary</span><button class="btn out">Secondary</button></div>
+      <div class="spec"><span class="st">Ghost</span><button class="btn ghost">Ghost link</button></div>
+      <div class="spec"><span class="st">Danger</span><button class="btn danger">Delete</button></div>
+    </div>
+    <div class="subhead">Pills, tags &amp; toggles</div>
+    <div class="specimens" style="align-items:center;">
+      <span class="pill">Local</span><span class="pill ok">Granted ✓</span><span class="pill danger">Delete</span>
+      <span class="tag">App</span><span class="tag">Site</span>
+      <div class="spec"><span class="st">Off</span><span class="toggle"></span></div>
+      <div class="spec"><span class="st">On</span><span class="toggle on"></span></div>
+      <div class="spec"><span class="st">Disabled</span><span class="toggle on is-disabled"></span></div>
+    </div>
+    <div class="subhead">Segmented control · legend chips</div>
+    <div class="specimens" style="align-items:center;">
+      <div class="seg"><button class="on">Paper</button><button>Warm</button><button>Black</button></div>
+      <span class="chip"><span class="s" style="background:var(--c-deep)"></span>Deep work</span>
+      <span class="chip on"><span class="s" style="background:var(--c-comms)"></span>Comms · isolated</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">03 — Components</div>
+    <div class="shead">Inputs &amp; pickers</div>
+    <div class="cols">
+      <div>
+        <div class="subhead">Text input — default · focus · error · disabled</div>
+        <div class="field" style="margin-bottom:14px;"><label>Context name</label><input class="input" placeholder="e.g. Design"></div>
+        <div class="field" style="margin-bottom:14px;"><label>Context name · focus</label><input class="input is-focus" value="Design"></div>
+        <div class="field" style="margin-bottom:14px;"><label>Pattern · error</label><input class="input is-error" value=""><div class="err">Pattern can't be empty.</div></div>
+        <div class="field"><label>Path · disabled</label><input class="input is-disabled" value="~/Library/…/usage.db" disabled></div>
+      </div>
+      <div>
+        <div class="subhead">Select — closed &amp; open</div>
+        <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;">
+          <div><div class="st" style="margin-bottom:8px;">Closed</div><div class="val">1 year</div></div>
+          <div><div class="st" style="margin-bottom:8px;">Open (keep history)</div>
+            <div class="menu"><div class="mi">30 days</div><div class="mi">90 days</div><div class="mi sel">1 year</div><div class="mi">Forever</div></div></div>
+        </div>
+        <div class="subhead">Time picker — evening recap ping</div>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div class="val">9:30 PM</div>
+          <div class="menu" style="width:140px;"><div class="mi">8:00 PM</div><div class="mi">9:00 PM</div><div class="mi sel">9:30 PM</div><div class="mi">10:00 PM</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">03 — Components</div>
+    <div class="shead">Cards &amp; rows</div>
+    <div class="subhead">Recap — AI-on (prose) vs AI-off (template fallback)</div>
+    <div class="specimens">
+      <div class="recap">
+        <div class="rt"><span class="eye">Daily recap</span><span class="ai">⌁ Summarized on-device</span></div>
+        <p>A focused morning. You gave <span class="hl">usage_os</span> a clean 90-minute deep-work block before 9:30. The afternoon frayed — a 30-minute drift into Reddit just after lunch.</p>
+      </div>
+      <div class="recap">
+        <div class="rt"><span class="eye">Daily recap</span><span class="ai tmpl">≡ Template</span></div>
+        <p>4h 15m active. Deep work 3h 30m across 3 sessions · Research 45m · Comms 30m · Breaks 15m. Most active: <span class="hl">usage_os</span>.</p>
+      </div>
+    </div>
+    <div class="subhead">Detail inspector — empty vs filled</div>
+    <div class="specimens">
+      <div class="detail"><span class="empty">Click any block on the dial to inspect it.</span></div>
+      <div class="detail">
+        <span class="blk" style="background:var(--c-deep)"></span>
+        <div class="info"><div class="a">VS Code</div><div class="t">auth.rs — usage_os</div></div>
+        <div class="when">1h 30m<div class="r">08:00–09:30</div></div>
+      </div>
+    </div>
+    <div class="subhead">Settings rows</div>
+    <div class="specimens" style="flex-direction:column;">
+      <div class="setrow"><div><div class="lab">Idle detection</div><div class="des">Away after 3 minutes.</div></div><span class="toggle on"></span></div>
+      <div class="setrow"><div><div class="lab">Accessibility</div><div class="des">Required to read titles.</div></div><span class="pill ok">Granted ✓</span></div>
+      <div class="setrow"><div><div class="lab danger" style="color:var(--c-research)">Delete all data</div><div class="des">Cannot be undone.</div></div><button class="pill danger">Delete</button></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">04 — Loading &amp; degraded</div>
+    <div class="shead">Skeleton &amp; banners</div>
+    <div class="subhead">Skeleton — dial + ledger loading</div>
+    <div class="specimens" style="align-items:center;gap:32px;">
+      <div class="sk" style="width:150px;height:150px;border-radius:50%;"></div>
+      <div style="flex:1;max-width:360px;"><div class="sk skline" style="width:90%"></div><div class="sk skline" style="width:70%"></div><div class="sk skline" style="width:80%"></div><div class="sk skline" style="width:55%;margin-bottom:0"></div></div>
+    </div>
+    <div class="subhead">Degraded banner — permission declined</div>
+    <div style="border:2px solid var(--c-research);background:var(--surface);padding:13px 16px;display:flex;align-items:center;gap:14px;max-width:640px;">
+      <span style="width:10px;height:10px;background:var(--c-research);flex-shrink:0;"></span>
+      <div style="flex:1;"><div style="font-weight:600;font-size:14px;">Running with app-level data</div><div style="font-size:12px;color:var(--muted);">Grant Accessibility to see window titles, projects and sites — UsageOS keeps working without it.</div></div>
+      <button class="btn">Open settings</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="eyebrow">03 — Components · overlays</div>
+    <div class="shead">Modals &amp; dialogs</div>
+
+    <div class="subhead">Add context</div>
+    <div class="stage"><div class="ov"></div>
+      <div class="modal">
+        <h3>Add context <span class="x">×</span></h3>
+        <div class="mb">
+          <div class="field" style="max-width:none;"><label>Name</label><input class="input" value="Design"></div>
+          <div><label style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:8px;">Colour</label>
+            <div class="swatches"><span class="sw" style="background:#1B45BE"></span><span class="sw" style="background:#E0241B"></span><span class="sw" style="background:#EAB308"></span><span class="sw sel" style="background:#7A4FC2"></span><span class="sw" style="background:#1D9E75"></span><span class="sw" style="background:#161616"></span></div></div>
+          <div class="field" style="max-width:none;"><label>Rules — apps, sites or title patterns</label><input class="input" placeholder="Figma, Sketch, title: *.fig"></div>
+        </div>
+        <div class="mf"><button class="btn out">Cancel</button><button class="btn">Add context</button></div>
+      </div>
+    </div>
+
+    <div class="subhead">Add exclusion</div>
+    <div class="stage"><div class="ov"></div>
+      <div class="modal">
+        <h3>Add exclusion <span class="x">×</span></h3>
+        <div class="mb">
+          <div><label style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:8px;">Match</label>
+            <div class="seg"><button class="on">App</button><button>Site</button><button>Title</button></div></div>
+          <div class="field" style="max-width:none;"><label>Pattern</label><input class="input" value="1Password"></div>
+          <div><label style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:10px;">Mode</label>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div class="radio on"><span class="dot"></span><div><div>Exclude</div><div style="font-weight:500;font-size:12px;color:var(--muted);">Drop the event entirely — no record.</div></div></div>
+              <div class="radio"><span class="dot"></span><div><div>Private</div><div style="font-weight:500;font-size:12px;color:var(--muted);">Count the time, store no title or URL.</div></div></div>
+            </div></div>
+        </div>
+        <div class="mf"><button class="btn out">Cancel</button><button class="btn">Add exclusion</button></div>
+      </div>
+    </div>
+
+    <div class="subhead">Destructive confirm — delete all data</div>
+    <div class="stage"><div class="ov"></div>
+      <div class="modal" style="max-width:400px;">
+        <h3 style="background:var(--c-research);">Delete all data <span class="x">×</span></h3>
+        <div class="mb">
+          <div class="danger-note">This wipes every recorded event from <code style="font-family:'Jost';">usage.db</code>. It cannot be undone.</div>
+          <div class="field" style="max-width:none;"><label>Type DELETE to confirm</label><input class="input is-focus" placeholder="DELETE"></div>
+        </div>
+        <div class="mf"><button class="btn out">Cancel</button><button class="btn danger is-disabled" disabled>Delete everything</button></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot"><span>USAGEOS · COMPONENTS &amp; STATES</span><span>Toggle themes · every state lives here</span></div>
+</div>
+
+<script>
+document.getElementById("themesw").addEventListener("click",function(e){var b=e.target.closest("button[data-t]");if(!b)return;
+  document.documentElement.setAttribute("data-theme",b.dataset.t);
+  document.querySelectorAll("#themesw button").forEach(function(x){x.classList.toggle("on",x===b);});});
+</script>
+</body>
+</html>

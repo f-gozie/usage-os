@@ -10,13 +10,33 @@ import type {
   ActivityLog,
   AppError,
   Category,
+  DayView,
   Result,
   Rule,
   Setting,
+  TimelineView,
   WatcherStatus,
+  WeekView,
 } from '../bindings';
 
-export type { ActivityLog, AppError, Category, Rule, Setting, WatcherStatus } from '../bindings';
+export type {
+  ActivityLog,
+  AppError,
+  Category,
+  ContextRun,
+  ContextSlice,
+  DaySlice,
+  DayView,
+  ProjectSlice,
+  Recap,
+  Rule,
+  Setting,
+  TimelineRun,
+  TimelineSegment,
+  TimelineView,
+  WatcherStatus,
+  WeekView,
+} from '../bindings';
 
 /** Unwrap a generated `Result`, throwing a readable `Error` on the typed failure. */
 function unwrap<T>(r: Result<T, AppError>): T {
@@ -39,6 +59,31 @@ export async function getActivityStats(
   endTime: number
 ): Promise<ActivityLog[]> {
   return unwrap(await commands.getActivityStats(startTime, endTime));
+}
+
+/**
+ * Fetch the computed Day view (context aggregates + context-runs + recap) for a
+ * Unix-second range. All numbers are computed in Rust (hard rule 6).
+ */
+export async function getDay(startTime: number, endTime: number): Promise<DayView> {
+  return unwrap(await commands.getDay(startTime, endTime));
+}
+
+/**
+ * Fetch the computed Week view: 7 day-slices (mini-dial runs + per-day totals) plus
+ * week-level aggregates. `dayStarts` are the 7 local midnights (Unix secs); `weekEnd` is
+ * the exclusive end of the last day. All numbers are computed in Rust (hard rule 6).
+ */
+export async function getWeek(dayStarts: number[], weekEnd: number): Promise<WeekView> {
+  return unwrap(await commands.getWeek(dayStarts, weekEnd));
+}
+
+/**
+ * Fetch the computed Timeline view: the day's context-runs, each with its inner app-switch
+ * segments (the click-to-expand detail). Numbers are computed in Rust (hard rule 6).
+ */
+export async function getTimeline(startTime: number, endTime: number): Promise<TimelineView> {
+  return unwrap(await commands.getTimeline(startTime, endTime));
 }
 
 // --- Categories ---

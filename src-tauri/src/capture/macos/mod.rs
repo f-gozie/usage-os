@@ -33,8 +33,6 @@ use objc2_foundation::NSNotification;
 use super::{note_capture_failure, note_capture_ok, CaptureSource, FocusEvent};
 use crate::db::now_unix;
 
-const IDLE_THRESHOLD_SECS: u64 = 180;
-
 // AX attribute + notification names (the kAX* constants are NOT re-exported).
 const ATTR_FOCUSED_WINDOW: &str = "AXFocusedWindow";
 const ATTR_TITLE: &str = "AXTitle";
@@ -222,7 +220,6 @@ impl CallbackContext {
             url,
             cwd,
             is_private,
-            is_idle: is_idle(),
             timestamp: now_unix(),
         });
     }
@@ -409,16 +406,7 @@ fn copy_attr(element: &AXUIElement, attr: &str) -> Option<CFRetained<CFType>> {
     Some(unsafe { CFRetained::from_raw(ptr) })
 }
 
-// ── Idle + trust ─────────────────────────────────────────────────────────────
-
-/// True after `IDLE_THRESHOLD_SECS` with no input. `user-idle` reads CoreGraphics
-/// aggregate idle time — no permission (C10).
-fn is_idle() -> bool {
-    match user_idle::UserIdle::get_time() {
-        Ok(t) => t.as_seconds() >= IDLE_THRESHOLD_SECS,
-        Err(_) => false,
-    }
-}
+// ── Trust ────────────────────────────────────────────────────────────────────
 
 /// If Accessibility isn't granted yet, prompt once (non-blocking) and continue —
 /// capture degrades to no-titles until granted (full priming is Phase 4 / D21).

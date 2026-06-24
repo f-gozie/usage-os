@@ -18,6 +18,46 @@ async getActivityStats(startTime: number, endTime: number) : Promise<Result<Acti
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * Build the Day view — per-axis context aggregates, context-runs, and the template
+ * recap (D34) — for a `[start_time, end_time]` Unix-second range. Numbers are computed
+ * in Rust (hard rule 6); the frontend only renders this.
+ */
+async getDay(startTime: number, endTime: number) : Promise<Result<DayView, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_day", { startTime, endTime }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Build the Week view — 7 day-slices (each a mini-dial's runs + totals) plus week-level
+ * aggregates (D34, hard rule 6). `day_starts` are the 7 local midnights (DST-correct,
+ * computed by the frontend like `get_day`'s bounds); `week_end` is the exclusive end of
+ * the last day. Each day's events are read for `[day_start, next_day_start | week_end)`.
+ */
+async getWeek(dayStarts: number[], weekEnd: number) : Promise<Result<WeekView, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_week", { dayStarts, weekEnd }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Build the Timeline view — the day's context-runs, each with its inner app-switch
+ * segments (D34) — for a `[start_time, end_time]` Unix-second range. Same read-model
+ * inputs as `get_day`; numbers in Rust (hard rule 6).
+ */
+async getTimeline(startTime: number, endTime: number) : Promise<Result<TimelineView, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_timeline", { startTime, endTime }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getCategories() : Promise<Result<Category[], AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_categories") };
@@ -146,15 +186,83 @@ is_private: boolean }
  */
 export type AppError = { kind: "Db"; message: string } | { kind: "LockPoisoned" }
 export type Category = { id: number; name: string; color: string }
+/**
+ * A continuous stretch of one context — a dial arc, click-to-inspect.
+ */
+export type ContextRun = { context_slug: string; context_name: string; 
+/**
+ * Span bounds (Unix secs); the arc is drawn start→end.
+ */
+start: number; end: number; 
+/**
+ * Active seconds within the run (≤ end−start when small gaps are bridged).
+ */
+secs: number; projects: ProjectSlice[]; apps: string[] }
+/**
+ * One context's total share of the active day (the ledger/legend/stats unit).
+ */
+export type ContextSlice = { slug: string; name: string; secs: number; pct: number }
+/**
+ * One day's compact summary for the Week view: a mini-dial's arcs plus the two totals
+ * the week summary needs. `deep_secs` is carried so "deepest day" is a Rust number (rule 6).
+ */
+export type DaySlice = { 
+/**
+ * Local midnight (Unix secs) — the mini-dial's angular origin.
+ */
+day_start: number; active_secs: number; deep_secs: number; runs: ContextRun[] }
+/**
+ * Everything the Day view needs, computed from one day of events.
+ */
+export type DayView = { active_secs: number; idle_secs: number; contexts: ContextSlice[]; runs: ContextRun[]; recap: Recap }
+/**
+ * A project's share of time *inside* a context-run (shown as a text line, never a bar).
+ */
+export type ProjectSlice = { name: string; secs: number }
+/**
+ * The day's recap. `generated_by` is "template" here; the on-device Foundation
+ * Models prose (Phase 3) will reuse the same facts behind the `ai` trait.
+ */
+export type Recap = { text: string; generated_by: string }
 export type Rule = { id: number; category_id: number; match_field: string; pattern: string; ignore_title: boolean }
 /**
  * One persisted setting key/value (replaces the awkward `[string, string][]`).
  */
 export type Setting = { key: string; value: string }
 /**
+ * A context-run plus its inner app-switch segments — one expandable Timeline row (D34).
+ */
+export type TimelineRun = { context_slug: string; context_name: string; start: number; end: number; secs: number; projects: ProjectSlice[]; apps: string[]; segments: TimelineSegment[] }
+/**
+ * One focused-window event inside a context-run — the Timeline's click-to-expand detail.
+ */
+export type TimelineSegment = { start: number; end: number; app: string; 
+/**
+ * The segment's own context. After excursion-absorb (D34a) a run may contain an absorbed
+ * detour of a *different* context, so each segment carries its own — the expand stays honest.
+ */
+context_slug: string; context_name: string; 
+/**
+ * Resolved project name, or `None` when none was inferred (the UI shows "—").
+ */
+project: string | null; secs: number }
+/**
+ * Everything the Timeline view needs: the day's context-runs, each with its segments.
+ * The "Away" idle gaps and the now-marker are derived on the frontend from run bounds.
+ */
+export type TimelineView = { runs: TimelineRun[] }
+/**
  * Health of the background capture watcher (replaces an untyped `serde_json::Value`).
  */
 export type WatcherStatus = { consecutive_errors: number; healthy: boolean }
+/**
+ * Everything the Week view needs: 7 day-slices + week-level aggregates (numbers in Rust).
+ */
+export type WeekView = { days: DaySlice[]; total_active_secs: number; avg_active_secs: number; 
+/**
+ * Index into `days` of the day with the most Deep-work time, or `None` if there was none.
+ */
+deepest_day: number | null }
 
 /** tauri-specta globals **/
 

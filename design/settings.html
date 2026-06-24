@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616;
+  --now:#161616; --casing:#161616; --on-ink:#EEEBE1; --bar-bg:#161616; --bar-fg:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8;
+  --now:#EDE9DD; --casing:transparent; --on-ink:#1A1916; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4;
+  --now:#F4F4F2; --casing:transparent; --on-ink:#0E0E0E; --bar-bg:#000000; --bar-fg:#F4F4F2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);transition:background .25s;}
+body{font-family:'Jost',system-ui,sans-serif;color:var(--fg);-webkit-font-smoothing:antialiased;display:flex;justify-content:center;padding:28px 18px;}
+button{font-family:inherit;cursor:pointer;}
+a{color:inherit;text-decoration:none;}
+.app{width:100%;max-width:1000px;background:var(--bg);border:3px solid var(--edge);border-radius:5px;overflow:hidden;}
+.tb{background:var(--bar-bg);display:flex;align-items:center;gap:9px;padding:11px 16px;}
+.tbd{width:12px;height:12px;border-radius:50%;}
+.tbn{flex:1;text-align:center;color:var(--bar-fg);font-weight:600;font-size:12px;letter-spacing:.34em;text-transform:uppercase;margin-left:-46px;}
+.tbs{color:rgba(255,255,255,.6);font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;display:flex;align-items:center;gap:6px;}
+.tbs .live{width:8px;height:8px;border-radius:50%;background:var(--c-comms);animation:pulse 2.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.hd{display:flex;justify-content:space-between;align-items:flex-end;padding:18px 22px 0;}
+.brand{font-family:'Anton',sans-serif;font-size:36px;line-height:.82;text-transform:uppercase;letter-spacing:.01em;}
+.brand .o{color:var(--c-research);}
+.hd .right{display:flex;align-items:center;gap:16px;}
+.hd .date{text-align:right;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);line-height:1.6;}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-weight:600;font-size:10px;letter-spacing:.08em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 9px;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+.tabs{display:flex;align-items:center;gap:0;margin:16px 22px 0;border-bottom:3px solid var(--edge);}
+.tabs a{font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:11px 16px;color:var(--muted);position:relative;top:3px;border-bottom:3px solid transparent;}
+.tabs a.on{color:var(--fg);border-bottom-color:var(--fg);}
+.panel{padding:22px;}
+
+.setgrp{border:3px solid var(--edge);margin-bottom:18px;}
+.setgrp h4{font-family:'Anton',sans-serif;font-size:15px;text-transform:uppercase;letter-spacing:.04em;background:var(--bar-bg);color:var(--bar-fg);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;}
+.setgrp h4 .meta{font-family:'Jost';font-size:10px;font-weight:600;letter-spacing:.12em;color:rgba(255,255,255,.55);}
+.setrow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border-top:2px solid var(--edge);}
+.setgrp .setrow:first-of-type,.setgrp .crow:first-of-type,.setgrp .exrow:first-of-type{border-top:none;}
+.lab{font-weight:600;font-size:14px;}
+.lab.danger{color:var(--c-research);}
+.des{font-size:12px;color:var(--muted);margin-top:3px;max-width:52ch;line-height:1.5;}
+.des code{font-family:'Jost';font-weight:600;color:var(--fg);background:var(--surface);border:1px solid var(--rule);padding:1px 5px;}
+.toggle{width:54px;height:29px;border:2px solid var(--edge);background:var(--bg);position:relative;cursor:pointer;flex-shrink:0;}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:21px;height:21px;background:var(--edge);transition:left .18s;}
+.toggle.on{background:var(--c-deep);border-color:var(--c-deep);}
+.toggle.on::after{left:29px;background:var(--bg);}
+.pill{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:2px solid var(--edge);padding:5px 11px;background:var(--bg);color:var(--fg);white-space:nowrap;}
+.pill.ok{background:var(--edge);color:var(--bg);}
+.pill.danger{border-color:var(--c-research);color:var(--c-research);}
+.val{border:2px solid var(--edge);background:var(--bg);color:var(--fg);font-weight:600;font-size:12px;padding:7px 12px;display:flex;align-items:center;gap:8px;white-space:nowrap;}
+.val::after{content:"⌄";font-size:14px;line-height:0;margin-top:-3px;color:var(--muted);}
+.seg{display:flex;border:2px solid var(--edge);}
+.seg button{font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 13px;}
+.seg button+button{border-left:2px solid var(--edge);}
+.seg button.on{background:var(--edge);color:var(--bg);}
+
+/* contexts editor */
+.crow{display:flex;align-items:center;gap:13px;padding:13px 16px;border-top:2px solid var(--edge);}
+.crow .s{width:18px;height:18px;border:1px solid var(--edge);flex-shrink:0;}
+.crow .cn{font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.02em;width:108px;flex-shrink:0;}
+.crow .rule{font-size:12.5px;color:var(--muted);flex:1;line-height:1.7;}
+.crow .rule code{background:var(--surface);border:1px solid var(--rule);padding:1px 7px;font-family:'Jost';font-weight:600;color:var(--fg);margin:0 3px 3px 0;display:inline-block;}
+.iconbtn{border:2px solid var(--edge);background:var(--bg);color:var(--fg);width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.addrow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 16px;border-top:2px solid var(--edge);background:var(--surface);}
+.addbtn{border:2px solid var(--edge);background:var(--bg);color:var(--fg);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:8px 14px;}
+
+/* exclusions */
+.exrow{display:flex;align-items:center;gap:12px;padding:13px 16px;border-top:2px solid var(--edge);}
+.tag{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border:2px solid var(--edge);padding:3px 8px;color:var(--muted);flex-shrink:0;width:62px;text-align:center;}
+.pat{font-weight:600;font-size:14px;flex:1;}
+.pat .sub{font-weight:500;font-size:12px;color:var(--muted);}
+.modepill{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border:2px solid var(--edge);}
+.modepill.excl{background:var(--edge);color:var(--bg);}
+.modepill.priv{background:var(--bg);color:var(--fg);}
+.locked{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:5px;}
+.foot{background:var(--bar-bg);color:var(--bar-fg);font-size:10px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;text-align:center;padding:11px;}
+@media(max-width:680px){.brand{font-size:28px;}.crow{flex-wrap:wrap;}.crow .rule{flex-basis:100%;order:3;}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="tb">
+    <span class="tbd" style="background:var(--c-research)"></span>
+    <span class="tbd" style="background:var(--c-comms)"></span>
+    <span class="tbd" style="background:var(--c-deep)"></span>
+    <span class="tbn">UsageOS</span>
+    <span class="tbs"><span class="live"></span>Tracking</span>
+  </div>
+  <div class="hd">
+    <div class="brand">USAGE<span class="o">OS</span></div>
+    <div class="right">
+      <div class="date">Settings</div>
+      <div class="themesw" id="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+    </div>
+  </div>
+  <div class="tabs">
+    <a href="day.html">Day</a>
+    <a href="week.html">Week</a>
+    <a href="timeline.html">Timeline</a>
+    <a href="settings.html" class="on">Settings</a>
+  </div>
+
+  <section class="panel">
+
+    <div class="setgrp">
+      <h4>Tracking</h4>
+      <div class="setrow"><div><div class="lab">Background tracking</div><div class="des">Keeps track of what you're using as you work. You won't notice it running.</div></div><div class="toggle on" data-toggle></div></div>
+      <div class="setrow"><div><div class="lab">Idle detection</div><div class="des">After 3 minutes without touching your Mac, it stops counting — so a coffee break doesn't look like work.</div></div><div class="toggle on" data-toggle></div></div>
+      <div class="setrow"><div><div class="lab">Day starts at</div><div class="des">For night owls — a day runs from this hour, so a 1am session counts to the night before.</div></div><div class="val">4:00 AM</div></div>
+      <div class="setrow"><div><div class="lab">Accessibility</div><div class="des">Lets UsageOS read window titles, so it knows what you're working on. It can't see your screen.</div></div><span class="pill ok">Granted ✓</span></div>
+      <div class="setrow"><div><div class="lab">Automation</div><div class="des">Lets UsageOS read the address of your current browser tab. You're asked once per browser.</div></div><span class="pill ok">Granted ✓</span></div>
+    </div>
+
+    <div class="setgrp">
+      <h4>Local intelligence <span class="meta">Apple Foundation Models</span></h4>
+      <div class="setrow"><div><div class="lab">On-device recap &amp; sorting</div><div class="des">A small AI model on your Mac writes your recap and helps sort your time. It runs entirely on your Mac — and if it's ever unavailable, you still get a plain written summary.</div></div><div class="toggle on" data-toggle></div></div>
+      <div class="setrow"><div><div class="lab">Model</div><div class="des">Apple's on-device model, built into macOS. Nothing is sent anywhere.</div></div><span class="pill">On device</span></div>
+      <div class="setrow"><div><div class="lab">Evening recap notification</div><div class="des">One gentle “your day is ready” at a wind-down time you set. Off by default — the only interruption UsageOS will ever make.</div></div><div class="toggle" data-toggle></div></div>
+    </div>
+
+    <div class="setgrp">
+      <h4>Contexts &amp; rules</h4>
+      <div class="crow"><span class="s" style="background:var(--c-deep)"></span><span class="cn">Deep work</span><span class="rule"><code>VS Code</code><code>Xcode</code><code>Figma</code><code>Terminal</code><code>title: *.rs</code></span><button class="iconbtn" title="Edit">✎</button></div>
+      <div class="crow"><span class="s" style="background:var(--c-research)"></span><span class="cn">Research</span><span class="rule"><code>Safari → docs</code><code>stackoverflow.com</code><code>developer.apple.com</code></span><button class="iconbtn" title="Edit">✎</button></div>
+      <div class="crow"><span class="s" style="background:var(--c-comms)"></span><span class="cn">Comms</span><span class="rule"><code>Slack</code><code>Mail</code><code>Messages</code><code>Zoom</code></span><button class="iconbtn" title="Edit">✎</button></div>
+      <div class="crow"><span class="s" style="background:var(--c-breaks)"></span><span class="cn">Breaks</span><span class="rule"><code>reddit.com</code><code>youtube.com</code><code>x.com</code><code>netflix.com</code></span><button class="iconbtn" title="Edit">✎</button></div>
+      <div class="addrow"><button class="addbtn">+ Add context</button><span class="des" style="margin:0">Rules sort your activity automatically. When you correct one, it learns.</span></div>
+    </div>
+
+    <div class="setgrp">
+      <h4>Privacy &amp; exclusions</h4>
+      <div class="exrow"><span class="tag">App</span><span class="pat">1Password</span><span class="modepill excl">Excluded</span><button class="iconbtn" title="Remove">×</button></div>
+      <div class="exrow"><span class="tag">Site</span><span class="pat">*.chase.com <span class="sub">+ banking</span></span><span class="modepill excl">Excluded</span><button class="iconbtn" title="Remove">×</button></div>
+      <div class="exrow"><span class="tag">App</span><span class="pat">Messages <span class="sub">— time counts, title hidden</span></span><span class="modepill priv">Private</span><button class="iconbtn" title="Remove">×</button></div>
+      <div class="exrow"><span class="tag">System</span><span class="pat">Incognito / private windows <span class="sub">— never recorded</span></span><span class="locked">🔒 Always on</span></div>
+      <div class="addrow"><button class="addbtn">+ Add exclusion</button><span class="des" style="margin:0"><strong>Exclude</strong> leaves an app out completely. <strong>Private</strong> still counts the time, but saves no titles or web addresses.</span></div>
+    </div>
+
+    <div class="setgrp">
+      <h4>Appearance</h4>
+      <div class="setrow"><div><div class="lab">Theme</div><div class="des">Choose a light or dark look. Warm is a softer dark; Black is a deeper one.</div></div>
+        <div class="seg" id="themeseg"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div></div>
+    </div>
+
+    <div class="setgrp">
+      <h4>Your data</h4>
+      <div class="setrow"><div><div class="lab">Where your data lives</div><div class="des">One file on your Mac. Nothing is stored anywhere else.</div></div><button class="pill">Show in Finder</button></div>
+      <div class="setrow"><div><div class="lab">Keep history for</div><div class="des">Anything older than this is deleted automatically. You decide how much to keep.</div></div><div class="val">1 year</div></div>
+      <div class="setrow"><div><div class="lab">Export</div><div class="des">Take everything with you as CSV — it's your data.</div></div><button class="pill">Export CSV</button></div>
+      <div class="setrow"><div><div class="lab danger">Delete all data</div><div class="des">Erase everything UsageOS has recorded. This can't be undone.</div></div><button class="pill danger">Delete</button></div>
+    </div>
+
+  </section>
+
+  <div class="foot">Your data never leaves this machine</div>
+</div>
+
+<script>
+(function(){
+function setTheme(t){
+  document.documentElement.setAttribute("data-theme",t);
+  document.querySelectorAll("#themesw button, #themeseg button").forEach(function(b){b.classList.toggle("on",b.dataset.t===t);});
+}
+document.getElementById("themesw").addEventListener("click",function(e){var b=e.target.closest("button[data-t]");if(b)setTheme(b.dataset.t);});
+document.getElementById("themeseg").addEventListener("click",function(e){var b=e.target.closest("button[data-t]");if(b)setTheme(b.dataset.t);});
+document.addEventListener("click",function(e){var t=e.target.closest("[data-toggle]");if(t)t.classList.toggle("on");});
+})();
+</script>
+</body>
+</html>
