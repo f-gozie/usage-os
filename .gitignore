@@ -25,3 +25,6 @@ dist-ssr
 
 # Storybook
 storybook-static
+
+# Swift Package Manager build cache (spikes/, sidecar/ — never commit compiled module caches)
+.build/

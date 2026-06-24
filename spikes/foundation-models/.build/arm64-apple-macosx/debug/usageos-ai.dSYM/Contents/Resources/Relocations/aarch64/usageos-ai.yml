@@ -1,5 +1,0 @@
----
-triple:          'arm64-apple-darwin'
-binary-path:     '/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos-ai'
-relocations:     []
-...
