@@ -95,7 +95,12 @@ fn get_day(
         .into_iter()
         .map(|p| (p.id, p.display_name))
         .collect();
-    Ok(rollup::build_day_view(&events, &categories, &projects))
+    Ok(rollup::build_day_view(
+        &events,
+        &categories,
+        &projects,
+        start_time,
+    ))
 }
 
 /// Build the Week view — 7 day-slices (each a mini-dial's runs + totals) plus week-level

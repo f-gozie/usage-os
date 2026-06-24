@@ -57,8 +57,8 @@ From the shipped v0.1.0 + Tier-1 work, do **not** rebuild these:
 
 ## Phase 3 — The recap
 
-- [ ] `RecapFacts` computed in Rust; deterministic template recap first.
-- [ ] Swift `usageos-ai` sidecar (Foundation Models, stdio, structured output) + availability check + fallback.
+- [x] **`RecapFacts` computed in Rust + a richer deterministic template recap — ✅ DONE (D48).** `compute_recap_facts` (in `rollup`) pulls the day's facts — leading + runner-up category, leading project (≥40%), longest continuous stretch (≥15 min) with a local time-of-day phrase (`(run.start − day_start)/3600`, no TZ lib) — and `render_template_recap` phrases them **purely factually, never evaluative** (calm mirror, not a coach). `build_day_view` now takes `day_start` (the `get_day` start). 101 Rust tests; no IPC/frontend change (the Day view already renders `recap.text`). _The Foundation Models sidecar (next) reuses `RecapFacts`; this stays the always-on fallback._
+- [ ] Swift `usageos-ai` sidecar (Foundation Models, stdio, structured output) + availability check + fallback. _Reuses `RecapFacts` (D48)._
 - [ ] Lazy compute on open; opt-in evening "your day is ready" ping.
 
 ## Phase 4 — Shell & polish
