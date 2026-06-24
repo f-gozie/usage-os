@@ -68,17 +68,31 @@ export function TimelineRow({ run, defaultOpen = false }: TimelineRowProps) {
           <div className="py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
             {run.segments.length} app {run.segments.length === 1 ? "switch" : "switches"}
           </div>
-          {run.segments.map((seg, i) => (
-            <div
-              key={`${seg.start}-${i}`}
-              className="grid grid-cols-[54px_124px_1fr_auto] items-center gap-3.5 border-t border-rule py-1.5 text-[12.5px] first:border-t-0"
-            >
-              <span className="tabular-nums text-muted">{formatClock(seg.start)}</span>
-              <span className="font-semibold">{seg.app}</span>
-              <span className="text-muted">{seg.project ?? "—"}</span>
-              <span className="text-right tabular-nums text-muted">{formatDuration(seg.secs)}</span>
-            </div>
-          ))}
+          {run.segments.map((seg, i) => {
+            // An absorbed detour (D34a) carries a different context than the run — mark it with
+            // its own colour dot + label so the expand stays honest about what happened.
+            const isDetour = seg.context_slug !== run.context_slug;
+            return (
+              <div
+                key={`${seg.start}-${i}`}
+                className="grid grid-cols-[54px_124px_1fr_auto] items-center gap-3.5 border-t border-rule py-1.5 text-[12.5px] first:border-t-0"
+              >
+                <span className="tabular-nums text-muted">{formatClock(seg.start)}</span>
+                <span className="flex items-center gap-1.5 truncate font-semibold">
+                  {isDetour && (
+                    <span
+                      className="inline-block h-2 w-2 shrink-0"
+                      style={{ background: contextColorVar(seg.context_slug) }}
+                      title={seg.context_name}
+                    />
+                  )}
+                  {seg.app}
+                </span>
+                <span className="truncate text-muted">{seg.project ?? "—"}</span>
+                <span className="text-right tabular-nums text-muted">{formatDuration(seg.secs)}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

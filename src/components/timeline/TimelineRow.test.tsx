@@ -6,22 +6,22 @@ import { render, fireEvent } from "@testing-library/react";
 import { TimelineRow } from "./TimelineRow";
 import type { TimelineRun } from "@/lib/tauri";
 
+const deep = { context_slug: "deep", context_name: "Deep work" };
+
+// A Deep run that absorbed a brief Comms detour (D34a).
 const RUN: TimelineRun = {
   context_slug: "deep",
   context_name: "Deep work",
   start: 1_000_000_000,
   end: 1_000_006_120,
-  secs: 6120,
-  projects: [
-    { name: "usageos", secs: 4000 },
-    { name: "nudge", secs: 2120 },
-  ],
-  apps: ["Cursor", "iTerm", "Claude"],
+  secs: 4600, // host (Deep) only
+  projects: [{ name: "usageos", secs: 4600 }],
+  apps: ["Cursor", "iTerm"],
   segments: [
-    { start: 1_000_000_000, end: 1_000_001_800, app: "Cursor", project: "usageos", secs: 1800 },
-    { start: 1_000_001_800, end: 1_000_003_400, app: "iTerm", project: "usageos", secs: 1600 },
-    { start: 1_000_003_400, end: 1_000_004_600, app: "Cursor", project: "nudge", secs: 1200 },
-    { start: 1_000_004_600, end: 1_000_006_120, app: "Claude", project: null, secs: 1520 },
+    { start: 1_000_000_000, end: 1_000_001_800, app: "Cursor", ...deep, project: "usageos", secs: 1800 },
+    { start: 1_000_001_800, end: 1_000_003_400, app: "iTerm", ...deep, project: "usageos", secs: 1600 },
+    { start: 1_000_003_400, end: 1_000_003_940, app: "Slack", context_slug: "comms", context_name: "Comms", project: null, secs: 540 },
+    { start: 1_000_003_940, end: 1_000_006_120, app: "Cursor", ...deep, project: "usageos", secs: 1200 },
   ],
 };
 
@@ -33,10 +33,12 @@ describe("TimelineRow", () => {
     expect(queryByText(/app switch/i)).toBeNull(); // segments hidden
   });
 
-  it("expands to reveal every app-switch segment on click", () => {
-    const { getByRole, getByText } = render(<TimelineRow run={RUN} />);
+  it("expands to reveal every app-switch segment, marking the absorbed detour", () => {
+    const { getByRole, getByText, getByTitle } = render(<TimelineRow run={RUN} />);
     fireEvent.click(getByRole("button"));
     expect(getByRole("button")).toHaveAttribute("aria-expanded", "true");
     expect(getByText(/4 app switches/i)).toBeInTheDocument();
+    // the absorbed Comms detour carries its own context marker
+    expect(getByTitle("Comms")).toBeInTheDocument();
   });
 });

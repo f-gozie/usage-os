@@ -238,6 +238,11 @@ export type TimelineRun = { context_slug: string; context_name: string; start: n
  */
 export type TimelineSegment = { start: number; end: number; app: string; 
 /**
+ * The segment's own context. After excursion-absorb (D34a) a run may contain an absorbed
+ * detour of a *different* context, so each segment carries its own — the expand stays honest.
+ */
+context_slug: string; context_name: string; 
+/**
  * Resolved project name, or `None` when none was inferred (the UI shows "—").
  */
 project: string | null; secs: number }

@@ -22,6 +22,16 @@ use crate::db::ActivityLog;
 /// explorer, M3) and then locked; the run/expand shape holds regardless of the value.
 const IDLE_GAP_ENDS_RUN_SECS: i64 = 5 * 60;
 
+/// D34a excursion-absorb: a brief detour into another context, sandwiched by the same context,
+/// folds into the surrounding run (the detour still shows as a segment in the Timeline expand).
+/// A detour whose **wall-clock span** exceeds this stays its own run. A starting value tuned by
+/// dogfooding the Timeline session-explorer — not yet locked. (Decided via a Codex↔Opus debate.)
+const ABSORB_SECS: i64 = 90;
+/// Backstop on accumulation: a run may absorb at most this percent of its wall-clock as detours;
+/// once it's more interrupted than this it splits, so the dial never draws a falsely-unbroken
+/// focus stretch. Paired with a local-dominance check (host active ≥ excursion). Dogfood-tunable.
+const MAX_ABSORB_FRACTION_PCT: i64 = 15;
+
 /// Slug + display name for a context, looked up by category id. The dial maps `slug`
 /// to a colour token (`--c-<slug>`). Internal — does not cross the IPC boundary.
 pub struct ContextMeta {
@@ -113,6 +123,10 @@ pub struct TimelineSegment {
     pub start: i64,
     pub end: i64,
     pub app: String,
+    /// The segment's own context. After excursion-absorb (D34a) a run may contain an absorbed
+    /// detour of a *different* context, so each segment carries its own — the expand stays honest.
+    pub context_slug: String,
+    pub context_name: String,
     /// Resolved project name, or `None` when none was inferred (the UI shows "—").
     pub project: Option<String>,
     pub secs: i64,
@@ -151,13 +165,6 @@ fn context_of(event: &ActivityLog, contexts: &HashMap<i64, ContextMeta>) -> (Str
         ),
         None => (OTHER_SLUG.to_string(), OTHER_NAME.to_string()),
     }
-}
-
-fn project_of(event: &ActivityLog, projects: &HashMap<i64, String>) -> String {
-    event
-        .project_id
-        .and_then(|id| projects.get(&id).cloned())
-        .unwrap_or_else(|| NO_PROJECT.to_string())
 }
 
 /// Build the Day view from a day's events plus context/project name lookups.
@@ -263,27 +270,23 @@ pub fn build_week_view(days: Vec<DaySlice>) -> WeekView {
     }
 }
 
-/// In-progress timeline-run accumulator: like `RunBuilder`, but retains each event as a
-/// segment (the expand detail) and derives the project breakdown from those segments.
-struct TimelineRunBuilder {
+/// In-progress raw run: consecutive same-context events accumulated as segments. Coalesced
+/// into a [`SegRun`]; the absorb pass (D34a) then merges brief sandwiched excursions.
+struct RawRunBuilder {
     slug: String,
     name: String,
     start: i64,
     end: i64,
-    secs: i64,
-    apps: Vec<String>,
     segments: Vec<TimelineSegment>,
 }
 
-impl TimelineRunBuilder {
+impl RawRunBuilder {
     fn new(event: &ActivityLog, slug: String, name: String, project: Option<String>) -> Self {
-        let mut builder = TimelineRunBuilder {
+        let mut builder = RawRunBuilder {
             slug,
             name,
             start: event.start_time,
             end: event.end_time,
-            secs: 0,
-            apps: Vec::new(),
             segments: Vec::new(),
         };
         builder.add(event, project);
@@ -292,29 +295,80 @@ impl TimelineRunBuilder {
 
     fn add(&mut self, event: &ActivityLog, project: Option<String>) {
         self.end = self.end.max(event.end_time);
-        let secs = duration(event);
-        self.secs += secs;
-        if !self.apps.iter().any(|a| a == &event.process_name) {
-            self.apps.push(event.process_name.clone());
-        }
         self.segments.push(TimelineSegment {
             start: event.start_time,
             end: event.end_time,
             app: event.process_name.clone(),
+            context_slug: self.slug.clone(),
+            context_name: self.name.clone(),
             project,
-            secs,
+            secs: duration(event),
         });
+    }
+}
+
+/// A coalesced run carrying every segment (each with its own context). After the absorb pass a
+/// run's segments may include a different-context detour; its reported `secs` / `projects` /
+/// `apps` are always for the **host** context only (D34a) — the detour lives on its segment.
+struct SegRun {
+    slug: String,
+    name: String,
+    start: i64,
+    end: i64,
+    segments: Vec<TimelineSegment>,
+}
+
+impl SegRun {
+    fn from_raw(raw: RawRunBuilder) -> Self {
+        SegRun {
+            slug: raw.slug,
+            name: raw.name,
+            start: raw.start,
+            end: raw.end,
+            segments: raw.segments,
+        }
+    }
+
+    /// Active seconds whose segment context is the host context.
+    fn host_active(&self) -> i64 {
+        self.segments
+            .iter()
+            .filter(|s| s.context_slug == self.slug)
+            .map(|s| s.secs)
+            .sum()
+    }
+
+    /// Active seconds of absorbed (non-host-context) detours.
+    fn absorbed(&self) -> i64 {
+        self.segments
+            .iter()
+            .filter(|s| s.context_slug != self.slug)
+            .map(|s| s.secs)
+            .sum()
+    }
+
+    /// All active seconds in the run — the "excursion active" when this is a block run.
+    fn total_active(&self) -> i64 {
+        self.segments.iter().map(|s| s.secs).sum()
     }
 
     fn finish(self) -> TimelineRun {
-        // Project breakdown from the segments (unresolved → the neutral "No project").
+        // Headline numbers are host-context only: a "Deep · 52m" run means 52m of Deep, and the
+        // off-context detour never injects a phantom project slice (D34a, debate). The detour's
+        // seconds live on its segment (the expand) and in the per-axis ledger.
+        let host = self.slug.clone();
+        let secs = self.host_active();
         let mut totals: HashMap<String, i64> = HashMap::new();
-        for seg in &self.segments {
+        let mut apps: Vec<String> = Vec::new();
+        for seg in self.segments.iter().filter(|s| s.context_slug == host) {
             let name = seg
                 .project
                 .clone()
                 .unwrap_or_else(|| NO_PROJECT.to_string());
             *totals.entry(name).or_insert(0) += seg.secs;
+            if !apps.iter().any(|a| a == &seg.app) {
+                apps.push(seg.app.clone());
+            }
         }
         let mut projects: Vec<ProjectSlice> = totals
             .into_iter()
@@ -326,31 +380,29 @@ impl TimelineRunBuilder {
             context_name: self.name,
             start: self.start,
             end: self.end,
-            secs: self.secs,
+            secs,
             projects,
-            apps: self.apps,
+            apps,
             segments: self.segments,
         }
     }
 }
 
-/// Build the Timeline view: the day's context-runs (same segmentation as `build_runs` — a
-/// context change or a gap ≥ `IDLE_GAP_ENDS_RUN_SECS` ends a run) but with every event kept
-/// as a segment for the click-to-expand detail (D34). The current segmentation only — this
-/// view is the tool to evaluate the D34a excursion-absorb / sustained-shift refinements.
-pub fn build_timeline(
+/// Coalesce active events into raw single-context runs: a run ends when the context changes or
+/// a gap ≥ `IDLE_GAP_ENDS_RUN_SECS` opens; project changes never split (D34).
+fn raw_runs(
     events: &[ActivityLog],
     contexts: &HashMap<i64, ContextMeta>,
     projects: &HashMap<i64, String>,
-) -> TimelineView {
+) -> Vec<SegRun> {
     let mut active: Vec<&ActivityLog> = events
         .iter()
         .filter(|e| !e.is_idle && duration(e) > 0)
         .collect();
     active.sort_by_key(|e| e.start_time);
 
-    let mut runs: Vec<TimelineRun> = Vec::new();
-    let mut current: Option<TimelineRunBuilder> = None;
+    let mut runs: Vec<SegRun> = Vec::new();
+    let mut current: Option<RawRunBuilder> = None;
 
     for event in active {
         let (slug, name) = context_of(event, contexts);
@@ -364,112 +416,128 @@ pub fn build_timeline(
                 current = Some(run);
             }
             Some(run) => {
-                runs.push(run.finish());
-                current = Some(TimelineRunBuilder::new(event, slug, name, project));
+                runs.push(SegRun::from_raw(run));
+                current = Some(RawRunBuilder::new(event, slug, name, project));
             }
-            None => current = Some(TimelineRunBuilder::new(event, slug, name, project)),
+            None => current = Some(RawRunBuilder::new(event, slug, name, project)),
         }
     }
     if let Some(run) = current {
-        runs.push(run.finish());
+        runs.push(SegRun::from_raw(run));
     }
-    TimelineView { runs }
+    runs
 }
 
-/// In-progress run accumulator (kept out of the public surface).
-struct RunBuilder {
-    slug: String,
-    name: String,
-    start: i64,
-    end: i64,
-    secs: i64,
-    projects: HashMap<String, i64>,
-    apps: Vec<String>,
-}
-
-impl RunBuilder {
-    fn new(event: &ActivityLog, slug: String, name: String, project: String) -> Self {
-        let mut builder = RunBuilder {
-            slug,
-            name,
-            start: event.start_time,
-            end: event.end_time,
-            secs: 0,
-            projects: HashMap::new(),
-            apps: Vec::new(),
-        };
-        builder.add(event, project);
-        builder
-    }
-
-    fn add(&mut self, event: &ActivityLog, project: String) {
-        self.end = self.end.max(event.end_time);
-        self.secs += duration(event);
-        *self.projects.entry(project).or_insert(0) += duration(event);
-        if !self.apps.iter().any(|a| a == &event.process_name) {
-            self.apps.push(event.process_name.clone());
+/// Fold brief sandwiched excursions into the surrounding context-run (D34a). A maximal
+/// contiguous block of non-X runs flanked by context X on both sides is absorbed into one X run
+/// when ALL hold: the block's wall-clock span ≤ `ABSORB_SECS`; the host's active time ≥ the
+/// excursion's (local dominance — a tiny host can't masquerade); and the run's total absorbed
+/// time stays ≤ `MAX_ABSORB_FRACTION_PCT`% of its wall-clock (the accumulation backstop). The
+/// detour's events stay as segments (with their real context) for the expand. Iterated to a
+/// fixpoint, so `X | a | X | b | X` collapses left-to-right.
+fn absorb_excursions(mut runs: Vec<SegRun>) -> Vec<SegRun> {
+    loop {
+        let mut target: Option<(usize, usize)> = None;
+        for i in 0..runs.len() {
+            let host = &runs[i].slug;
+            // The maximal block of consecutive non-host runs after i, and its closing flanker j.
+            let mut j = i + 1;
+            while j < runs.len() && &runs[j].slug != host {
+                j += 1;
+            }
+            // Need a non-empty block AND a closing flanker of the same context.
+            if j >= runs.len() || j == i + 1 {
+                continue;
+            }
+            // No idle gap ≥ threshold anywhere across the window (seams + internal).
+            if (i..j).any(|k| runs[k + 1].start - runs[k].end >= IDLE_GAP_ENDS_RUN_SECS) {
+                continue;
+            }
+            if runs[j - 1].end - runs[i + 1].start > ABSORB_SECS {
+                continue; // excursion wall-clock span
+            }
+            let excursion_active: i64 = runs[i + 1..j].iter().map(SegRun::total_active).sum();
+            if runs[i].host_active() + runs[j].host_active() < excursion_active {
+                continue; // local dominance
+            }
+            let absorbed_after = runs[i].absorbed() + runs[j].absorbed() + excursion_active;
+            let wall_after = runs[j].end - runs[i].start;
+            if absorbed_after * 100 > wall_after * MAX_ABSORB_FRACTION_PCT {
+                continue; // accumulation cap
+            }
+            target = Some((i, j));
+            break;
+        }
+        match target {
+            Some((i, j)) => {
+                let name = runs[i].name.clone();
+                let host = runs[i].slug.clone();
+                let start = runs[i].start;
+                let end = runs[j].end;
+                let segments: Vec<TimelineSegment> =
+                    runs.drain(i..=j).flat_map(|r| r.segments).collect();
+                runs.insert(
+                    i,
+                    SegRun {
+                        slug: host,
+                        name,
+                        start,
+                        end,
+                        segments,
+                    },
+                );
+            }
+            None => break,
         }
     }
+    runs
+}
 
-    fn finish(self) -> ContextRun {
-        let mut projects: Vec<ProjectSlice> = self
-            .projects
-            .into_iter()
-            .map(|(name, secs)| ProjectSlice { name, secs })
-            .collect();
-        // Longest first; name as the tie-breaker so "No project" doesn't float by hash.
-        projects.sort_by(|a, b| b.secs.cmp(&a.secs).then_with(|| a.name.cmp(&b.name)));
-        ContextRun {
-            context_slug: self.slug,
-            context_name: self.name,
-            start: self.start,
-            end: self.end,
-            secs: self.secs,
-            projects,
-            apps: self.apps,
-        }
+/// The single segmentation pass (D34a): raw context-runs → excursion-absorb → rich runs with
+/// segments. `build_runs` (dial / week) projects these to `ContextRun`; `build_timeline` returns
+/// them whole — one source of truth, so the dial and Timeline can never disagree.
+fn build_segmented_runs(
+    events: &[ActivityLog],
+    contexts: &HashMap<i64, ContextMeta>,
+    projects: &HashMap<i64, String>,
+) -> Vec<TimelineRun> {
+    absorb_excursions(raw_runs(events, contexts, projects))
+        .into_iter()
+        .map(SegRun::finish)
+        .collect()
+}
+
+/// Build the Timeline view: the day's context-runs, each with its inner app-switch segments
+/// (D34/D34a) — the same segmentation the dial uses, with the segments retained for expand.
+pub fn build_timeline(
+    events: &[ActivityLog],
+    contexts: &HashMap<i64, ContextMeta>,
+    projects: &HashMap<i64, String>,
+) -> TimelineView {
+    TimelineView {
+        runs: build_segmented_runs(events, contexts, projects),
     }
 }
 
-/// Coalesce active events into context-runs. A run ends when the context changes or a
-/// gap (idle/untracked) of at least `IDLE_GAP_ENDS_RUN_SECS` opens. Project changes
-/// never split a run — the project breakdown lives inside it (D34).
+/// Context-runs for the dial arcs + week mini-dials: the segmented runs (D34a) minus their
+/// per-segment detail. The dial and Timeline share one segmentation, so they cannot diverge.
 fn build_runs(
     events: &[ActivityLog],
     contexts: &HashMap<i64, ContextMeta>,
     projects: &HashMap<i64, String>,
 ) -> Vec<ContextRun> {
-    let mut active: Vec<&ActivityLog> = events
-        .iter()
-        .filter(|e| !e.is_idle && duration(e) > 0)
-        .collect();
-    active.sort_by_key(|e| e.start_time);
-
-    let mut runs: Vec<ContextRun> = Vec::new();
-    let mut current: Option<RunBuilder> = None;
-
-    for event in active {
-        let (slug, name) = context_of(event, contexts);
-        let project = project_of(event, projects);
-
-        match current.take() {
-            Some(mut run)
-                if run.slug == slug && event.start_time - run.end < IDLE_GAP_ENDS_RUN_SECS =>
-            {
-                run.add(event, project);
-                current = Some(run);
-            }
-            Some(run) => {
-                runs.push(run.finish());
-                current = Some(RunBuilder::new(event, slug, name, project));
-            }
-            None => current = Some(RunBuilder::new(event, slug, name, project)),
-        }
-    }
-    if let Some(run) = current {
-        runs.push(run.finish());
-    }
-    runs
+    build_segmented_runs(events, contexts, projects)
+        .into_iter()
+        .map(|run| ContextRun {
+            context_slug: run.context_slug,
+            context_name: run.context_name,
+            start: run.start,
+            end: run.end,
+            secs: run.secs,
+            projects: run.projects,
+            apps: run.apps,
+        })
+        .collect()
 }
 
 /// Format a duration the way the UI reads it: "4h 15m" / "45m" / "30s".
@@ -591,6 +659,13 @@ mod tests {
                 ContextMeta {
                     slug: Some("comms".into()),
                     name: "Comms".into(),
+                },
+            ),
+            (
+                3,
+                ContextMeta {
+                    slug: Some("research".into()),
+                    name: "Research".into(),
                 },
             ),
         ])
@@ -790,5 +865,147 @@ mod tests {
         ];
         let tl = build_timeline(&events, &ctx_map(), &proj_map());
         assert_eq!(tl.runs.len(), 2, "a gap ≥ threshold ends the run");
+    }
+
+    // ── D34a excursion-absorb ────────────────────────────────────────────────────
+
+    #[test]
+    fn absorb_folds_a_sandwiched_brief_excursion() {
+        // deep → 50s comms glance → deep becomes ONE deep run; the comms stays an inner segment,
+        // the run's secs/projects are host-only, and the ledger still counts the 50s as Comms.
+        let events = vec![
+            ev(0, 600, "Cursor", Some(1), Some(1)),    // deep / usageos
+            ev(600, 650, "Slack", Some(2), None),      // comms 50s, no project
+            ev(650, 1200, "Cursor", Some(1), Some(1)), // deep / usageos
+        ];
+        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        assert_eq!(tl.runs.len(), 1, "the brief comms glance is absorbed");
+        let run = &tl.runs[0];
+        assert_eq!(run.context_slug, "deep");
+        assert_eq!(
+            (run.start, run.end),
+            (0, 1200),
+            "the arc spans the whole block"
+        );
+        assert_eq!(
+            run.secs, 1150,
+            "secs is host (deep) only — the 50s comms is excluded"
+        );
+        assert_eq!(
+            run.segments.len(),
+            3,
+            "the comms stays a segment for the expand"
+        );
+        assert_eq!(
+            run.projects.len(),
+            1,
+            "no phantom 'No project' from the comms"
+        );
+        assert_eq!(run.projects[0].name, "usageos");
+        let comms = run.segments.iter().find(|s| s.app == "Slack").unwrap();
+        assert_eq!(
+            comms.context_slug, "comms",
+            "the absorbed segment keeps its real context"
+        );
+        // Totals are independent of segmentation (D34): the 50s is still Comms in the ledger.
+        let day = build_day_view(&events, &ctx_map(), &proj_map());
+        let comms_total = day
+            .contexts
+            .iter()
+            .find(|c| c.slug == "comms")
+            .unwrap()
+            .secs;
+        assert_eq!(comms_total, 50);
+    }
+
+    #[test]
+    fn absorb_clusters_consecutive_excursions() {
+        // deep → comms 30s → research 20s → deep: the whole 50s cluster folds into one deep run.
+        let events = vec![
+            ev(0, 600, "Cursor", Some(1), Some(1)),
+            ev(600, 630, "Slack", Some(2), None),
+            ev(630, 650, "Chrome", Some(3), None),
+            ev(650, 1200, "Cursor", Some(1), Some(1)),
+        ];
+        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        assert_eq!(tl.runs.len(), 1);
+        assert_eq!(tl.runs[0].context_slug, "deep");
+        assert_eq!(tl.runs[0].segments.len(), 4);
+    }
+
+    #[test]
+    fn absorb_skips_a_too_long_excursion() {
+        let events = vec![
+            ev(0, 600, "Cursor", Some(1), Some(1)),
+            ev(600, 600 + ABSORB_SECS + 30, "Slack", Some(2), None), // > ABSORB_SECS
+            ev(600 + ABSORB_SECS + 30, 1500, "Cursor", Some(1), Some(1)),
+        ];
+        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        assert_eq!(
+            tl.runs.len(),
+            3,
+            "a long detour is a real block, not absorbed"
+        );
+    }
+
+    #[test]
+    fn absorb_keeps_an_unsandwiched_edge_blip() {
+        let events = vec![
+            ev(0, 600, "Cursor", Some(1), Some(1)),
+            ev(600, 640, "Slack", Some(2), None), // 40s blip at the end, no deep after
+        ];
+        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        assert_eq!(
+            tl.runs.len(),
+            2,
+            "an unsandwiched edge blip stays its own block"
+        );
+    }
+
+    #[test]
+    fn absorb_local_dominance_blocks_a_tiny_host() {
+        // deep 5s → Slack 80s → deep 5s: host (10s) < excursion (80s) → NOT absorbed.
+        let events = vec![
+            ev(0, 5, "Cursor", Some(1), Some(1)),
+            ev(5, 85, "Slack", Some(2), None),
+            ev(85, 90, "Cursor", Some(1), Some(1)),
+        ];
+        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        assert_eq!(
+            tl.runs.len(),
+            3,
+            "a tiny host can't absorb a dominant detour"
+        );
+    }
+
+    #[test]
+    fn absorb_cap_splits_an_over_interrupted_run() {
+        // deep 100s → comms 80s → deep 100s: dominance ok (80<200), but absorbed 80 / wall 280
+        // = 28.6% > 15% → the accumulation cap forbids it.
+        let events = vec![
+            ev(0, 100, "Cursor", Some(1), Some(1)),
+            ev(100, 180, "Slack", Some(2), None),
+            ev(180, 280, "Cursor", Some(1), Some(1)),
+        ];
+        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        assert_eq!(tl.runs.len(), 3, "the cap forbids a run that's >15% detour");
+    }
+
+    #[test]
+    fn build_runs_is_the_timeline_projection() {
+        // The dial's ContextRuns are exactly the Timeline runs minus segments (one source).
+        let events = vec![
+            ev(0, 600, "Cursor", Some(1), Some(1)),
+            ev(600, 650, "Slack", Some(2), None), // absorbed into the deep run
+            ev(650, 1200, "Cursor", Some(1), Some(1)),
+            ev(1200, 1500, "Slack", Some(2), None), // tail comms — its own run
+        ];
+        let day = build_day_view(&events, &ctx_map(), &proj_map());
+        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        assert_eq!(day.runs.len(), tl.runs.len());
+        for (cr, tr) in day.runs.iter().zip(tl.runs.iter()) {
+            assert_eq!(cr.context_slug, tr.context_slug);
+            assert_eq!((cr.start, cr.end, cr.secs), (tr.start, tr.end, tr.secs));
+        }
     }
 }
