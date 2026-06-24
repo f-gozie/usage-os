@@ -1,0 +1,263 @@
+{
+  "builtTestProducts" : [
+
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.usageos-ai-arm64-apple-macosx26.0-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos_ai.build/sources",
+      "importPath" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/Sources/usageos-ai/main.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos_ai.build/sources"
+        }
+      ],
+      "isLibrary" : false,
+      "moduleName" : "usageos_ai",
+      "moduleOutputPath" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/Modules/usageos_ai.swiftmodule",
+      "objects" : [
+        "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos_ai.build/main.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx26.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-Xfrontend",
+        "-entry-point-function-name",
+        "-Xfrontend",
+        "usageos_ai_main",
+        "-swift-version",
+        "6",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "foundation_models"
+      ],
+      "outputFileMapPath" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos_ai.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos_ai.build/main.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/Modules/usageos_ai.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/Sources/usageos-ai/main.swift"
+      ],
+      "tempsPath" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos_ai.build",
+      "wholeModuleOptimization" : false
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "usageos_ai" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "usageos_ai",
+      "-package-name",
+      "foundation_models",
+      "-c",
+      "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/Sources/usageos-ai/main.swift",
+      "-I",
+      "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx26.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-Xfrontend",
+      "-entry-point-function-name",
+      "-Xfrontend",
+      "usageos_ai_main",
+      "-swift-version",
+      "6",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "foundation_models",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "usageos_ai" : [
+
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+    },
+    "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos-ai-entitlement.plist" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<entitlement-plist>"
+        },
+        {
+          "kind" : "virtual",
+          "name" : "<com.apple.security.get-task-allow>"
+        }
+      ],
+      "outputFilePath" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos-ai-entitlement.plist"
+    },
+    "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos-ai.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos_ai.build/main.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos-ai.product/Objects.LinkFileList"
+    },
+    "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos_ai.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/Sources/usageos-ai/main.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/favour/Documents/projects/usage_os/spikes/foundation-models/.build/arm64-apple-macosx/debug/usageos_ai.build/sources"
+    }
+  }
+}
