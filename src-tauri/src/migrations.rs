@@ -45,6 +45,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "drop_away_app_spans",
         sql: include_str!("../migrations/0005_drop_away_app_spans.sql"),
     },
+    Migration {
+        version: 6,
+        name: "relatable_default_categories",
+        sql: include_str!("../migrations/0006_relatable_default_categories.sql"),
+    },
 ];
 
 /// FNV-1a (64-bit): a small, stable, dependency-free hash. Not cryptographic — its only
@@ -178,8 +183,9 @@ mod tests {
     }
 
     #[test]
-    fn seeds_the_four_canonical_contexts() {
+    fn seeds_the_five_canonical_categories_with_relatable_names() {
         let conn = fresh();
+        // Slugs are the stable identity (incl. the fifth, `personal`, from 0006).
         let slugs: Vec<String> = conn
             .prepare("SELECT slug FROM categories WHERE slug IS NOT NULL ORDER BY slug")
             .unwrap()
@@ -187,7 +193,45 @@ mod tests {
             .unwrap()
             .filter_map(|r| r.ok())
             .collect();
-        assert_eq!(slugs, vec!["breaks", "comms", "deep", "research"]);
+        assert_eq!(
+            slugs,
+            vec!["breaks", "comms", "deep", "personal", "research"]
+        );
+
+        // 0006 renamed the four canonical display names to plain words.
+        let name = |slug: &str| -> String {
+            conn.query_row("SELECT name FROM categories WHERE slug = ?1", [slug], |r| {
+                r.get(0)
+            })
+            .unwrap()
+        };
+        assert_eq!(name("deep"), "Work");
+        assert_eq!(name("research"), "Browsing");
+        assert_eq!(name("comms"), "Messaging");
+        assert_eq!(name("breaks"), "Entertainment");
+        assert_eq!(name("personal"), "Personal");
+    }
+
+    #[test]
+    fn fresh_install_routes_media_apps_to_personal() {
+        // On a fresh DB, 0006's starter rules sort media/life apps into Personal, and it
+        // wins over the old Entertainment rule for Spotify (the breaks rule was removed).
+        let conn = fresh();
+        let personal: i64 = conn
+            .query_row(
+                "SELECT id FROM categories WHERE slug = 'personal'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            crate::db::find_category(&conn, "Spotify", "").unwrap(),
+            Some(personal)
+        );
+        assert_eq!(
+            crate::db::find_category(&conn, "FaceTime", "").unwrap(),
+            Some(personal)
+        );
     }
 
     #[test]

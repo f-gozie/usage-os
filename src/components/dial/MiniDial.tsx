@@ -1,6 +1,6 @@
-import { contextColorVar } from "@/lib/contexts";
+import { categoryColorVar } from "@/lib/categories";
 import { arcPath, minutesSinceMidnight, polar } from "@/lib/geometry";
-import type { ContextRun } from "@/lib/tauri";
+import type { CategoryRun } from "@/lib/tauri";
 
 // A compact dial: same 24h polar geometry as the day Dial, sized for the Week grid.
 const C = 40; // centre of the 80×80 viewBox
@@ -11,7 +11,7 @@ const CASING_W = 8; // 1px of ink either side (R77); transparent in dark themes
 const TRIM_MIN = 3; // breathing room trimmed from each run end
 
 export interface MiniDialProps {
-  runs: ContextRun[];
+  runs: CategoryRun[];
   /** Local midnight (Unix secs) of this day — the angular origin. */
   dayStartUnix: number;
   /** Minutes past midnight for the now-triangle (today only); omit/null otherwise. */
@@ -20,7 +20,7 @@ export interface MiniDialProps {
   label?: string;
 }
 
-/** A small 24-hour dial for the Week grid: context-run arcs + idle track + (today) the
+/** A small 24-hour dial for the Week grid: category-run arcs + idle track + (today) the
  *  now-triangle. No centre figure — the day label and total sit beneath it in the cell. */
 export function MiniDial({ runs, dayStartUnix, nowMinutes = null, label }: MiniDialProps) {
   const arcs = runs.map((run) => {
@@ -29,7 +29,7 @@ export function MiniDial({ runs, dayStartUnix, nowMinutes = null, label }: MiniD
     const trim = endMin - startMin > TRIM_MIN * 2;
     const a = trim ? startMin + TRIM_MIN : startMin;
     const b = trim ? endMin - TRIM_MIN : endMin;
-    return { key: `${run.start}-${run.end}`, d: arcPath(C, C, R, a, b), color: contextColorVar(run.context_slug) };
+    return { key: `${run.start}-${run.end}`, d: arcPath(C, C, R, a, b), color: categoryColorVar(run.category_slug) };
   });
   const triangle = nowMinutes == null ? null : trianglePoints(nowMinutes);
 

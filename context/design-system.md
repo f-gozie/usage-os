@@ -14,7 +14,7 @@ _Machine-readable design contract. **Frozen 2026-06-23** at the end of the desig
 
 ### Hard-learned rules (these bit us — obey them)
 
-1. **Colour encodes ONE thing: context** (kind of work — a fixed 4-item vocabulary). **Projects are identified by NAME (text), never colour** — they're an open-ended set, so colour doesn't scale and would clash with the context palette. (D34)
+1. **Colour encodes ONE thing: category** (kind of activity — a fixed 5-item vocabulary: Work · Browsing · Messaging · Entertainment · Personal, D47). **Projects are identified by NAME (text), never colour** — they're an open-ended set, so colour doesn't scale and would clash with the category palette. (D34)
 2. **Never put text inside a proportional segment.** A label sealed in a bar segment clips the moment the segment is narrow, the names are long, or there are many of them. Labels go *outside*, in a line that can wrap. (Within-context project share = a plain `usageos 1h 3m · nudge 39m` line, not a bar.)
 3. **Write for someone who isn't a developer.** No permission jargon ("Screen Recording"), no insider lingo ("real, not inferred"), no niche-tech examples (`db.rs — usage_os`). Plain, honest, accurate. See Copy & voice.
 4. **Theme-safe inverted bars.** The ink titlebar / footer / settings headers invert via `--bar-bg`/`--bar-fg`, not `--edge`/`--bg` (those produce dark-on-dark in the dark themes).
@@ -32,17 +32,18 @@ Every screen is driven by CSS variables on `[data-theme]`. Exact values (the con
 | `--edge` | `#161616` | `#4A453B` | `#2F2F2F` | structural borders (2–3px) |
 | `--rule` | `rgba(22,22,22,.16)` | `rgba(237,233,221,.14)` | `rgba(244,244,242,.12)` | hairline separators |
 | `--track` | `#D7D3C7` | `#39342B` | `#252525` | idle / empty arc + bars |
-| `--c-deep` | `#1B45BE` | `#3358E0` | `#3A6BF0` | **Deep work** |
-| `--c-research` | `#E0241B` | `#F0463C` | `#FF4B40` | **Research** |
-| `--c-comms` | `#EAB308` | `#F2BC0C` | `#F5C518` | **Comms** |
-| `--c-breaks` | `#161616` | `#CFC9B8` | `#C6C6C4` | **Breaks** (ink in light → bone in dark) |
+| `--c-deep` | `#1B45BE` | `#3358E0` | `#3A6BF0` | **Work** (slug `deep`) |
+| `--c-research` | `#E0241B` | `#F0463C` | `#FF4B40` | **Browsing** (slug `research`) |
+| `--c-comms` | `#EAB308` | `#F2BC0C` | `#F5C518` | **Messaging** (slug `comms`) |
+| `--c-breaks` | `#161616` | `#CFC9B8` | `#C6C6C4` | **Entertainment** (slug `breaks`; ink in light → bone in dark) |
+| `--c-personal` | `#2E8B57` | `#46B97E` | `#4FCB8A` | **Personal** (slug `personal`; D47) |
 | `--now` | `#161616` | `#EDE9DD` | `#F4F4F2` | the "now" triangle |
 | `--casing` | `#161616` | `transparent` | `transparent` | arc outline (R77) |
 | `--on-ink` | `#EEEBE1` | `#1A1916` | `#0E0E0E` | text on a context fill |
 | `--bar-bg` | `#161616` | `#100F0C` | `#000000` | inverted bar bg |
 | `--bar-fg` | `#EEEBE1` | `#EDE9DD` | `#F4F4F2` | inverted bar text |
 
-**Context → colour (the dial / legend / ledger / timeline):** Deep work → `--c-deep` · Research → `--c-research` · Comms → `--c-comms` · Breaks → `--c-breaks`. Idle = faint `--track`.
+**Category → colour (the dial / legend / ledger / timeline):** Work → `--c-deep` · Browsing → `--c-research` · Messaging → `--c-comms` · Entertainment → `--c-breaks` · Personal → `--c-personal`. Idle = faint `--track`. (Token names keep the original slugs — D46/D47 — so they don't drift when display names change.)
 
 ### R77 — resolved (Option A, locked)
 

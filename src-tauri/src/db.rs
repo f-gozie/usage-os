@@ -1,5 +1,7 @@
 use rusqlite::{Connection, OptionalExtension, Result};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -43,6 +45,17 @@ pub struct ActivityLog {
     pub project_abstain_reason: Option<String>,
     /// A "private" app (D8): time counts, but title/url are not recorded.
     pub is_private: bool,
+}
+
+/// An app with tracked time that matches no rule — its `category_id` is NULL, so it
+/// rolls up as "Uncategorized" (Other). Surfaced in Settings so the user can sort it
+/// into a category. `total_secs`/`last_seen` are all-time (retention-bounded): sorting
+/// it once re-sorts every past day it appears on (read-time segmentation, D40).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct UncategorizedApp {
+    pub process_name: String,
+    pub total_secs: i64,
+    pub last_seen: i64,
 }
 
 /// A canonical project (D30). Keyed on the git remote `owner/repo` (or folder name
@@ -104,9 +117,16 @@ pub struct NewEvent<'a> {
     pub timestamp: i64,
 }
 
+/// A category (the redesign's noun for the legacy `categories` table — the SQL table
+/// and column names stay `categories`/`category_id` per D31; only the IPC surface is
+/// renamed). `slug` carries the canonical identity (`deep`|`research`|`comms`|`breaks`)
+/// the UI maps to a colour token `--c-<slug>`; `None` = a user-created category (it
+/// supplies its own `color`). Exposing `slug` lets the editor protect the canonical
+/// four from deletion and colour their swatches from the theme-aware token.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Category {
     pub id: i64,
+    pub slug: Option<String>,
     pub name: String,
     pub color: String,
 }
@@ -114,6 +134,9 @@ pub struct Category {
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Rule {
     pub id: i64,
+    // The owning category. The SQL column stays `category_id` (D31); the IPC field is
+    // `category_id`. (`ActivityLog.category_id` keeps the legacy name — it's read in the
+    // hot rollup/capture paths and renaming it buys no IPC-naming win.)
     pub category_id: i64,
     pub match_field: String, // "process" or "title"
     pub pattern: String,
@@ -248,24 +271,55 @@ pub fn get_activity_logs(
     logs.collect()
 }
 
-// --- Category CRUD ---
+/// Trivial uncategorized spans below this (active seconds, all-time) are hidden from the
+/// Settings list to keep it calm — a sub-minute glance isn't worth sorting.
+const UNCATEGORIZED_FLOOR_SECS: i64 = 60;
 
-pub fn get_categories(conn: &Connection) -> Result<Vec<Category>> {
-    let mut stmt = conn.prepare("SELECT id, name, color FROM categories ORDER BY name ASC")?;
-    let rows = stmt.query_map([], |row| {
-        Ok(Category {
-            id: row.get(0)?,
-            name: row.get(1)?,
-            color: row.get(2)?,
+/// Apps with tracked time but no matching rule (`category_id IS NULL`), grouped by app
+/// with their all-time active total and last-seen time. Excludes idle and trivial
+/// (<`UNCATEGORIZED_FLOOR_SECS`) spans; ranked by total desc. Powers the Settings
+/// "Uncategorized" list — sorting one writes a rule + reprocess fixes every past day.
+pub fn get_uncategorized_apps(conn: &Connection) -> Result<Vec<UncategorizedApp>> {
+    let mut stmt = conn.prepare(
+        "SELECT process_name,
+                SUM(end_time - start_time) AS total_secs,
+                MAX(end_time) AS last_seen
+         FROM activity_logs
+         WHERE category_id IS NULL AND is_idle = 0
+         GROUP BY process_name
+         HAVING total_secs >= ?1
+         ORDER BY total_secs DESC",
+    )?;
+    let rows = stmt.query_map([UNCATEGORIZED_FLOOR_SECS], |row| {
+        Ok(UncategorizedApp {
+            process_name: row.get(0)?,
+            total_secs: row.get(1)?,
+            last_seen: row.get(2)?,
         })
     })?;
     rows.collect()
 }
 
-/// Context identity for the rollup: `(id, slug, name)`. `slug` (e.g. "deep") maps to a
-/// colour token in the UI; `None` for a user-created context. Kept separate from
+// --- Category CRUD (the `categories` table; IPC noun is "category", D31) ---
+
+pub fn get_categories(conn: &Connection) -> Result<Vec<Category>> {
+    let mut stmt =
+        conn.prepare("SELECT id, slug, name, color FROM categories ORDER BY name ASC")?;
+    let rows = stmt.query_map([], |row| {
+        Ok(Category {
+            id: row.get(0)?,
+            slug: row.get(1)?,
+            name: row.get(2)?,
+            color: row.get(3)?,
+        })
+    })?;
+    rows.collect()
+}
+
+/// Category identity for the rollup: `(id, slug, name)`. `slug` (e.g. "deep") maps to a
+/// colour token in the UI; `None` for a user-created category. Kept separate from
 /// [`get_categories`] so the slug stays out of the legacy IPC `Category` shape.
-pub fn get_context_metas(conn: &Connection) -> Result<Vec<(i64, Option<String>, String)>> {
+pub fn get_category_metas(conn: &Connection) -> Result<Vec<(i64, Option<String>, String)>> {
     let mut stmt = conn.prepare("SELECT id, slug, name FROM categories")?;
     let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
     rows.collect()
@@ -277,6 +331,17 @@ pub fn create_category(conn: &Connection, name: &str, color: &str) -> Result<i64
         (name, color),
     )?;
     Ok(conn.last_insert_rowid())
+}
+
+/// Rename / recolour a category (name + colour only — `slug` is immutable canonical
+/// identity, never edited). The Settings editor uses this for both canonical and
+/// user-created categories.
+pub fn update_category(conn: &Connection, id: i64, name: &str, color: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE categories SET name = ?1, color = ?2 WHERE id = ?3",
+        (name, color, id),
+    )?;
+    Ok(())
 }
 
 pub fn delete_category(conn: &Connection, id: i64) -> Result<()> {
@@ -394,6 +459,86 @@ pub fn cleanup_old_data(conn: &Connection, retention_days: i64) -> Result<usize>
         );
     }
     Ok(deleted)
+}
+
+// --- Data ownership: export / wipe ---
+
+/// Map an `io::Error` (from writing the CSV) into a `rusqlite::Error` so the export
+/// can share the repository's `Result` type; the underlying message is preserved.
+fn io_to_db_err(e: std::io::Error) -> rusqlite::Error {
+    rusqlite::Error::ToSqlConversionFailure(Box::new(e))
+}
+
+/// Escape one CSV field per RFC 4180: wrap in double-quotes and double any internal
+/// quote when the field contains `"`, `,`, CR or LF. Borrows when no escaping is needed.
+fn csv_field(s: &str) -> Cow<'_, str> {
+    if s.contains(['"', ',', '\n', '\r']) {
+        Cow::Owned(format!("\"{}\"", s.replace('"', "\"\"")))
+    } else {
+        Cow::Borrowed(s)
+    }
+}
+
+/// An optional text column: escaped when present, an empty field when absent.
+fn csv_opt(v: Option<&str>) -> Cow<'_, str> {
+    v.map(csv_field).unwrap_or(Cow::Borrowed(""))
+}
+
+/// Stream every event to `w` as RFC-4180 CSV: a header row then one row per event,
+/// oldest first. Reuses [`ACTIVITY_LOG_COLUMNS`] + [`row_to_activity_log`] so the export
+/// shape can never drift from [`ActivityLog`]. Rows are written as they're read (flat
+/// memory). Returns the number of data rows written.
+pub fn export_events_csv<W: Write>(conn: &Connection, w: &mut W) -> Result<usize> {
+    writeln!(
+        w,
+        "id,process_name,window_title,start_time,end_time,is_idle,category_id,url,site,project_id,project_abstain_reason,is_private"
+    )
+    .map_err(io_to_db_err)?;
+
+    let sql = format!("SELECT {ACTIVITY_LOG_COLUMNS} FROM activity_logs ORDER BY start_time ASC");
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query([])?;
+    let mut count = 0usize;
+    while let Some(row) = rows.next()? {
+        let e = row_to_activity_log(row)?;
+        let num = |v: Option<i64>| v.map(|n| n.to_string()).unwrap_or_default();
+        writeln!(
+            w,
+            "{},{},{},{},{},{},{},{},{},{},{},{}",
+            e.id,
+            csv_field(&e.process_name),
+            csv_field(&e.window_title),
+            e.start_time,
+            e.end_time,
+            e.is_idle as i64,
+            num(e.category_id),
+            csv_opt(e.url.as_deref()),
+            csv_opt(e.site.as_deref()),
+            num(e.project_id),
+            csv_opt(e.project_abstain_reason.as_deref()),
+            e.is_private as i64,
+        )
+        .map_err(io_to_db_err)?;
+        count += 1;
+    }
+    Ok(count)
+}
+
+/// Wipe the captured record — events plus the registries derived purely from them
+/// (projects + their aliases via cascade, sites) — in a single transaction. **Preserves**
+/// user configuration: categories (`categories`), rules, exclusions, settings, and the
+/// migration ledger. The capture writer shares this connection's `Mutex`, so it can't
+/// interleave; its in-memory open-span id simply becomes a no-op `UPDATE` after the wipe
+/// (the next focus change opens a fresh span). No `VACUUM` — freed pages are reclaimed
+/// lazily; immediate reclaim isn't worth rewriting the whole file here.
+pub fn delete_all_data(conn: &mut Connection) -> Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute("DELETE FROM activity_logs", [])?;
+    tx.execute("DELETE FROM project_aliases", [])?;
+    tx.execute("DELETE FROM projects", [])?;
+    tx.execute("DELETE FROM sites", [])?;
+    tx.commit()?;
+    Ok(())
 }
 
 // --- Settings ---
@@ -686,6 +831,34 @@ mod tests {
         conn
     }
 
+    /// Insert a span with an explicit duration (the bare `insert_activity_log` helper
+    /// makes zero-length spans, which the uncategorized SUM would never surface).
+    fn span(conn: &Connection, app: &str, start: i64, secs: i64, cat: Option<i64>, idle: bool) {
+        conn.execute(
+            "INSERT INTO activity_logs (process_name, window_title, start_time, end_time, is_idle, category_id)
+             VALUES (?1, '', ?2, ?3, ?4, ?5)",
+            rusqlite::params![app, start, start + secs, idle as i64, cat],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn uncategorized_apps_groups_ranks_and_floors() {
+        let conn = setup_test_db();
+        span(&conn, "Obsidian", 1000, 120, None, false);
+        span(&conn, "Obsidian", 2000, 180, None, false); // → 300 total, last_seen 2180
+        span(&conn, "TablePlus", 3000, 90, None, false);
+        span(&conn, "Tiny", 4000, 30, None, false); // below the 60s floor → hidden
+        span(&conn, "Cursor", 5000, 600, Some(1), false); // categorized → excluded
+        span(&conn, "idlewatch", 6000, 600, None, true); // idle → excluded
+
+        let apps = get_uncategorized_apps(&conn).unwrap();
+        let names: Vec<&str> = apps.iter().map(|a| a.process_name.as_str()).collect();
+        assert_eq!(names, vec!["Obsidian", "TablePlus"]); // ranked by total desc
+        assert_eq!(apps[0].total_secs, 300);
+        assert_eq!(apps[0].last_seen, 2180);
+    }
+
     // --- Schema tests ---
 
     #[test]
@@ -814,22 +987,22 @@ mod tests {
     #[test]
     fn test_category_crud() {
         let conn = setup_test_db();
-        // The 4 canonical contexts are seeded by migration 2, so assert against that
+        // The 4 canonical categories are seeded by migration 2, so assert against that
         // baseline rather than an empty table.
         let baseline = get_categories(&conn).unwrap().len();
 
         // Create
-        let id = create_category(&conn, "Work", "#0000ff").unwrap();
+        let id = create_category(&conn, "Errands", "#0000ff").unwrap();
         assert!(id > 0);
 
         // Read
         let cats = get_categories(&conn).unwrap();
         assert_eq!(cats.len(), baseline + 1);
-        let work = cats
+        let errands = cats
             .iter()
-            .find(|c| c.name == "Work")
-            .expect("Work category");
-        assert_eq!(work.color, "#0000ff");
+            .find(|c| c.name == "Errands")
+            .expect("Errands category");
+        assert_eq!(errands.color, "#0000ff");
 
         // Delete
         delete_category(&conn, id).unwrap();
@@ -839,7 +1012,7 @@ mod tests {
     #[test]
     fn test_delete_category_cascades_rules() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Work", "#0000ff").unwrap();
+        let cat_id = create_category(&conn, "Errands", "#0000ff").unwrap();
         create_rule(&conn, cat_id, "process", "slack", false).unwrap();
 
         assert_eq!(get_rules(&conn).unwrap().len(), 1);
@@ -852,7 +1025,7 @@ mod tests {
     #[test]
     fn test_delete_category_nullifies_activity_logs() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Work", "#0000ff").unwrap();
+        let cat_id = create_category(&conn, "Errands", "#0000ff").unwrap();
         insert_activity_log(&conn, "slack", "General", false, 1000, Some(cat_id)).unwrap();
 
         delete_category(&conn, cat_id).unwrap();
@@ -1259,5 +1432,145 @@ mod tests {
         assert_eq!(logs[0].project_id, None);
         assert_eq!(logs[0].project_abstain_reason, None);
         assert!(!logs[0].is_private);
+    }
+
+    // --- Category update test ---
+
+    #[test]
+    fn test_update_category_persists_name_and_color() {
+        let conn = setup_test_db();
+        let id = create_category(&conn, "Old", "#000000").unwrap();
+        update_category(&conn, id, "New", "#ffffff").unwrap();
+        let c = get_categories(&conn)
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == id)
+            .expect("category");
+        assert_eq!(c.name, "New");
+        assert_eq!(c.color, "#ffffff");
+    }
+
+    #[test]
+    fn test_get_categories_exposes_canonical_slug() {
+        let conn = setup_test_db();
+        // The 4 canonical seeds (migration 2) carry slugs; a user category does not.
+        assert!(get_categories(&conn)
+            .unwrap()
+            .iter()
+            .any(|c| c.slug.as_deref() == Some("deep")));
+        let id = create_category(&conn, "Mine", "#123456").unwrap();
+        assert!(get_categories(&conn)
+            .unwrap()
+            .iter()
+            .any(|c| c.id == id && c.slug.is_none()));
+    }
+
+    // --- Data ownership: CSV export + delete-all ---
+
+    #[test]
+    fn test_export_events_csv_header_and_rows() {
+        let conn = setup_test_db();
+        insert_activity_log(&conn, "firefox", "GitHub", false, 1000, None).unwrap();
+        insert_activity_log(&conn, "code", "main.rs", false, 1010, None).unwrap();
+
+        let mut buf: Vec<u8> = Vec::new();
+        let n = export_events_csv(&conn, &mut buf).unwrap();
+        assert_eq!(n, 2);
+        let csv = String::from_utf8(buf).unwrap();
+        let lines: Vec<&str> = csv.lines().collect();
+        assert_eq!(lines.len(), 3, "header + 2 rows");
+        assert!(lines[0].starts_with("id,process_name,window_title,"));
+        assert_eq!(lines[0].split(',').count(), 12, "12 columns");
+        assert!(lines[1].contains("firefox"));
+        assert!(lines[2].contains("code"));
+    }
+
+    #[test]
+    fn test_export_events_csv_escapes_special_chars() {
+        let conn = setup_test_db();
+        // A title with a comma, embedded quotes, and a newline — the load-bearing case.
+        insert_activity_log(&conn, "chrome", "He said \"hi\", bye\nx", false, 1000, None).unwrap();
+
+        let mut buf: Vec<u8> = Vec::new();
+        export_events_csv(&conn, &mut buf).unwrap();
+        let csv = String::from_utf8(buf).unwrap();
+        assert!(
+            csv.contains("\"He said \"\"hi\"\", bye\nx\""),
+            "field must be quoted with doubled internal quotes; got: {csv}"
+        );
+    }
+
+    #[test]
+    fn test_export_events_csv_empty_db_and_empty_optionals() {
+        let conn = setup_test_db();
+        // Empty DB → header only.
+        let mut buf: Vec<u8> = Vec::new();
+        let n = export_events_csv(&conn, &mut buf).unwrap();
+        assert_eq!(n, 0);
+        assert_eq!(String::from_utf8(buf).unwrap().lines().count(), 1);
+
+        // A bare event leaves url/site/project/abstain/category empty (not "None").
+        insert_activity_log(&conn, "code", "main.rs", false, 1000, None).unwrap();
+        let mut buf2: Vec<u8> = Vec::new();
+        export_events_csv(&conn, &mut buf2).unwrap();
+        let body = String::from_utf8(buf2).unwrap();
+        let row = body.lines().nth(1).expect("data row");
+        let cols: Vec<&str> = row.split(',').collect();
+        assert_eq!(cols.len(), 12);
+        assert_eq!(cols[6], "", "category_id empty");
+        assert_eq!(cols[7], "", "url empty");
+        assert_eq!(cols[8], "", "site empty");
+        assert_eq!(cols[9], "", "project_id empty");
+        assert_eq!(cols[10], "", "abstain empty");
+        assert_eq!(cols[11], "0", "is_private");
+        assert!(!row.contains("None"));
+    }
+
+    #[test]
+    fn test_delete_all_data_wipes_record_preserves_config() {
+        let mut conn = setup_test_db();
+        // Captured record: event + project(+alias) + site.
+        let pid =
+            resolve_or_create_project(&conn, "owner/repo", "repo", None, &[("folder", "repo")])
+                .unwrap();
+        insert_event(
+            &conn,
+            &NewEvent {
+                process_name: "code",
+                window_title: "x",
+                project_id: Some(pid),
+                timestamp: 1000,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        resolve_or_create_site(&conn, "github.com", None, "project-host").unwrap();
+        // Config that must survive.
+        let ctx = create_category(&conn, "Mine", "#123456").unwrap();
+        create_rule(&conn, ctx, "process", "zed", false).unwrap();
+        create_exclusion(&conn, "app", "1Password", "exclude").unwrap();
+        set_setting(&conn, "theme", "warm").unwrap();
+
+        delete_all_data(&mut conn).unwrap();
+
+        // Record gone (incl. cascaded aliases).
+        assert!(get_activity_logs(&conn, 0, 9999).unwrap().is_empty());
+        assert!(get_projects(&conn).unwrap().is_empty());
+        let aliases: i64 = conn
+            .query_row("SELECT COUNT(*) FROM project_aliases", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(aliases, 0, "aliases cascade with projects");
+        assert!(get_sites(&conn).unwrap().is_empty());
+        // Config preserved.
+        assert!(get_categories(&conn)
+            .unwrap()
+            .iter()
+            .any(|c| c.name == "Mine"));
+        assert_eq!(get_rules(&conn).unwrap().len(), 1);
+        assert_eq!(get_exclusions(&conn).unwrap().len(), 1);
+        assert_eq!(
+            get_setting(&conn, "theme").unwrap(),
+            Some("warm".to_string())
+        );
     }
 }

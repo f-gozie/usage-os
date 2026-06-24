@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Contexts &amp; rules (proposal)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616;
+  --now:#161616; --casing:#161616; --on-ink:#EEEBE1; --bar-bg:#161616; --bar-fg:#EEEBE1;
+  --warn-bg:rgba(224,36,27,.08);
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8;
+  --now:#EDE9DD; --casing:transparent; --on-ink:#1A1916; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+  --warn-bg:rgba(240,70,60,.12);
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4;
+  --now:#F4F4F2; --casing:transparent; --on-ink:#0E0E0E; --bar-bg:#000000; --bar-fg:#F4F4F2;
+  --warn-bg:rgba(255,75,64,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);transition:background .25s;}
+body{font-family:'Jost',system-ui,sans-serif;color:var(--fg);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center;padding:22px 18px 60px;}
+button{font-family:inherit;cursor:pointer;}
+a{color:inherit;text-decoration:none;}
+
+/* proposal notes strip (not part of product chrome) */
+.notes{width:100%;max-width:1000px;border:2px dashed var(--rule);padding:13px 16px;margin-bottom:18px;font-size:12.5px;color:var(--muted);line-height:1.65;}
+.notes b{font-family:'Anton';font-weight:400;letter-spacing:.03em;text-transform:uppercase;color:var(--fg);font-size:12px;}
+.notes ul{margin:7px 0 0 17px;}
+.notes li{margin:2px 0;}
+.notes code{font-weight:600;color:var(--fg);background:var(--surface);border:1px solid var(--rule);padding:0 5px;}
+.notes .try{color:var(--fg);font-weight:600;}
+
+.app{width:100%;max-width:1000px;background:var(--bg);border:3px solid var(--edge);border-radius:5px;overflow:hidden;}
+.tb{background:var(--bar-bg);display:flex;align-items:center;gap:9px;padding:11px 16px;}
+.tbd{width:12px;height:12px;border-radius:50%;}
+.tbn{flex:1;text-align:center;color:var(--bar-fg);font-weight:600;font-size:12px;letter-spacing:.34em;text-transform:uppercase;margin-left:-46px;}
+.tbs{color:rgba(255,255,255,.6);font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;display:flex;align-items:center;gap:6px;}
+.tbs .live{width:8px;height:8px;border-radius:50%;background:var(--c-comms);animation:pulse 2.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.hd{display:flex;justify-content:space-between;align-items:flex-end;padding:18px 22px 0;}
+.brand{font-family:'Anton',sans-serif;font-size:36px;line-height:.82;text-transform:uppercase;letter-spacing:.01em;}
+.brand .o{color:var(--c-research);}
+.hd .right{display:flex;align-items:center;gap:16px;}
+.hd .date{text-align:right;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);line-height:1.6;}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-weight:600;font-size:10px;letter-spacing:.08em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 9px;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+.tabs{display:flex;align-items:center;gap:0;margin:16px 22px 0;border-bottom:3px solid var(--edge);}
+.tabs a{font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:11px 16px;color:var(--muted);position:relative;top:3px;border-bottom:3px solid transparent;}
+.tabs a.on{color:var(--fg);border-bottom-color:var(--fg);}
+.panel{padding:22px;}
+
+.setgrp{border:3px solid var(--edge);margin-bottom:18px;}
+.setgrp h4{font-family:'Anton',sans-serif;font-size:15px;text-transform:uppercase;letter-spacing:.04em;background:var(--bar-bg);color:var(--bar-fg);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;}
+.setgrp h4 .meta{font-family:'Jost';font-size:10px;font-weight:600;letter-spacing:.12em;color:rgba(255,255,255,.55);}
+.intro{font-size:12.5px;color:var(--muted);line-height:1.55;padding:12px 16px;border-top:2px solid var(--edge);background:var(--surface);}
+.intro strong{color:var(--fg);}
+
+/* contexts editor */
+.crow{display:flex;align-items:center;gap:13px;padding:13px 16px;border-top:2px solid var(--edge);}
+.crow .s{width:18px;height:18px;border:1px solid var(--edge);flex-shrink:0;}
+.crow .cn{font-weight:600;font-size:14px;text-transform:uppercase;letter-spacing:.02em;width:108px;flex-shrink:0;}
+.crow .chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;align-items:center;}
+.iconbtn{border:2px solid var(--edge);background:var(--bg);color:var(--fg);width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.addrow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 16px;border-top:2px solid var(--edge);background:var(--surface);}
+.addbtn{border:2px solid var(--edge);background:var(--bg);color:var(--fg);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:8px 14px;}
+
+/* app chip (icon + name), the new rule token */
+.appchip{display:inline-flex;align-items:center;gap:6px;border:2px solid var(--edge);background:var(--bg);padding:3px 8px 3px 4px;font-size:12.5px;font-weight:600;line-height:1;white-space:nowrap;}
+.appchip img,.appchip .mono{width:16px;height:16px;border-radius:3px;flex-shrink:0;}
+.appchip.title{background:var(--surface);font-family:'Jost';}
+.appchip.title .tk{color:var(--muted);font-weight:600;}
+.mono{display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:var(--on-ink);}
+.appchip .x{color:var(--muted);font-size:13px;margin-left:1px;cursor:pointer;}
+.morechip{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.04em;}
+
+/* unsorted apps */
+.unrow{display:flex;align-items:center;gap:12px;padding:12px 16px;border-top:2px solid var(--edge);}
+.unrow img,.unrow .mono{width:26px;height:26px;border-radius:5px;flex-shrink:0;}
+.unrow .un-n{font-weight:600;font-size:14px;}
+.unrow .un-t{font-size:12px;color:var(--muted);margin-top:1px;}
+.unrow .spacer{flex:1;}
+.assign{position:relative;}
+.assignbtn{border:2px solid var(--edge);background:var(--bg);color:var(--fg);font-weight:600;font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;padding:7px 11px;display:flex;align-items:center;gap:7px;}
+.menu{position:absolute;right:0;top:calc(100% + 4px);background:var(--bg);border:2px solid var(--edge);min-width:172px;z-index:5;display:none;}
+.menu.open{display:block;}
+.menu button{display:flex;width:100%;align-items:center;gap:9px;background:transparent;border:none;padding:9px 12px;font-weight:600;font-size:12.5px;color:var(--fg);text-align:left;}
+.menu button+button{border-top:1px solid var(--rule);}
+.menu button:hover{background:var(--surface);}
+.menu .dot{width:12px;height:12px;border:1px solid var(--edge);flex-shrink:0;}
+.unsub{font-size:12px;color:var(--muted);padding:0 16px;}
+
+/* exclusions */
+.exrow{display:flex;align-items:center;gap:12px;padding:13px 16px;border-top:2px solid var(--edge);}
+.exrow img,.exrow .mono{width:22px;height:22px;border-radius:4px;flex-shrink:0;}
+.tag{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border:2px solid var(--edge);padding:3px 8px;color:var(--muted);flex-shrink:0;width:54px;text-align:center;}
+.pat{font-weight:600;font-size:14px;flex:1;}
+.pat .sub{font-weight:500;font-size:12px;color:var(--muted);}
+.modepill{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border:2px solid var(--edge);}
+.modepill.excl{background:var(--edge);color:var(--bg);}
+.modepill.priv{background:var(--bg);color:var(--fg);}
+.locked{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:5px;}
+.pill{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:2px solid var(--edge);padding:5px 11px;background:var(--bg);color:var(--fg);white-space:nowrap;}
+
+.foot{background:var(--bar-bg);color:var(--bar-fg);font-size:10px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;text-align:center;padding:11px;}
+
+/* ── modal ─────────────────────────────────────────────── */
+.scrim{position:fixed;inset:0;background:rgba(8,8,8,.55);display:none;align-items:flex-start;justify-content:center;padding:48px 18px;z-index:50;overflow:auto;}
+.scrim.open{display:flex;}
+.sheet{width:100%;max-width:560px;background:var(--surface);border:3px solid var(--edge);}
+.sheet .shd{background:var(--bar-bg);color:var(--bar-fg);display:flex;justify-content:space-between;align-items:center;padding:13px 18px;}
+.sheet .shd h3{font-family:'Anton';font-weight:400;font-size:16px;letter-spacing:.05em;text-transform:uppercase;}
+.sheet .shd .x{color:rgba(255,255,255,.6);font-size:18px;background:none;border:none;}
+.sbody{padding:18px;}
+.fl{font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 7px;}
+.fl .hint{font-family:'Jost';font-weight:500;letter-spacing:.02em;text-transform:none;color:var(--muted);font-size:11.5px;margin-left:8px;}
+.field+.field{margin-top:17px;}
+.inp{width:100%;border:2px solid var(--edge);background:var(--bg);color:var(--fg);font-family:inherit;font-weight:600;font-size:14px;padding:11px 12px;}
+.inp::placeholder{color:var(--muted);font-weight:500;}
+.swatches{display:flex;gap:10px;}
+.swatches button{width:34px;height:34px;border:2px solid var(--edge);}
+.swatches button.on{outline:3px solid var(--fg);outline-offset:2px;}
+
+/* app picker */
+.search{position:relative;margin-bottom:10px;}
+.search .inp{padding-left:34px;}
+.search .mag{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;max-height:208px;overflow:auto;border:2px solid var(--edge);padding:8px;background:var(--bg);}
+.tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:9px 4px;border:2px solid transparent;background:transparent;color:var(--fg);position:relative;}
+.tile img,.tile .mono{width:34px;height:34px;border-radius:7px;}
+.tile .mono{font-size:13px;}
+.tile span{font-size:11px;font-weight:600;text-align:center;line-height:1.15;}
+.tile:hover{border-color:var(--rule);}
+.tile.sel{border-color:var(--c-deep);background:var(--bg);}
+.tile.sel::after{content:"✓";position:absolute;top:3px;right:5px;font-size:11px;font-weight:700;color:var(--c-deep);}
+.tile.other{opacity:.6;}
+.tile .owner{position:absolute;top:4px;right:5px;width:9px;height:9px;border:1px solid var(--edge);}
+
+.selrow{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px;min-height:30px;}
+.selrow .empty{font-size:12px;color:var(--muted);font-weight:500;align-self:center;}
+
+.warn{border:2px solid var(--c-research);background:var(--warn-bg);padding:11px 13px;margin-top:11px;font-size:12.5px;line-height:1.5;display:flex;gap:11px;align-items:flex-start;}
+.warn .wi{color:var(--c-research);font-weight:700;}
+.warn b{color:var(--fg);}
+.warn .acts{margin-top:7px;display:flex;gap:8px;}
+.warn .acts button{font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;padding:6px 11px;border:2px solid var(--edge);background:var(--bg);color:var(--fg);}
+.warn .acts button.go{background:var(--c-research);border-color:var(--c-research);color:#fff;}
+
+.preview{margin-top:14px;border-top:2px solid var(--rule);padding-top:12px;}
+.preview .pl{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:7px;}
+.preview .pl b{color:var(--fg);}
+.preview .pims{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.preview .pims img,.preview .pims .mono{width:22px;height:22px;border-radius:5px;}
+
+.adv{margin-top:15px;border-top:2px solid var(--rule);padding-top:13px;}
+.adv summary{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;list-style:none;}
+.adv summary::-webkit-details-marker{display:none;}
+.adv summary::before{content:"▸ ";}
+.adv[open] summary::before{content:"▾ ";}
+.adv .advbody{margin-top:11px;}
+.adv .des{font-size:12px;color:var(--muted);margin-top:7px;line-height:1.5;}
+.adv .des code{font-weight:600;color:var(--fg);background:var(--bg);border:1px solid var(--rule);padding:0 5px;}
+
+.seg{display:flex;border:2px solid var(--edge);width:max-content;}
+.seg button{font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:8px 14px;}
+.seg button+button{border-left:2px solid var(--edge);}
+.seg button.on{background:var(--edge);color:var(--bg);}
+.modeopt{display:flex;gap:11px;align-items:flex-start;padding:10px 0;}
+.modeopt input{margin-top:3px;}
+.modeopt .mo-l{font-weight:600;font-size:13.5px;}
+.modeopt .mo-d{font-size:12px;color:var(--muted);margin-top:1px;}
+
+.sfoot{display:flex;justify-content:flex-end;gap:11px;padding:15px 18px;border-top:2px solid var(--edge);background:var(--surface);}
+.btn{font-weight:600;font-size:12px;letter-spacing:.05em;text-transform:uppercase;padding:11px 18px;border:2px solid var(--edge);background:var(--bg);color:var(--fg);}
+.btn.primary{background:var(--edge);color:var(--bg);}
+.btn.primary:disabled{opacity:.4;cursor:default;}
+
+@media(max-width:680px){.brand{font-size:28px;}.crow{flex-wrap:wrap;}.crow .chips{flex-basis:100%;order:3;}}
+</style>
+</head>
+<body>
+
+<div class="notes">
+  <b>Proposal — Contexts &amp; rules, made legible.</b> Addresses the dogfooding feedback: the model wasn't clear, there was no validation, and input was blind free-text.
+  <ul>
+    <li><b style="font-size:11px">Pick from your apps, with icons</b> — “+ Add context” / ✎ Edit open a searchable grid of the apps on your Mac. No typing names blind. <span class="try">(try it)</span></li>
+    <li><b style="font-size:11px">Unsorted apps</b> — a new section surfaces apps you’ve actually used that aren’t sorted yet, with one‑click <span class="try">Assign</span>. Works from day one, before you’ve set anything up.</li>
+    <li><b style="font-size:11px">Conflicts are caught</b> — put an app in two contexts and it warns you which one wins (try adding <span class="try">Slack</span> to Deep work).</li>
+    <li><b style="font-size:11px">Plain language + a live preview</b> — matching is explained in words, and you see what a rule catches before saving. Power‑user <code>title:</code> patterns moved to an “Advanced” drawer.</li>
+  </ul>
+</div>
+
+<div class="app">
+  <div class="tb">
+    <span class="tbd" style="background:var(--c-research)"></span>
+    <span class="tbd" style="background:var(--c-comms)"></span>
+    <span class="tbd" style="background:var(--c-deep)"></span>
+    <span class="tbn">UsageOS</span>
+    <span class="tbs"><span class="live"></span>Tracking</span>
+  </div>
+  <div class="hd">
+    <div class="brand">USAGE<span class="o">OS</span></div>
+    <div class="right">
+      <div class="date">Settings</div>
+      <div class="themesw" id="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+    </div>
+  </div>
+  <div class="tabs">
+    <a href="day.html">Day</a><a href="week.html">Week</a><a href="timeline.html">Timeline</a><a href="settings.html" class="on">Settings</a>
+  </div>
+
+  <section class="panel">
+
+    <!-- Unsorted apps -->
+    <div class="setgrp">
+      <h4>Unsorted apps <span class="meta" id="unsorted-count"></span></h4>
+      <div class="intro">Apps you’ve used that aren’t in a context yet. Their time is still counted — it just shows as <strong>Other</strong> on the dial until you sort it.</div>
+      <div id="unsorted"></div>
+    </div>
+
+    <!-- Contexts & rules -->
+    <div class="setgrp">
+      <h4>Contexts &amp; rules</h4>
+      <div class="intro">A <strong>context</strong> is a colour bucket on your dial. The apps under it are sorted there automatically. Each app belongs to one context — if two could claim it, the first one wins (we’ll warn you).</div>
+      <div id="contexts"></div>
+      <div class="addrow"><button class="addbtn" id="add-ctx">+ Add context</button><span class="des" style="margin:0;font-size:12px;color:var(--muted)">Edit any context and everything re-sorts. Nothing is recaptured.</span></div>
+    </div>
+
+    <!-- Privacy & exclusions -->
+    <div class="setgrp">
+      <h4>Privacy &amp; exclusions</h4>
+      <div class="exrow"><img src="assets/app-icons/messages.png" alt=""><span class="pat">Messages <span class="sub">— time counts, titles hidden</span></span><span class="modepill priv">Private</span><button class="iconbtn" title="Remove">×</button></div>
+      <div class="exrow"><span class="tag">Site</span><span class="pat">*.chase.com <span class="sub">+ banking</span></span><span class="modepill excl">Excluded</span><button class="iconbtn" title="Remove">×</button></div>
+      <div class="exrow"><span class="tag">System</span><span class="pat">Incognito / private windows <span class="sub">— never recorded</span></span><span class="locked">🔒 Always on</span></div>
+      <div class="addrow"><button class="addbtn" id="add-excl">+ Add exclusion</button><span class="des" style="margin:0;font-size:12px;color:var(--muted)"><strong>Exclude</strong> leaves an app out entirely. <strong>Private</strong> still counts the time, but saves no titles or web addresses.</span></div>
+    </div>
+
+  </section>
+  <div class="foot">Your data never leaves this machine</div>
+</div>
+
+<!-- Context modal -->
+<div class="scrim" id="ctx-scrim">
+  <div class="sheet">
+    <div class="shd"><h3 id="ctx-title">Add context</h3><button class="x" data-close>✕</button></div>
+    <div class="sbody">
+      <div class="field"><div class="fl">Name</div><input class="inp" id="ctx-name" placeholder="e.g. Design"></div>
+      <div class="field"><div class="fl">Colour</div>
+        <div class="swatches" id="ctx-swatches">
+          <button data-c="deep"     style="background:var(--c-deep)"></button>
+          <button data-c="research" style="background:var(--c-research)"></button>
+          <button data-c="comms"    style="background:var(--c-comms)"></button>
+          <button data-c="breaks"   style="background:var(--c-breaks)"></button>
+          <button data-c="violet"   style="background:#7C3AED"></button>
+          <button data-c="teal"     style="background:#0F9D8C"></button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="fl">Apps <span class="hint">pick from the apps on your Mac — search to filter</span></div>
+        <div class="search"><span class="mag">⌕</span><input class="inp" id="app-search" placeholder="Search apps…"></div>
+        <div class="grid" id="app-grid"></div>
+        <div class="selrow" id="sel-row"></div>
+        <div id="conflict-slot"></div>
+        <div class="preview" id="preview-slot"></div>
+        <details class="adv">
+          <summary>Advanced — match by window title</summary>
+          <div class="advbody">
+            <input class="inp" id="title-pat" placeholder="e.g. invoice">
+            <div class="des">Most people never need this. A title rule sorts a window when its title <b>contains</b> this text — for example <code>invoice</code> catches “Invoice 204 — Numbers”. It’s plain text, not a wildcard: <code>.fig</code> works, <code>*.fig</code> does not.</div>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="sfoot"><button class="btn" data-close>Cancel</button><button class="btn primary" id="ctx-save">Save context</button></div>
+  </div>
+</div>
+
+<!-- Exclusion modal -->
+<div class="scrim" id="excl-scrim">
+  <div class="sheet">
+    <div class="shd"><h3>Add exclusion</h3><button class="x" data-close>✕</button></div>
+    <div class="sbody">
+      <div class="field"><div class="fl">What to match</div>
+        <div class="seg" id="excl-seg"><button class="on" data-m="app">App</button><button data-m="site">Website</button><button data-m="title">Window title</button></div>
+      </div>
+      <div class="field" id="excl-app-field">
+        <div class="fl">App <span class="hint">pick from your Mac</span></div>
+        <div class="search"><span class="mag">⌕</span><input class="inp" id="excl-search" placeholder="Search apps…"></div>
+        <div class="grid" id="excl-grid"></div>
+        <div class="selrow" id="excl-sel"></div>
+      </div>
+      <div class="field" id="excl-text-field" style="display:none">
+        <div class="fl" id="excl-text-label">Website contains</div>
+        <input class="inp" id="excl-text" placeholder="e.g. chase.com">
+        <div class="des" style="font-size:12px;color:var(--muted);margin-top:7px;line-height:1.5">Matches when the address <b style="color:var(--fg)">contains</b> this text — <code style="font-weight:600;color:var(--fg);background:var(--surface);border:1px solid var(--rule);padding:0 4px">chase.com</code> covers every page on the site.</div>
+      </div>
+      <div class="field"><div class="fl">How</div>
+        <label class="modeopt"><input type="radio" name="excl-mode" checked><span><span class="mo-l">Exclude</span><div class="mo-d">Drop it entirely — no record that it ran.</div></span></label>
+        <label class="modeopt"><input type="radio" name="excl-mode"><span><span class="mo-l">Private</span><div class="mo-d">Count the time, but save no title or web address.</div></span></label>
+      </div>
+    </div>
+    <div class="sfoot"><button class="btn" data-close>Cancel</button><button class="btn primary">Add exclusion</button></div>
+  </div>
+</div>
+
+<script>
+/* ── data model ─────────────────────────────────────────── */
+var CTX = {
+  deep:{name:"Deep work", color:"var(--c-deep)"},
+  research:{name:"Research", color:"var(--c-research)"},
+  comms:{name:"Comms", color:"var(--c-comms)"},
+  breaks:{name:"Breaks", color:"var(--c-breaks)"}
+};
+// ctx: which context owns the app (null = unsorted). mins: time seen (drives Unsorted).
+var APPS = [
+  {slug:"cursor",name:"Cursor",ctx:"deep"},{slug:"vscode",name:"VS Code",ctx:"deep"},
+  {slug:"xcode",name:"Xcode",ctx:"deep"},{slug:"iterm",name:"iTerm",ctx:"deep"},
+  {slug:"ghostty",name:"Ghostty",ctx:"deep"},{slug:"zed",name:"Zed",ctx:"deep"},
+  {slug:"claude",name:"Claude",ctx:"deep"},
+  {slug:"chrome",name:"Chrome",ctx:"research"},{slug:"safari",name:"Safari",ctx:"research"},
+  {slug:"brave",name:"Brave",ctx:"research"},
+  {slug:"slack",name:"Slack",ctx:"comms"},{slug:"discord",name:"Discord",ctx:"comms"},
+  {slug:"mail",name:"Mail",ctx:"comms"},{slug:"messages",name:"Messages",ctx:"comms"},
+  {slug:"teams",name:"Teams",ctx:"comms"},{slug:"telegram",name:"Telegram",ctx:"comms"},
+  {slug:"whatsapp",name:"WhatsApp",ctx:"comms"},{slug:"zoom",name:"Zoom",ctx:"comms"},
+  {slug:"spotify",name:"Spotify",ctx:"breaks"},{slug:"music",name:"Music",ctx:"breaks"},
+  {slug:"primevideo",name:"Prime Video",ctx:"breaks"},
+  // unsorted — seen in data, no context yet
+  {slug:"notion",name:"Notion",ctx:null,mins:78},
+  {slug:"figma",name:"Figma",ctx:null,mins:52},
+  {slug:"tableplus",name:"TablePlus",ctx:null,mins:34},
+  {slug:"superwhisper",name:"superwhisper",ctx:null,mins:12},
+  {slug:"usageos",name:"usage-os",ctx:null,mins:124,noicon:true},
+  {slug:"nudge",name:"Nudge",ctx:null,mins:22,noicon:true}
+];
+var byslug = {}; APPS.forEach(function(a){byslug[a.slug]=a;});
+var MONO = {usageos:"#1B45BE", nudge:"#E0241B"};
+
+function iconHTML(a, cls){
+  if(a.noicon){var c=MONO[a.slug]||"#6A6A66";return '<span class="mono '+(cls||'')+'" style="background:'+c+'">'+a.name[0].toUpperCase()+'</span>';}
+  return '<img class="'+(cls||'')+'" src="assets/app-icons/'+a.slug+'.png" alt="">';
+}
+function fmt(m){var h=Math.floor(m/60),mm=m%60;return h?(h+"h "+(mm?mm+"m":"")).trim():mm+"m";}
+
+/* ── render: contexts ───────────────────────────────────── */
+function renderContexts(){
+  var host=document.getElementById("contexts"); host.innerHTML="";
+  Object.keys(CTX).forEach(function(slug){
+    var c=CTX[slug];
+    var apps=APPS.filter(function(a){return a.ctx===slug;});
+    var chips=apps.slice(0,7).map(function(a){return '<span class="appchip">'+iconHTML(a)+a.name+'</span>';}).join("");
+    if(apps.length>7) chips+='<span class="morechip">+'+(apps.length-7)+' more</span>';
+    var row=document.createElement("div");
+    row.className="crow";
+    row.innerHTML='<span class="s" style="background:'+c.color+'"></span><span class="cn">'+c.name+'</span>'
+      +'<span class="chips">'+chips+'</span><button class="iconbtn" title="Edit" data-edit="'+slug+'">✎</button>';
+    host.appendChild(row);
+  });
+}
+
+/* ── render: unsorted ───────────────────────────────────── */
+function renderUnsorted(){
+  var host=document.getElementById("unsorted"); host.innerHTML="";
+  var un=APPS.filter(function(a){return a.ctx===null;}).sort(function(a,b){return b.mins-a.mins;});
+  document.getElementById("unsorted-count").textContent=un.length?un.length+" apps · "+fmt(un.reduce(function(s,a){return s+a.mins;},0))+" all time":"";
+  if(!un.length){host.innerHTML='<div class="unsub" style="padding:14px 16px">Nothing unsorted — every app you’ve used is in a context. ✓</div>';return;}
+  un.forEach(function(a){
+    var menu=Object.keys(CTX).map(function(s){return '<button data-assign="'+a.slug+'" data-to="'+s+'"><span class="dot" style="background:'+CTX[s].color+'"></span>'+CTX[s].name+'</button>';}).join("")
+      +'<button data-assign="'+a.slug+'" data-to="__new"><span class="dot" style="background:transparent;border-style:dashed"></span>New context…</button>';
+    var row=document.createElement("div");
+    row.className="unrow";
+    row.innerHTML=iconHTML(a)+'<div><div class="un-n">'+a.name+'</div><div class="un-t">'+fmt(a.mins)+' all time · sorts to Other</div></div>'
+      +'<div class="spacer"></div><div class="assign"><button class="assignbtn" data-menu>Assign ▾</button><div class="menu">'+menu+'</div></div>';
+    host.appendChild(row);
+  });
+}
+
+/* ── context modal ──────────────────────────────────────── */
+var scrim=document.getElementById("ctx-scrim");
+var working=new Set(), editingCtx=null, chosenColor="violet";
+
+function openCtx(slug){
+  editingCtx=slug;
+  document.getElementById("ctx-title").textContent= slug? "Edit "+CTX[slug].name : "Add context";
+  document.getElementById("ctx-name").value= slug? CTX[slug].name : "";
+  chosenColor= slug || "violet";
+  document.querySelectorAll("#ctx-swatches button").forEach(function(b){b.classList.toggle("on", b.dataset.c===chosenColor);});
+  working=new Set(APPS.filter(function(a){return a.ctx===slug;}).map(function(a){return a.slug;}));
+  document.getElementById("app-search").value="";
+  document.getElementById("conflict-slot").innerHTML="";
+  document.getElementById("title-pat").value="";
+  renderGrid(""); renderSel(); renderPreview();
+  scrim.classList.add("open");
+}
+function renderGrid(q){
+  var grid=document.getElementById("app-grid"); grid.innerHTML="";
+  APPS.filter(function(a){return a.name.toLowerCase().indexOf(q.toLowerCase())>=0;}).forEach(function(a){
+    var sel=working.has(a.slug);
+    var otherOwner = a.ctx && a.ctx!==editingCtx && !sel;
+    var t=document.createElement("button");
+    t.className="tile"+(sel?" sel":"")+(otherOwner?" other":"");
+    t.dataset.app=a.slug;
+    t.innerHTML=iconHTML(a)+'<span>'+a.name+'</span>'+(otherOwner?'<span class="owner" style="background:'+CTX[a.ctx].color+'" title="In '+CTX[a.ctx].name+'"></span>':'');
+    grid.appendChild(t);
+  });
+}
+function renderSel(){
+  var row=document.getElementById("sel-row");
+  var apps=APPS.filter(function(a){return working.has(a.slug);});
+  if(!apps.length){row.innerHTML='<span class="empty">No apps yet — pick some above.</span>';return;}
+  row.innerHTML=apps.map(function(a){return '<span class="appchip">'+iconHTML(a)+a.name+'<span class="x" data-rm="'+a.slug+'">✕</span></span>';}).join("");
+}
+function renderPreview(){
+  var slot=document.getElementById("preview-slot");
+  var apps=APPS.filter(function(a){return working.has(a.slug);});
+  var col= editingCtx?CTX[editingCtx].color:"#7C3AED";
+  slot.innerHTML='<div class="pl">In your data, this sorts <b>'+apps.length+' app'+(apps.length===1?"":"s")+'</b> here:</div>'
+    +'<div class="pims">'+(apps.length?apps.map(function(a){return iconHTML(a);}).join(""):'<span class="empty" style="font-size:12px;color:var(--muted)">nothing yet</span>')+'</div>';
+}
+function showConflict(a){
+  var slot=document.getElementById("conflict-slot");
+  slot.innerHTML='<div class="warn"><span class="wi">!</span><div><b>'+a.name+'</b> is already in <b>'+CTX[a.ctx].name+'</b>. '
+    +'An app lives in one context, and the first rule wins — so it’d stay in '+CTX[a.ctx].name+'.'
+    +'<div class="acts"><button class="go" data-move="'+a.slug+'">Move to '+(editingCtx?CTX[editingCtx].name:"this context")+'</button><button data-dismiss>Leave it in '+CTX[a.ctx].name+'</button></div></div></div>';
+}
+
+document.getElementById("app-grid").addEventListener("click",function(e){
+  var t=e.target.closest(".tile"); if(!t)return;
+  var a=byslug[t.dataset.app];
+  if(working.has(a.slug)){working.delete(a.slug);}
+  else if(a.ctx && a.ctx!==editingCtx){showConflict(a);return;}
+  else {working.add(a.slug);}
+  renderGrid(document.getElementById("app-search").value); renderSel(); renderPreview();
+});
+document.getElementById("conflict-slot").addEventListener("click",function(e){
+  var mv=e.target.closest("[data-move]"), ds=e.target.closest("[data-dismiss]");
+  if(mv){working.add(mv.dataset.move);}
+  if(mv||ds){this.innerHTML=""; renderGrid(document.getElementById("app-search").value); renderSel(); renderPreview();}
+});
+document.getElementById("sel-row").addEventListener("click",function(e){
+  var x=e.target.closest("[data-rm]"); if(!x)return;
+  working.delete(x.dataset.rm);
+  renderGrid(document.getElementById("app-search").value); renderSel(); renderPreview();
+});
+document.getElementById("app-search").addEventListener("input",function(){renderGrid(this.value);});
+document.getElementById("ctx-swatches").addEventListener("click",function(e){
+  var b=e.target.closest("button[data-c]"); if(!b)return;
+  chosenColor=b.dataset.c;
+  document.querySelectorAll("#ctx-swatches button").forEach(function(x){x.classList.toggle("on",x===b);});
+});
+document.getElementById("ctx-save").addEventListener("click",function(){
+  // commit working set into the model (mockup: reassign ctx for chosen apps)
+  var target=editingCtx||"_new";
+  if(target==="_new"){target="new"+Date.now(); CTX[target]={name:document.getElementById("ctx-name").value||"New context",color:"#7C3AED"};}
+  APPS.forEach(function(a){
+    if(working.has(a.slug)) a.ctx=target;
+    else if(a.ctx===target) a.ctx=null; // removed from this context → unsorted
+  });
+  scrim.classList.remove("open"); renderContexts(); renderUnsorted();
+});
+
+/* ── unsorted assign ────────────────────────────────────── */
+document.getElementById("unsorted").addEventListener("click",function(e){
+  var mb=e.target.closest("[data-menu]");
+  if(mb){var m=mb.nextElementSibling;document.querySelectorAll(".menu").forEach(function(x){if(x!==m)x.classList.remove("open");});m.classList.toggle("open");return;}
+  var as=e.target.closest("[data-assign]");
+  if(as){
+    if(as.dataset.to==="__new"){ openCtx(null); working=new Set([as.dataset.assign]); renderGrid(""); renderSel(); renderPreview(); }
+    else { byslug[as.dataset.assign].ctx=as.dataset.to; renderContexts(); renderUnsorted(); }
+  }
+});
+document.addEventListener("click",function(e){
+  if(!e.target.closest(".assign")) document.querySelectorAll(".menu").forEach(function(m){m.classList.remove("open");});
+});
+
+/* ── exclusion modal ────────────────────────────────────── */
+var exScrim=document.getElementById("excl-scrim");
+function renderExGrid(q){
+  var g=document.getElementById("excl-grid"); g.innerHTML="";
+  APPS.filter(function(a){return a.name.toLowerCase().indexOf((q||"").toLowerCase())>=0;}).forEach(function(a){
+    var t=document.createElement("button"); t.className="tile"; t.dataset.ex=a.slug;
+    t.innerHTML=iconHTML(a)+'<span>'+a.name+'</span>'; g.appendChild(t);
+  });
+}
+document.getElementById("excl-seg").addEventListener("click",function(e){
+  var b=e.target.closest("button[data-m]"); if(!b)return;
+  this.querySelectorAll("button").forEach(function(x){x.classList.toggle("on",x===b);});
+  var app=b.dataset.m==="app";
+  document.getElementById("excl-app-field").style.display=app?"":"none";
+  document.getElementById("excl-text-field").style.display=app?"none":"";
+  document.getElementById("excl-text-label").textContent=b.dataset.m==="site"?"Website contains":"Window title contains";
+  document.getElementById("excl-text").placeholder=b.dataset.m==="site"?"e.g. chase.com":"e.g. 1Password";
+});
+document.getElementById("excl-search").addEventListener("input",function(){renderExGrid(this.value);});
+document.getElementById("excl-grid").addEventListener("click",function(e){
+  var t=e.target.closest(".tile"); if(!t)return;
+  this.querySelectorAll(".tile").forEach(function(x){x.classList.toggle("sel",x===t);});
+  var a=byslug[t.dataset.ex];
+  document.getElementById("excl-sel").innerHTML='<span class="appchip">'+iconHTML(a)+a.name+'</span>';
+});
+
+/* ── wiring ─────────────────────────────────────────────── */
+document.getElementById("contexts").addEventListener("click",function(e){
+  var b=e.target.closest("[data-edit]"); if(b)openCtx(b.dataset.edit);
+});
+document.getElementById("add-ctx").addEventListener("click",function(){openCtx(null);});
+document.getElementById("add-excl").addEventListener("click",function(){renderExGrid("");exScrim.classList.add("open");});
+document.querySelectorAll("[data-close]").forEach(function(b){b.addEventListener("click",function(){scrim.classList.remove("open");exScrim.classList.remove("open");});});
+[scrim,exScrim].forEach(function(s){s.addEventListener("click",function(e){if(e.target===s)s.classList.remove("open");});});
+document.addEventListener("keydown",function(e){if(e.key==="Escape"){scrim.classList.remove("open");exScrim.classList.remove("open");}});
+
+/* theme */
+document.getElementById("themesw").addEventListener("click",function(e){
+  var b=e.target.closest("button[data-t]"); if(!b)return;
+  document.documentElement.setAttribute("data-theme",b.dataset.t);
+  this.querySelectorAll("button").forEach(function(x){x.classList.toggle("on",x===b);});
+});
+
+renderContexts(); renderUnsorted();
+</script>
+</body>
+</html>

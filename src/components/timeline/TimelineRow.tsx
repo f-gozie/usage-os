@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import { contextColorVar } from "@/lib/contexts";
+import { AppIcon } from "@/components/ui/AppIcon";
+import { categoryColorVar } from "@/lib/categories";
 import { formatClock, formatDuration } from "@/lib/format";
 import { NO_PROJECT } from "@/lib/runs";
 import { cn } from "@/lib/utils";
@@ -11,8 +12,8 @@ export interface TimelineRowProps {
   defaultOpen?: boolean;
 }
 
-/** One context-run in the Timeline agenda: a clickable summary (start · colour spine ·
- *  context + project/apps · duration + range) that expands to every app-switch inside it. */
+/** One category-run in the Timeline agenda: a clickable summary (start · colour spine ·
+ *  category + project/apps · duration + range) that expands to every app-switch inside it. */
 export function TimelineRow({ run, defaultOpen = false }: TimelineRowProps) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -30,15 +31,29 @@ export function TimelineRow({ run, defaultOpen = false }: TimelineRowProps) {
         <div className="flex min-w-0 gap-3.5">
           <span
             className="min-h-[40px] w-[5px] shrink-0 self-stretch"
-            style={{ background: contextColorVar(run.context_slug) }}
+            style={{ background: categoryColorVar(run.category_slug) }}
           />
           <div className="min-w-0 flex-1">
-            <div className="text-[15px] font-semibold">{run.context_name}</div>
+            <div className="text-[15px] font-semibold">{run.category_name}</div>
             <div className="mt-[7px] text-[13px] font-semibold leading-[1.5]">
               {projectLine(run)}
             </div>
-            {appsLine(run) && (
-              <div className="mt-1.5 truncate text-[12px] text-muted">{appsLine(run)}</div>
+            {hasProjects(run) && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
+                {run.apps.map((app) => (
+                  <span
+                    key={app}
+                    className="inline-flex items-center gap-1.5 font-semibold"
+                    style={{ color: "var(--fg)" }}
+                  >
+                    <AppIcon name={app} size={14} />
+                    {app}
+                  </span>
+                ))}
+                {countSwitches(run.segments) > 1 && (
+                  <span>· {countSwitches(run.segments)} switches</span>
+                )}
+              </div>
             )}
           </div>
           <div className="flex w-32 shrink-0 items-start justify-end gap-[11px]">
@@ -69,24 +84,25 @@ export function TimelineRow({ run, defaultOpen = false }: TimelineRowProps) {
             {run.segments.length} app {run.segments.length === 1 ? "switch" : "switches"}
           </div>
           {run.segments.map((seg, i) => {
-            // An absorbed detour (D34a) carries a different context than the run — mark it with
+            // An absorbed detour (D34a) carries a different category than the run — mark it with
             // its own colour dot + label so the expand stays honest about what happened.
-            const isDetour = seg.context_slug !== run.context_slug;
+            const isDetour = seg.category_slug !== run.category_slug;
             return (
               <div
                 key={`${seg.start}-${i}`}
-                className="grid grid-cols-[54px_124px_1fr_auto] items-center gap-3.5 border-t border-rule py-1.5 text-[12.5px] first:border-t-0"
+                className="grid grid-cols-[54px_150px_1fr_auto] items-center gap-3.5 border-t border-rule py-1.5 text-[12.5px] first:border-t-0"
               >
                 <span className="tabular-nums text-muted">{formatClock(seg.start)}</span>
-                <span className="flex items-center gap-1.5 truncate font-semibold">
+                <span className="flex items-center gap-2 truncate font-semibold">
+                  <AppIcon name={seg.app} size={16} />
+                  <span className="truncate">{seg.app}</span>
                   {isDetour && (
                     <span
-                      className="inline-block h-2 w-2 shrink-0"
-                      style={{ background: contextColorVar(seg.context_slug) }}
-                      title={seg.context_name}
+                      className="inline-block h-2 w-2 shrink-0 rounded-[2px]"
+                      style={{ background: categoryColorVar(seg.category_slug) }}
+                      title={seg.category_name}
                     />
                   )}
-                  {seg.app}
                 </span>
                 <span className="truncate text-muted">{seg.project ?? "—"}</span>
                 <span className="text-right tabular-nums text-muted">{formatDuration(seg.secs)}</span>
@@ -115,12 +131,10 @@ function projectLine(run: TimelineRun): string {
   return run.apps.join(", ");
 }
 
-/** The apps line (with a switch count) — only when the project line is carrying projects. */
-function appsLine(run: TimelineRun): string {
-  const hasProjects = run.projects.some((p) => p.name !== NO_PROJECT);
-  if (!hasProjects) return "";
-  const switches = countSwitches(run.segments);
-  return run.apps.join(" · ") + (switches > 1 ? `  ·  ${switches} switches` : "");
+/** Whether the run carries real projects — when it does, the project line shows the
+ *  projects and the apps line (icons + names + a switch count) is shown beneath it. */
+function hasProjects(run: TimelineRun): boolean {
+  return run.projects.some((p) => p.name !== NO_PROJECT);
 }
 
 function countSwitches(segments: TimelineSegment[]): number {

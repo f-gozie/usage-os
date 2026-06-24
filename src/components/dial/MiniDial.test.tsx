@@ -4,12 +4,12 @@ import "@testing-library/jest-dom";
 import { render } from "@testing-library/react";
 
 import { MiniDial } from "./MiniDial";
-import type { ContextRun } from "@/lib/tauri";
+import type { CategoryRun } from "@/lib/tauri";
 
-const RUNS: ContextRun[] = [
+const RUNS: CategoryRun[] = [
   {
-    context_slug: "deep",
-    context_name: "Deep work",
+    category_slug: "deep",
+    category_name: "Deep work",
     start: 0,
     end: 3600,
     secs: 3600,
@@ -17,8 +17,8 @@ const RUNS: ContextRun[] = [
     apps: ["Cursor"],
   },
   {
-    context_slug: "comms",
-    context_name: "Comms",
+    category_slug: "comms",
+    category_name: "Comms",
     start: 3600,
     end: 4200,
     secs: 600,

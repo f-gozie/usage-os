@@ -11,10 +11,13 @@ import type {
   AppError,
   Category,
   DayView,
+  Exclusion,
+  InstalledApp,
   Result,
   Rule,
   Setting,
   TimelineView,
+  UncategorizedApp,
   WatcherStatus,
   WeekView,
 } from '../bindings';
@@ -23,10 +26,12 @@ export type {
   ActivityLog,
   AppError,
   Category,
-  ContextRun,
-  ContextSlice,
+  CategoryRun,
+  CategorySlice,
   DaySlice,
   DayView,
+  Exclusion,
+  InstalledApp,
   ProjectSlice,
   Recap,
   Rule,
@@ -34,6 +39,7 @@ export type {
   TimelineRun,
   TimelineSegment,
   TimelineView,
+  UncategorizedApp,
   WatcherStatus,
   WeekView,
 } from '../bindings';
@@ -62,7 +68,7 @@ export async function getActivityStats(
 }
 
 /**
- * Fetch the computed Day view (context aggregates + context-runs + recap) for a
+ * Fetch the computed Day view (category aggregates + category-runs + recap) for a
  * Unix-second range. All numbers are computed in Rust (hard rule 6).
  */
 export async function getDay(startTime: number, endTime: number): Promise<DayView> {
@@ -79,14 +85,14 @@ export async function getWeek(dayStarts: number[], weekEnd: number): Promise<Wee
 }
 
 /**
- * Fetch the computed Timeline view: the day's context-runs, each with its inner app-switch
+ * Fetch the computed Timeline view: the day's category-runs, each with its inner app-switch
  * segments (the click-to-expand detail). Numbers are computed in Rust (hard rule 6).
  */
 export async function getTimeline(startTime: number, endTime: number): Promise<TimelineView> {
   return unwrap(await commands.getTimeline(startTime, endTime));
 }
 
-// --- Categories ---
+// --- Categories (the `categories` table; IPC noun is "category", D31) ---
 
 export async function getCategories(): Promise<Category[]> {
   return unwrap(await commands.getCategories());
@@ -94,6 +100,10 @@ export async function getCategories(): Promise<Category[]> {
 
 export async function createCategory(name: string, color: string): Promise<number> {
   return unwrap(await commands.createCategory(name, color));
+}
+
+export async function updateCategory(id: number, name: string, color: string): Promise<void> {
+  unwrap(await commands.updateCategory(id, name, color));
 }
 
 export async function deleteCategory(id: number): Promise<void> {
@@ -123,6 +133,24 @@ export async function reprocessLogs(): Promise<void> {
   unwrap(await commands.reprocessLogs());
 }
 
+// --- Exclusions (D8) ---
+
+export async function getExclusions(): Promise<Exclusion[]> {
+  return unwrap(await commands.getExclusions());
+}
+
+export async function createExclusion(
+  matchType: string,
+  pattern: string,
+  mode: string,
+): Promise<number> {
+  return unwrap(await commands.createExclusion(matchType, pattern, mode));
+}
+
+export async function deleteExclusion(id: number): Promise<void> {
+  unwrap(await commands.deleteExclusion(id));
+}
+
 // --- Watcher Status ---
 
 export async function getWatcherStatus(): Promise<WatcherStatus> {
@@ -137,4 +165,39 @@ export async function getSettings(): Promise<Setting[]> {
 
 export async function updateSetting(key: string, value: string): Promise<void> {
   unwrap(await commands.updateSetting(key, value));
+}
+
+/** Persist the retention window and prune older rows now. Returns rows deleted. `0` = keep forever. */
+export async function setRetentionDays(days: number): Promise<number> {
+  return unwrap(await commands.setRetentionDays(days));
+}
+
+// --- Data ownership ---
+
+/** Absolute path to the SQLite file (for revealing it in Finder). */
+export async function getDatabasePath(): Promise<string> {
+  return unwrap(await commands.getDatabasePath());
+}
+
+/** Write all events to a CSV next to the DB; returns its absolute path. */
+export async function exportEventsCsv(): Promise<string> {
+  return unwrap(await commands.exportEventsCsv());
+}
+
+/** Erase the captured record (events + derived projects/sites); preserves config. */
+export async function deleteAllData(): Promise<void> {
+  unwrap(await commands.deleteAllData());
+}
+
+// --- Installed-app catalog (for app icons; offline, read-only) ---
+
+/** The user's installed apps + their icons (data-URI PNGs) for the `AppIcon` map. */
+export async function listInstalledApps(): Promise<InstalledApp[]> {
+  return unwrap(await commands.listInstalledApps());
+}
+
+/** Apps with tracked time that match no rule (roll up as "Uncategorized"), all-time,
+ *  ranked by total time. For the Settings "Uncategorized" list. */
+export async function getUncategorizedApps(): Promise<UncategorizedApp[]> {
+  return unwrap(await commands.getUncategorizedApps());
 }

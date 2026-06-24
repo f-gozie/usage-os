@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 export interface StatTileProps {
   value: string;
   label: string;
-  /** Optional accent colour for the figure (e.g. a context token). */
+  /** Optional accent colour for the figure (e.g. a category token). */
   colorVar?: string;
   className?: string;
 }

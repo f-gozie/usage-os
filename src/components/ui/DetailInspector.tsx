@@ -1,6 +1,6 @@
 export interface InspectorDetail {
   colorVar: string;
-  /** Context name, e.g. "Deep work". */
+  /** Category name, e.g. "Deep work". */
   title: string;
   /** Project split + apps, e.g. "usageos 1h 3m · nudge 39m · Cursor, iTerm". */
   subtitle: string;
@@ -13,7 +13,7 @@ export interface DetailInspectorProps {
   emptyHint?: string;
 }
 
-/** Shows the selected context-run's detail, or an empty hint. Dashed border marks it
+/** Shows the selected category-run's detail, or an empty hint. Dashed border marks it
  *  as the inspect surface. */
 export function DetailInspector({
   detail,

@@ -1,0 +1,35 @@
+# embeddings — Phase-2 enrichment spike (D26)
+#
+# ISOLATED standalone crate. Deliberately NOT a member of the src-tauri
+# workspace. Build it from inside this directory (`cd spikes/embeddings`).
+# The empty `[workspace]` table makes Cargo treat this as its own workspace root,
+# so it has its own `target/` and never contends with a running `tauri dev`.
+#
+# Subject: Apple's NaturalLanguage `NLEmbedding`, reached from Rust via
+# `objc2-natural-language` (D26 — embeddings live in Rust, NOT the Swift sidecar;
+# this needs NO Apple Intelligence — NaturalLanguage ships in-OS since 10.15).
+# Closes open questions 15/16/19 + risk R43 (see README + foundation-models.md).
+[workspace]
+
+[package]
+name = "embeddings"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Spike: prove objc2-natural-language NLEmbedding is callable + Send-safe off the main thread, returns 512-d vectors with no download, and measure cosine-KNN categorization accuracy on the user's real categories (D26; open Qs 15/16/19, R43)."
+
+[[bin]]
+name = "embeddings"
+path = "src/main.rs"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3.2", features = [
+    "NSString",
+    "NSArray",
+    "NSValue",
+] }
+objc2-natural-language = { version = "0.3.2", features = [
+    "NLEmbedding",
+    "NLLanguage",
+] }

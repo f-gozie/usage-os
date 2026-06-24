@@ -12,7 +12,7 @@ export interface LedgerRowProps {
 }
 
 /** A "where it went" row: swatch + name, a proportional bar, and the figure + percent.
- *  Hovering dims the others; clicking isolates the context. */
+ *  Hovering dims the others; clicking isolates the category. */
 export function LedgerRow({
   name,
   colorVar,

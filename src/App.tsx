@@ -1,17 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AppShell } from "@/components/shell/AppShell";
 import type { View } from "@/components/shell/TabNav";
+import { loadIconMap } from "@/lib/appIcons";
 import { formatDayParts, formatWeekRange } from "@/lib/dates";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { DayView } from "@/views/DayView";
-import { Placeholder } from "@/views/Placeholder";
+import { SettingsView } from "@/views/SettingsView";
 import { TimelineView } from "@/views/TimelineView";
 import { WeekView } from "@/views/WeekView";
 
 function App() {
   const [view, setView] = useState<View>("day");
   const [date, setDate] = useState<Date>(() => new Date());
+
+  // Warm the installed-app icon map once at startup so `AppIcon`s resolve without a
+  // flash when the Timeline/Settings first render (offline, cached after first build).
+  useEffect(() => {
+    void loadIconMap();
+  }, []);
 
   const parts = formatDayParts(date);
   const headerDate =
@@ -44,7 +51,7 @@ function App() {
           />
         )}
         {view === "timeline" && <TimelineView date={date} onDateChange={setDate} />}
-        {view === "settings" && <Placeholder title="Settings" />}
+        {view === "settings" && <SettingsView />}
       </AppShell>
     </ThemeProvider>
   );

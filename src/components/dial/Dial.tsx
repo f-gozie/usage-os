@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { contextColorVar } from "@/lib/contexts";
+import { categoryColorVar } from "@/lib/categories";
 import { formatDuration } from "@/lib/format";
 import { arcPath, DIAL_CENTER, DIAL_VIEWBOX, minutesSinceMidnight, polar } from "@/lib/geometry";
 import { summarizeRun } from "@/lib/runs";
-import type { ContextRun } from "@/lib/tauri";
+import type { CategoryRun } from "@/lib/tauri";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 const TRACK_RADIUS = 99;
@@ -15,22 +15,22 @@ const ARC_GAP_MIN = 4; // visual breathing room trimmed from each run end
 const HOUR_MARKS = [0, 6, 12, 18];
 
 interface Arc {
-  run: ContextRun;
+  run: CategoryRun;
   d: string;
   color: string;
 }
 
 export interface DialProps {
-  runs: ContextRun[];
+  runs: CategoryRun[];
   /** Local midnight (Unix secs) of the viewed day — the angular origin. */
   dayStartUnix: number;
   /** Current time in minutes past midnight, or null when not viewing today. */
   nowMinutes: number | null;
   /** Centre figure (e.g. "4h 15m"). */
   activeLabel: string;
-  /** Dim everything except this context (legend/ledger isolate). */
+  /** Dim everything except this category (legend/ledger isolate). */
   isolatedSlug?: string | null;
-  onSelectRun?: (run: ContextRun) => void;
+  onSelectRun?: (run: CategoryRun) => void;
 }
 
 interface Tip {
@@ -40,7 +40,7 @@ interface Tip {
   sub: string;
 }
 
-/** The 24-hour day dial: context-run arcs with a 1px casing (R77), hour ticks, the
+/** The 24-hour day dial: category-run arcs with a 1px casing (R77), hour ticks, the
  *  now-triangle, and a centre figure. Hover dims the rest + shows a tooltip; clicking
  *  selects the run. One orchestrated draw-in on load (skipped under reduced motion). */
 export function Dial({
@@ -67,7 +67,7 @@ export function Dial({
       return {
         run,
         d: arcPath(DIAL_CENTER, DIAL_CENTER, TRACK_RADIUS, a, b),
-        color: contextColorVar(run.context_slug),
+        color: categoryColorVar(run.category_slug),
       };
     });
   }, [runs, dayStartUnix]);
@@ -108,7 +108,7 @@ export function Dial({
     setTip({
       x: Math.min(rect.width - 150, Math.max(0, e.clientX - rect.left + 12)),
       y: e.clientY - rect.top - 8,
-      title: `${arc.run.context_name} · ${formatDuration(arc.run.secs)}`,
+      title: `${arc.run.category_name} · ${formatDuration(arc.run.secs)}`,
       sub: sm.projectLabel || sm.apps,
     });
   }
@@ -152,7 +152,7 @@ export function Dial({
           );
         })}
 
-        {/* context-run arcs: a 1px ink casing (R77) behind the coloured stroke */}
+        {/* category-run arcs: a 1px ink casing (R77) behind the coloured stroke */}
         {arcs.map((arc, i) => (
           <g key={`${arc.run.start}-${i}`}>
             <path d={arc.d} stroke="var(--casing)" strokeWidth={21} fill="none" />
@@ -164,7 +164,7 @@ export function Dial({
               stroke={arc.color}
               strokeWidth={hovered === i ? 24 : 18}
               fill="none"
-              style={{ opacity: opacityFor(i, arc.run.context_slug), cursor: "pointer" }}
+              style={{ opacity: opacityFor(i, arc.run.category_slug), cursor: "pointer" }}
               onMouseEnter={(e) => {
                 setHovered(i);
                 onArcMove(e, arc);

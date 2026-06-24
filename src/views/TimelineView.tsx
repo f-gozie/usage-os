@@ -4,7 +4,7 @@ import { TimelineRow } from "@/components/timeline/TimelineRow";
 import { DegradedBanner } from "@/components/ui/DegradedBanner";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTimelineData } from "@/hooks/useTimelineData";
-import { CANONICAL_CONTEXTS, contextColorVar } from "@/lib/contexts";
+import { CANONICAL_CATEGORIES, categoryColorVar } from "@/lib/categories";
 import { addDays, dayBounds, isSameDay } from "@/lib/dates";
 import { formatClock, formatDuration } from "@/lib/format";
 import { getWatcherStatus } from "@/lib/tauri";
@@ -61,16 +61,22 @@ export function TimelineView({ date, onDateChange }: TimelineViewProps) {
           ) : (
             <>
               <div>
-                {data.runs.map((run, i) => {
-                  const gap = i > 0 ? run.start - data.runs[i - 1].end : 0;
-                  return (
-                    <Fragment key={run.start}>
-                      {gap >= AWAY_MIN_SECS && <AwayRow secs={gap} />}
-                      <TimelineRow run={run} />
-                    </Fragment>
-                  );
-                })}
+                {/* Latest first: "Now" on top, then runs newest→oldest, so recent
+                    activity sits at the top of the page (no scrolling to the bottom). */}
                 {isToday && <NowRow />}
+                {data.runs
+                  .map((run, i) => ({ run, i }))
+                  .reverse()
+                  .map(({ run, i }) => {
+                    // Gap to the chronologically-earlier run — which renders BELOW this one.
+                    const gap = i > 0 ? run.start - data.runs[i - 1].end : 0;
+                    return (
+                      <Fragment key={run.start}>
+                        <TimelineRow run={run} />
+                        {gap >= AWAY_MIN_SECS && <AwayRow secs={gap} />}
+                      </Fragment>
+                    );
+                  })}
               </div>
               <p className="mt-4 text-center text-[11px] font-medium text-muted">
                 Each block is a stretch of one kind of work. Click one to see every app switch inside it.
@@ -86,14 +92,14 @@ export function TimelineView({ date, onDateChange }: TimelineViewProps) {
 function Legend() {
   return (
     <div className="mb-3.5 flex flex-wrap gap-2">
-      {CANONICAL_CONTEXTS.map((c) => (
+      {CANONICAL_CATEGORIES.map((c) => (
         <span
           key={c.slug}
           className="flex items-center gap-[7px] border-2 border-edge px-[9px] py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.03em]"
         >
           <span
             className="h-[11px] w-[11px] border border-edge"
-            style={{ background: contextColorVar(c.slug) }}
+            style={{ background: categoryColorVar(c.slug) }}
           />
           {c.name}
         </span>
