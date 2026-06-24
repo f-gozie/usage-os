@@ -564,34 +564,34 @@ const RECAP_MIN_FOCUS_SECS: i64 = 900; // 15 min
 
 /// One category's contribution, named for the recap. (`name` is the display name.)
 #[derive(Debug, Clone)]
-struct CategoryFact {
-    name: String,
-    secs: i64,
+pub struct CategoryFact {
+    pub name: String,
+    pub secs: i64,
 }
 
 /// The day's single longest continuous category stretch, with a rough time-of-day.
 #[derive(Debug, Clone)]
-struct FocusFact {
-    secs: i64,
+pub struct FocusFact {
+    pub secs: i64,
     /// A prepositional phrase ready to drop after "ran 1h 12m …" (e.g. "in the morning").
-    when: &'static str,
+    pub when: &'static str,
 }
 
 /// The deterministic *facts* of a day — computed in Rust (hard rule 6). The template recap
-/// below phrases these; the Foundation Models sidecar (Phase 3 step 2) will reuse the same
-/// struct to narrate them, with the template as the always-available fallback. Only fields
-/// the recap actually uses live here (kept honest — we don't compute what we don't say).
+/// below phrases these; the Foundation Models sidecar (Phase 3 step 2 — see `ai`) reuses the
+/// same struct to narrate them, with the template as the always-available fallback. Only
+/// fields the recap actually uses live here (kept honest — we don't compute what we don't say).
 #[derive(Debug, Clone)]
-struct RecapFacts {
-    active_secs: i64,
+pub struct RecapFacts {
+    pub active_secs: i64,
     /// The biggest category by time, if any activity was tracked.
-    leading: Option<CategoryFact>,
+    pub leading: Option<CategoryFact>,
     /// The runner-up category, when a second one had time (drives "then X at …").
-    second: Option<CategoryFact>,
+    pub second: Option<CategoryFact>,
     /// The one project that clearly led (≥40% of active time); never a guessed project.
-    leading_project: Option<String>,
+    pub leading_project: Option<String>,
     /// The longest continuous stretch, only when it's substantial (≥ [`RECAP_MIN_FOCUS_SECS`]).
-    longest_focus: Option<FocusFact>,
+    pub longest_focus: Option<FocusFact>,
 }
 
 /// A rough, local time-of-day phrase for the recap, from the hour-of-day (0–23) of a run's
@@ -646,8 +646,9 @@ fn compute_recap_facts(
 
 /// A plain, honest, deterministic recap — purely descriptive, never evaluative (the calm
 /// rear-view mirror, not a coach: no "productive"/"focused"/"distracted"). The Foundation
-/// Models prose (Phase 3 step 2) reuses [`RecapFacts`]; this is the always-available fallback.
-fn render_template_recap(facts: &RecapFacts) -> Recap {
+/// Models prose (Phase 3 step 2 — see `ai::build_recap`) reuses [`RecapFacts`]; this is the
+/// always-available fallback.
+pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
     let text = match &facts.leading {
         None => "No activity tracked today yet.".to_string(),
         Some(leading) => {
@@ -682,6 +683,59 @@ fn render_template_recap(facts: &RecapFacts) -> Recap {
         text,
         generated_by: "template".to_string(),
     }
+}
+
+/// Spell a duration out in full words for the AI prompt ("4 hours 53 minutes", "47 minutes")
+/// — never the "47m" shorthand, which the spike found the model misreads as "47 million".
+/// Prompt-only; the UI and template recap keep the compact [`human_secs`].
+fn human_secs_long(secs: i64) -> String {
+    let hours = secs / 3600;
+    let minutes = (secs % 3600) / 60;
+    let plural = |n: i64, unit: &str| format!("{n} {unit}{}", if n == 1 { "" } else { "s" });
+    match (hours, minutes) {
+        (0, 0) => plural(secs.max(0), "second"),
+        (0, m) => plural(m, "minute"),
+        (h, 0) => plural(h, "hour"),
+        (h, m) => format!("{} {}", plural(h, "hour"), plural(m, "minute")),
+    }
+}
+
+/// Format [`RecapFacts`] into the prompt the Foundation Models sidecar narrates (D9 / C9 / C10).
+/// Numbers are pre-formatted strings with units spelled out; fields are explicitly labeled
+/// ("category" vs "project") so the model can't conflate them. The model only phrases this —
+/// it never computes (hard rule 6).
+pub(crate) fn format_recap_prompt(facts: &RecapFacts) -> String {
+    let mut lines =
+        vec!["The day's facts, already computed — narrate only these, change nothing:".to_string()];
+    lines.push(format!(
+        "- Total active time: {}",
+        human_secs_long(facts.active_secs)
+    ));
+    if let Some(leading) = &facts.leading {
+        lines.push(format!(
+            "- Leading category: {}, {}",
+            leading.name,
+            human_secs_long(leading.secs)
+        ));
+    }
+    if let Some(second) = &facts.second {
+        lines.push(format!(
+            "- Runner-up category: {}, {}",
+            second.name,
+            human_secs_long(second.secs)
+        ));
+    }
+    if let Some(focus) = &facts.longest_focus {
+        lines.push(format!(
+            "- Longest unbroken stretch: {}, {}",
+            human_secs_long(focus.secs),
+            focus.when
+        ));
+    }
+    if let Some(project) = &facts.leading_project {
+        lines.push(format!("- Main project: {project}"));
+    }
+    lines.join("\n")
 }
 
 /// The single real project that clearly led the day (≥ 40% of active time), if any.

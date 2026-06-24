@@ -23,6 +23,11 @@ mod rollup;
 // isolated like the other native surfaces (hard rule 5). Powers the UI's app icons.
 mod apps;
 
+// `ai` is the recap-narration seam (hard rule 5): a mockable `Narrator` trait + `build_recap`
+// with the deterministic template (D48) as the always-on fallback. `pub` so its not-yet-wired
+// API isn't dead-code (the get_recap command + sidecar narrator land in later chunks).
+pub mod ai;
+
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
