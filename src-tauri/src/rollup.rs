@@ -5,11 +5,11 @@
 //! where the "numbers are computed in Rust" rule (hard rule 6) lives for the dial.
 //!
 //! Two independent shapes come out (D34):
-//! - **Per-axis aggregates** (`contexts`) — plain sums by context; robust to any
+//! - **Per-axis aggregates** (`categories`) — plain sums by category; robust to any
 //!   segmentation, they feed the ledger / legend / stats / dial centre.
-//! - **Context-runs** (`runs`) — continuous stretches of one context, with the
+//! - **Category-runs** (`runs`) — continuous stretches of one category, with the
 //!   project split as inside-detail; they feed the dial arcs + (later) the timeline.
-//!   Project-hopping never fragments a run; off-project time counts to its context.
+//!   Project-hopping never fragments a run; off-project time counts to its category.
 
 use std::collections::HashMap;
 
@@ -17,12 +17,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::ActivityLog;
 
-/// D34a — an idle or untracked gap at least this long ends a context-run. Placeholder:
+/// D34a — an idle or untracked gap at least this long ends a category-run. Placeholder:
 /// the run-segmentation thresholds are tuned against real captured days (the session
 /// explorer, M3) and then locked; the run/expand shape holds regardless of the value.
 const IDLE_GAP_ENDS_RUN_SECS: i64 = 5 * 60;
 
-/// D34a excursion-absorb: a brief detour into another context, sandwiched by the same context,
+/// D34a excursion-absorb: a brief detour into another category, sandwiched by the same category,
 /// folds into the surrounding run (the detour still shows as a segment in the Timeline expand).
 /// A detour whose **wall-clock span** exceeds this stays its own run. Raised 90→180s after
 /// dogfooding (D41): real switches cluster at 90–300s, so 90s left too many as separate blocks.
@@ -33,43 +33,43 @@ const ABSORB_SECS: i64 = 180;
 /// focus stretch. Paired with a local-dominance check (host active ≥ excursion). Dogfood-tunable.
 const MAX_ABSORB_FRACTION_PCT: i64 = 15;
 
-/// Slug + display name for a context, looked up by category id. The dial maps `slug`
+/// Slug + display name for a category, looked up by category id. The dial maps `slug`
 /// to a colour token (`--c-<slug>`). Internal — does not cross the IPC boundary.
-pub struct ContextMeta {
+pub struct CategoryMeta {
     pub slug: Option<String>,
     pub name: String,
 }
 
-/// Fallbacks for an event whose context has no slug (a user-created context) or no
-/// context at all (no rule matched). The frontend maps this slug to a neutral token.
+/// Fallbacks for an event whose category has no slug (a user-created category) or no
+/// category at all (no rule matched). The frontend maps this slug to a neutral token.
 const OTHER_SLUG: &str = "other";
 const OTHER_NAME: &str = "Uncategorized";
-/// The canonical Deep-work context slug (the Week view's "deepest day" + per-day deep total).
+/// The canonical Deep-work category slug (the Week view's "deepest day" + per-day deep total).
 const DEEP_SLUG: &str = "deep";
 /// Shown for active time with no resolved project (D30/D34 — never a guessed project).
 const NO_PROJECT: &str = "No project";
 
-/// One context's total share of the active day (the ledger/legend/stats unit).
+/// One category's total share of the active day (the ledger/legend/stats unit).
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct ContextSlice {
+pub struct CategorySlice {
     pub slug: String,
     pub name: String,
     pub secs: i64,
     pub pct: f64,
 }
 
-/// A project's share of time *inside* a context-run (shown as a text line, never a bar).
+/// A project's share of time *inside* a category-run (shown as a text line, never a bar).
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ProjectSlice {
     pub name: String,
     pub secs: i64,
 }
 
-/// A continuous stretch of one context — a dial arc, click-to-inspect.
+/// A continuous stretch of one category — a dial arc, click-to-inspect.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct ContextRun {
-    pub context_slug: String,
-    pub context_name: String,
+pub struct CategoryRun {
+    pub category_slug: String,
+    pub category_name: String,
     /// Span bounds (Unix secs); the arc is drawn start→end.
     pub start: i64,
     pub end: i64,
@@ -92,8 +92,8 @@ pub struct Recap {
 pub struct DayView {
     pub active_secs: i64,
     pub idle_secs: i64,
-    pub contexts: Vec<ContextSlice>,
-    pub runs: Vec<ContextRun>,
+    pub categories: Vec<CategorySlice>,
+    pub runs: Vec<CategoryRun>,
     pub recap: Recap,
 }
 
@@ -105,7 +105,7 @@ pub struct DaySlice {
     pub day_start: i64,
     pub active_secs: i64,
     pub deep_secs: i64,
-    pub runs: Vec<ContextRun>,
+    pub runs: Vec<CategoryRun>,
 }
 
 /// Everything the Week view needs: 7 day-slices + week-level aggregates (numbers in Rust).
@@ -118,26 +118,26 @@ pub struct WeekView {
     pub deepest_day: Option<i64>,
 }
 
-/// One focused-window event inside a context-run — the Timeline's click-to-expand detail.
+/// One focused-window event inside a category-run — the Timeline's click-to-expand detail.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct TimelineSegment {
     pub start: i64,
     pub end: i64,
     pub app: String,
-    /// The segment's own context. After excursion-absorb (D34a) a run may contain an absorbed
-    /// detour of a *different* context, so each segment carries its own — the expand stays honest.
-    pub context_slug: String,
-    pub context_name: String,
+    /// The segment's own category. After excursion-absorb (D34a) a run may contain an absorbed
+    /// detour of a *different* category, so each segment carries its own — the expand stays honest.
+    pub category_slug: String,
+    pub category_name: String,
     /// Resolved project name, or `None` when none was inferred (the UI shows "—").
     pub project: Option<String>,
     pub secs: i64,
 }
 
-/// A context-run plus its inner app-switch segments — one expandable Timeline row (D34).
+/// A category-run plus its inner app-switch segments — one expandable Timeline row (D34).
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct TimelineRun {
-    pub context_slug: String,
-    pub context_name: String,
+    pub category_slug: String,
+    pub category_name: String,
     pub start: i64,
     pub end: i64,
     pub secs: i64,
@@ -146,7 +146,7 @@ pub struct TimelineRun {
     pub segments: Vec<TimelineSegment>,
 }
 
-/// Everything the Timeline view needs: the day's context-runs, each with its segments.
+/// Everything the Timeline view needs: the day's category-runs, each with its segments.
 /// The "Away" idle gaps and the now-marker are derived on the frontend from run bounds.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct TimelineView {
@@ -157,9 +157,9 @@ fn duration(event: &ActivityLog) -> i64 {
     (event.end_time - event.start_time).max(0)
 }
 
-/// Resolve an event to its (slug, name), falling back to the neutral "other" context.
-fn context_of(event: &ActivityLog, contexts: &HashMap<i64, ContextMeta>) -> (String, String) {
-    match event.category_id.and_then(|id| contexts.get(&id)) {
+/// Resolve an event to its (slug, name), falling back to the neutral "other" category.
+fn category_of(event: &ActivityLog, categories: &HashMap<i64, CategoryMeta>) -> (String, String) {
+    match event.category_id.and_then(|id| categories.get(&id)) {
         Some(meta) => (
             meta.slug.clone().unwrap_or_else(|| OTHER_SLUG.to_string()),
             meta.name.clone(),
@@ -168,10 +168,10 @@ fn context_of(event: &ActivityLog, contexts: &HashMap<i64, ContextMeta>) -> (Str
     }
 }
 
-/// Build the Day view from a day's events plus context/project name lookups.
+/// Build the Day view from a day's events plus category/project name lookups.
 pub fn build_day_view(
     events: &[ActivityLog],
-    contexts: &HashMap<i64, ContextMeta>,
+    categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
 ) -> DayView {
     let mut active_secs = 0;
@@ -189,14 +189,14 @@ pub fn build_day_view(
             continue;
         }
         active_secs += secs;
-        let (slug, name) = context_of(event, contexts);
+        let (slug, name) = category_of(event, categories);
         let entry = totals.entry(slug).or_insert((name, 0));
         entry.1 += secs;
     }
 
-    let mut context_slices: Vec<ContextSlice> = totals
+    let mut category_slices: Vec<CategorySlice> = totals
         .into_iter()
-        .map(|(slug, (name, secs))| ContextSlice {
+        .map(|(slug, (name, secs))| CategorySlice {
             slug,
             name,
             secs,
@@ -208,15 +208,15 @@ pub fn build_day_view(
         })
         .collect();
     // Deterministic order: longest first, slug as the tie-breaker.
-    context_slices.sort_by(|a, b| b.secs.cmp(&a.secs).then_with(|| a.slug.cmp(&b.slug)));
+    category_slices.sort_by(|a, b| b.secs.cmp(&a.secs).then_with(|| a.slug.cmp(&b.slug)));
 
-    let runs = build_runs(events, contexts, projects);
-    let recap = render_template_recap(active_secs, &context_slices, &runs);
+    let runs = build_runs(events, categories, projects);
+    let recap = render_template_recap(active_secs, &category_slices, &runs);
 
     DayView {
         active_secs,
         idle_secs,
-        contexts: context_slices,
+        categories: category_slices,
         runs,
         recap,
     }
@@ -228,7 +228,7 @@ pub fn build_day_view(
 pub fn build_day_slice(
     day_start: i64,
     events: &[ActivityLog],
-    contexts: &HashMap<i64, ContextMeta>,
+    categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
 ) -> DaySlice {
     let mut active_secs = 0;
@@ -239,7 +239,7 @@ pub fn build_day_slice(
             continue;
         }
         active_secs += secs;
-        if context_of(event, contexts).0 == DEEP_SLUG {
+        if category_of(event, categories).0 == DEEP_SLUG {
             deep_secs += secs;
         }
     }
@@ -247,7 +247,7 @@ pub fn build_day_slice(
         day_start,
         active_secs,
         deep_secs,
-        runs: build_runs(events, contexts, projects),
+        runs: build_runs(events, categories, projects),
     }
 }
 
@@ -271,7 +271,7 @@ pub fn build_week_view(days: Vec<DaySlice>) -> WeekView {
     }
 }
 
-/// In-progress raw run: consecutive same-context events accumulated as segments. Coalesced
+/// In-progress raw run: consecutive same-category events accumulated as segments. Coalesced
 /// into a [`SegRun`]; the absorb pass (D34a) then merges brief sandwiched excursions.
 struct RawRunBuilder {
     slug: String,
@@ -300,17 +300,17 @@ impl RawRunBuilder {
             start: event.start_time,
             end: event.end_time,
             app: event.process_name.clone(),
-            context_slug: self.slug.clone(),
-            context_name: self.name.clone(),
+            category_slug: self.slug.clone(),
+            category_name: self.name.clone(),
             project,
             secs: duration(event),
         });
     }
 }
 
-/// A coalesced run carrying every segment (each with its own context). After the absorb pass a
-/// run's segments may include a different-context detour; its reported `secs` / `projects` /
-/// `apps` are always for the **host** context only (D34a) — the detour lives on its segment.
+/// A coalesced run carrying every segment (each with its own category). After the absorb pass a
+/// run's segments may include a different-category detour; its reported `secs` / `projects` /
+/// `apps` are always for the **host** category only (D34a) — the detour lives on its segment.
 struct SegRun {
     slug: String,
     name: String,
@@ -330,20 +330,20 @@ impl SegRun {
         }
     }
 
-    /// Active seconds whose segment context is the host context.
+    /// Active seconds whose segment category is the host category.
     fn host_active(&self) -> i64 {
         self.segments
             .iter()
-            .filter(|s| s.context_slug == self.slug)
+            .filter(|s| s.category_slug == self.slug)
             .map(|s| s.secs)
             .sum()
     }
 
-    /// Active seconds of absorbed (non-host-context) detours.
+    /// Active seconds of absorbed (non-host-category) detours.
     fn absorbed(&self) -> i64 {
         self.segments
             .iter()
-            .filter(|s| s.context_slug != self.slug)
+            .filter(|s| s.category_slug != self.slug)
             .map(|s| s.secs)
             .sum()
     }
@@ -354,14 +354,14 @@ impl SegRun {
     }
 
     fn finish(self) -> TimelineRun {
-        // Headline numbers are host-context only: a "Deep · 52m" run means 52m of Deep, and the
-        // off-context detour never injects a phantom project slice (D34a, debate). The detour's
+        // Headline numbers are host-category only: a "Deep · 52m" run means 52m of Deep, and the
+        // off-category detour never injects a phantom project slice (D34a, debate). The detour's
         // seconds live on its segment (the expand) and in the per-axis ledger.
         let host = self.slug.clone();
         let secs = self.host_active();
         let mut totals: HashMap<String, i64> = HashMap::new();
         let mut apps: Vec<String> = Vec::new();
-        for seg in self.segments.iter().filter(|s| s.context_slug == host) {
+        for seg in self.segments.iter().filter(|s| s.category_slug == host) {
             let name = seg
                 .project
                 .clone()
@@ -377,8 +377,8 @@ impl SegRun {
             .collect();
         projects.sort_by(|a, b| b.secs.cmp(&a.secs).then_with(|| a.name.cmp(&b.name)));
         TimelineRun {
-            context_slug: self.slug,
-            context_name: self.name,
+            category_slug: self.slug,
+            category_name: self.name,
             start: self.start,
             end: self.end,
             secs,
@@ -389,11 +389,11 @@ impl SegRun {
     }
 }
 
-/// Coalesce active events into raw single-context runs: a run ends when the context changes or
+/// Coalesce active events into raw single-category runs: a run ends when the category changes or
 /// a gap ≥ `IDLE_GAP_ENDS_RUN_SECS` opens; project changes never split (D34).
 fn raw_runs(
     events: &[ActivityLog],
-    contexts: &HashMap<i64, ContextMeta>,
+    categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
 ) -> Vec<SegRun> {
     let mut active: Vec<&ActivityLog> = events
@@ -406,7 +406,7 @@ fn raw_runs(
     let mut current: Option<RawRunBuilder> = None;
 
     for event in active {
-        let (slug, name) = context_of(event, contexts);
+        let (slug, name) = category_of(event, categories);
         let project = event.project_id.and_then(|id| projects.get(&id).cloned());
 
         match current.take() {
@@ -429,12 +429,12 @@ fn raw_runs(
     runs
 }
 
-/// Fold brief sandwiched excursions into the surrounding context-run (D34a). A maximal
-/// contiguous block of non-X runs flanked by context X on both sides is absorbed into one X run
+/// Fold brief sandwiched excursions into the surrounding category-run (D34a). A maximal
+/// contiguous block of non-X runs flanked by category X on both sides is absorbed into one X run
 /// when ALL hold: the block's wall-clock span ≤ `ABSORB_SECS`; the host's active time ≥ the
 /// excursion's (local dominance — a tiny host can't masquerade); and the run's total absorbed
 /// time stays ≤ `MAX_ABSORB_FRACTION_PCT`% of its wall-clock (the accumulation backstop). The
-/// detour's events stay as segments (with their real context) for the expand. Iterated to a
+/// detour's events stay as segments (with their real category) for the expand. Iterated to a
 /// fixpoint, so `X | a | X | b | X` collapses left-to-right.
 fn absorb_excursions(mut runs: Vec<SegRun>) -> Vec<SegRun> {
     loop {
@@ -446,7 +446,7 @@ fn absorb_excursions(mut runs: Vec<SegRun>) -> Vec<SegRun> {
             while j < runs.len() && &runs[j].slug != host {
                 j += 1;
             }
-            // Need a non-empty block AND a closing flanker of the same context.
+            // Need a non-empty block AND a closing flanker of the same category.
             if j >= runs.len() || j == i + 1 {
                 continue;
             }
@@ -494,44 +494,44 @@ fn absorb_excursions(mut runs: Vec<SegRun>) -> Vec<SegRun> {
     runs
 }
 
-/// The single segmentation pass (D34a): raw context-runs → excursion-absorb → rich runs with
-/// segments. `build_runs` (dial / week) projects these to `ContextRun`; `build_timeline` returns
+/// The single segmentation pass (D34a): raw category-runs → excursion-absorb → rich runs with
+/// segments. `build_runs` (dial / week) projects these to `CategoryRun`; `build_timeline` returns
 /// them whole — one source of truth, so the dial and Timeline can never disagree.
 fn build_segmented_runs(
     events: &[ActivityLog],
-    contexts: &HashMap<i64, ContextMeta>,
+    categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
 ) -> Vec<TimelineRun> {
-    absorb_excursions(raw_runs(events, contexts, projects))
+    absorb_excursions(raw_runs(events, categories, projects))
         .into_iter()
         .map(SegRun::finish)
         .collect()
 }
 
-/// Build the Timeline view: the day's context-runs, each with its inner app-switch segments
+/// Build the Timeline view: the day's category-runs, each with its inner app-switch segments
 /// (D34/D34a) — the same segmentation the dial uses, with the segments retained for expand.
 pub fn build_timeline(
     events: &[ActivityLog],
-    contexts: &HashMap<i64, ContextMeta>,
+    categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
 ) -> TimelineView {
     TimelineView {
-        runs: build_segmented_runs(events, contexts, projects),
+        runs: build_segmented_runs(events, categories, projects),
     }
 }
 
-/// Context-runs for the dial arcs + week mini-dials: the segmented runs (D34a) minus their
+/// Category-runs for the dial arcs + week mini-dials: the segmented runs (D34a) minus their
 /// per-segment detail. The dial and Timeline share one segmentation, so they cannot diverge.
 fn build_runs(
     events: &[ActivityLog],
-    contexts: &HashMap<i64, ContextMeta>,
+    categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
-) -> Vec<ContextRun> {
-    build_segmented_runs(events, contexts, projects)
+) -> Vec<CategoryRun> {
+    build_segmented_runs(events, categories, projects)
         .into_iter()
-        .map(|run| ContextRun {
-            context_slug: run.context_slug,
-            context_name: run.context_name,
+        .map(|run| CategoryRun {
+            category_slug: run.category_slug,
+            category_name: run.category_name,
             start: run.start,
             end: run.end,
             secs: run.secs,
@@ -558,14 +558,14 @@ fn human_secs(secs: i64) -> String {
 /// replace the phrasing; this is the always-available template (and the fallback).
 fn render_template_recap(
     active_secs: i64,
-    contexts: &[ContextSlice],
-    runs: &[ContextRun],
+    categories: &[CategorySlice],
+    runs: &[CategoryRun],
 ) -> Recap {
-    let text = if active_secs == 0 || contexts.is_empty() {
+    let text = if active_secs == 0 || categories.is_empty() {
         "No activity tracked today yet.".to_string()
     } else {
-        let top = &contexts[0];
-        let mut text = if contexts.len() == 1 {
+        let top = &categories[0];
+        let mut text = if categories.len() == 1 {
             format!(
                 "{} tracked, all {}.",
                 human_secs(active_secs),
@@ -593,7 +593,7 @@ fn render_template_recap(
 
 /// The single real project that clearly led the day (≥ 40% of active time), if any.
 /// "No project" never qualifies — we don't narrate the absence of a project.
-fn leading_project(runs: &[ContextRun], active_secs: i64) -> Option<String> {
+fn leading_project(runs: &[CategoryRun], active_secs: i64) -> Option<String> {
     if active_secs <= 0 {
         return None;
     }
@@ -646,25 +646,25 @@ mod tests {
         e
     }
 
-    fn ctx_map() -> HashMap<i64, ContextMeta> {
+    fn ctx_map() -> HashMap<i64, CategoryMeta> {
         HashMap::from([
             (
                 1,
-                ContextMeta {
+                CategoryMeta {
                     slug: Some("deep".into()),
                     name: "Deep work".into(),
                 },
             ),
             (
                 2,
-                ContextMeta {
+                CategoryMeta {
                     slug: Some("comms".into()),
                     name: "Comms".into(),
                 },
             ),
             (
                 3,
-                ContextMeta {
+                CategoryMeta {
                     slug: Some("research".into()),
                     name: "Research".into(),
                 },
@@ -677,7 +677,7 @@ mod tests {
     }
 
     #[test]
-    fn aggregates_sum_per_context_and_exclude_idle() {
+    fn aggregates_sum_per_category_and_exclude_idle() {
         let events = vec![
             ev(0, 600, "Cursor", Some(1), Some(1)), // 10m deep
             ev(600, 900, "Slack", Some(2), None),   // 5m comms
@@ -686,14 +686,14 @@ mod tests {
         let day = build_day_view(&events, &ctx_map(), &proj_map());
         assert_eq!(day.active_secs, 900);
         assert_eq!(day.idle_secs, 300);
-        assert_eq!(day.contexts.len(), 2);
-        assert_eq!(day.contexts[0].slug, "deep"); // longest first
-        assert_eq!(day.contexts[0].secs, 600);
-        assert!((day.contexts[0].pct - 66.666).abs() < 0.01);
+        assert_eq!(day.categories.len(), 2);
+        assert_eq!(day.categories[0].slug, "deep"); // longest first
+        assert_eq!(day.categories[0].secs, 600);
+        assert!((day.categories[0].pct - 66.666).abs() < 0.01);
     }
 
     #[test]
-    fn same_context_coalesces_into_one_run_across_projects() {
+    fn same_category_coalesces_into_one_run_across_projects() {
         // Deep work bouncing usageos <-> nudge must stay ONE run (D34).
         let events = vec![
             ev(0, 300, "Cursor", Some(1), Some(1)),
@@ -703,7 +703,7 @@ mod tests {
         let day = build_day_view(&events, &ctx_map(), &proj_map());
         assert_eq!(day.runs.len(), 1);
         let run = &day.runs[0];
-        assert_eq!(run.context_slug, "deep");
+        assert_eq!(run.category_slug, "deep");
         assert_eq!(run.start, 0);
         assert_eq!(run.end, 900);
         assert_eq!(run.apps, vec!["Cursor", "iTerm"]);
@@ -713,7 +713,7 @@ mod tests {
     }
 
     #[test]
-    fn context_change_splits_runs() {
+    fn category_change_splits_runs() {
         let events = vec![
             ev(0, 600, "Cursor", Some(1), Some(1)),
             ev(600, 900, "Slack", Some(2), None),
@@ -721,12 +721,12 @@ mod tests {
         ];
         let day = build_day_view(&events, &ctx_map(), &proj_map());
         assert_eq!(day.runs.len(), 3);
-        assert_eq!(day.runs[1].context_slug, "comms");
+        assert_eq!(day.runs[1].category_slug, "comms");
         assert_eq!(day.runs[1].projects[0].name, "No project");
     }
 
     #[test]
-    fn large_gap_splits_same_context_into_two_runs() {
+    fn large_gap_splits_same_category_into_two_runs() {
         // Deep, then a long idle/untracked gap, then deep again -> two runs.
         let events = vec![
             ev(0, 600, "Cursor", Some(1), Some(1)),
@@ -743,12 +743,12 @@ mod tests {
     }
 
     #[test]
-    fn uncategorized_active_time_becomes_other_context() {
+    fn uncategorized_active_time_becomes_other_category() {
         let events = vec![ev(0, 600, "Unknown", None, None)];
         let day = build_day_view(&events, &ctx_map(), &proj_map());
-        assert_eq!(day.contexts[0].slug, "other");
-        assert_eq!(day.contexts[0].name, "Uncategorized");
-        assert_eq!(day.runs[0].context_slug, "other");
+        assert_eq!(day.categories[0].slug, "other");
+        assert_eq!(day.categories[0].name, "Uncategorized");
+        assert_eq!(day.runs[0].category_slug, "other");
     }
 
     #[test]
@@ -759,7 +759,7 @@ mod tests {
     }
 
     #[test]
-    fn recap_names_the_leading_context_and_project() {
+    fn recap_names_the_leading_category_and_project() {
         let events = vec![
             ev(0, 3600, "Cursor", Some(1), Some(1)), // 1h deep on usageos
             ev(3600, 4200, "Slack", Some(2), None),  // 10m comms
@@ -838,14 +838,14 @@ mod tests {
     }
 
     #[test]
-    fn timeline_splits_on_context_change_and_marks_no_project() {
+    fn timeline_splits_on_category_change_and_marks_no_project() {
         let events = vec![
             ev(0, 600, "Cursor", Some(1), Some(1)), // deep
             ev(600, 900, "Slack", Some(2), None),   // comms → split
         ];
         let tl = build_timeline(&events, &ctx_map(), &proj_map());
         assert_eq!(tl.runs.len(), 2);
-        assert_eq!(tl.runs[1].context_slug, "comms");
+        assert_eq!(tl.runs[1].category_slug, "comms");
         assert_eq!(
             tl.runs[1].segments[0].project, None,
             "unresolved project → None"
@@ -853,7 +853,7 @@ mod tests {
     }
 
     #[test]
-    fn timeline_splits_same_context_on_a_long_gap() {
+    fn timeline_splits_same_category_on_a_long_gap() {
         let events = vec![
             ev(0, 600, "Cursor", Some(1), Some(1)),
             ev(
@@ -882,7 +882,7 @@ mod tests {
         let tl = build_timeline(&events, &ctx_map(), &proj_map());
         assert_eq!(tl.runs.len(), 1, "the brief comms glance is absorbed");
         let run = &tl.runs[0];
-        assert_eq!(run.context_slug, "deep");
+        assert_eq!(run.category_slug, "deep");
         assert_eq!(
             (run.start, run.end),
             (0, 1200),
@@ -905,13 +905,13 @@ mod tests {
         assert_eq!(run.projects[0].name, "usageos");
         let comms = run.segments.iter().find(|s| s.app == "Slack").unwrap();
         assert_eq!(
-            comms.context_slug, "comms",
-            "the absorbed segment keeps its real context"
+            comms.category_slug, "comms",
+            "the absorbed segment keeps its real category"
         );
         // Totals are independent of segmentation (D34): the 50s is still Comms in the ledger.
         let day = build_day_view(&events, &ctx_map(), &proj_map());
         let comms_total = day
-            .contexts
+            .categories
             .iter()
             .find(|c| c.slug == "comms")
             .unwrap()
@@ -930,7 +930,7 @@ mod tests {
         ];
         let tl = build_timeline(&events, &ctx_map(), &proj_map());
         assert_eq!(tl.runs.len(), 1);
-        assert_eq!(tl.runs[0].context_slug, "deep");
+        assert_eq!(tl.runs[0].category_slug, "deep");
         assert_eq!(tl.runs[0].segments.len(), 4);
     }
 
@@ -994,7 +994,7 @@ mod tests {
 
     #[test]
     fn build_runs_is_the_timeline_projection() {
-        // The dial's ContextRuns are exactly the Timeline runs minus segments (one source).
+        // The dial's CategoryRuns are exactly the Timeline runs minus segments (one source).
         let events = vec![
             ev(0, 600, "Cursor", Some(1), Some(1)),
             ev(600, 650, "Slack", Some(2), None), // absorbed into the deep run
@@ -1005,7 +1005,7 @@ mod tests {
         let tl = build_timeline(&events, &ctx_map(), &proj_map());
         assert_eq!(day.runs.len(), tl.runs.len());
         for (cr, tr) in day.runs.iter().zip(tl.runs.iter()) {
-            assert_eq!(cr.context_slug, tr.context_slug);
+            assert_eq!(cr.category_slug, tr.category_slug);
             assert_eq!((cr.start, cr.end, cr.secs), (tr.start, tr.end, tr.secs));
         }
     }

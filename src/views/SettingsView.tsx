@@ -1,9 +1,10 @@
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useState } from "react";
 
-import { ContextEditorModal } from "@/components/settings/ContextEditorModal";
+import { CategoryEditorModal } from "@/components/settings/CategoryEditorModal";
 import { DeleteAllModal } from "@/components/settings/DeleteAllModal";
 import { ExclusionModal } from "@/components/settings/ExclusionModal";
+import { UncategorizedApps } from "@/components/settings/UncategorizedApps";
 import {
   AddRow,
   IconButton,
@@ -13,17 +14,18 @@ import {
   SettingRow,
   Tag,
 } from "@/components/settings/primitives";
+import { AppIcon } from "@/components/ui/AppIcon";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useSettingsData } from "@/hooks/useSettingsData";
-import { contextColorVar } from "@/lib/contexts";
+import { categoryColorVar } from "@/lib/categories";
 import {
   deleteExclusion,
   exportEventsCsv,
   getDatabasePath,
   setRetentionDays,
-  type Context,
+  type Category,
   type Rule,
 } from "@/lib/tauri";
 import { THEMES, THEME_LABELS, useTheme, type Theme } from "@/providers/ThemeProvider";
@@ -45,7 +47,7 @@ export function SettingsView() {
   const { data, loading, error, refresh } = useSettingsData();
   const { theme, setTheme } = useTheme();
 
-  const [editing, setEditing] = useState<{ context: Context | null } | null>(null);
+  const [editing, setEditing] = useState<{ category: Category | null } | null>(null);
   const [exclusionOpen, setExclusionOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -57,14 +59,14 @@ export function SettingsView() {
     return () => clearTimeout(id);
   }, [notice]);
 
-  const contexts = useMemo(() => {
-    const list = data?.contexts ?? [];
+  const categories = useMemo(() => {
+    const list = data?.categories ?? [];
     return [...list].sort((a, b) => {
       const ai = a.slug ? CANON_ORDER.indexOf(a.slug) : 99;
       const bi = b.slug ? CANON_ORDER.indexOf(b.slug) : 99;
       return ai !== bi ? ai - bi : a.name.localeCompare(b.name);
     });
-  }, [data?.contexts]);
+  }, [data?.categories]);
 
   if (loading && !data) return <SettingsSkeleton />;
   if (error && !data) {
@@ -77,7 +79,7 @@ export function SettingsView() {
   }
   if (!data) return null;
 
-  const { rules, exclusions, settings } = data;
+  const { rules, exclusions, uncategorized, settings } = data;
 
   const currentRetention = settings["data_retention_days"] ?? "0";
   const retentionOptions = RETENTION.some(([v]) => v === currentRetention)
@@ -137,19 +139,32 @@ export function SettingsView() {
         {notice}
       </p>
 
-      {/* Contexts & rules */}
-      <SettingGroup title="Contexts & rules">
-        {contexts.map((ctx) => (
-          <ContextRow
+      {/* Uncategorized apps — surface what needs sorting first (the day-one path) */}
+      <SettingGroup
+        title={`Uncategorized${uncategorized.length ? ` · ${uncategorized.length}` : ""}`}
+      >
+        <UncategorizedApps
+          apps={uncategorized}
+          categories={categories}
+          onAssigned={refresh}
+          onNewCategory={() => setEditing({ category: null })}
+          onError={(m) => setNotice(m)}
+        />
+      </SettingGroup>
+
+      {/* Categories & rules */}
+      <SettingGroup title="Categories & rules">
+        {categories.map((ctx) => (
+          <CategoryRow
             key={ctx.id}
             ctx={ctx}
             rules={rules}
-            onEdit={() => setEditing({ context: ctx })}
+            onEdit={() => setEditing({ category: ctx })}
           />
         ))}
         <AddRow
-          label="+ Add context"
-          onAdd={() => setEditing({ context: null })}
+          label="+ Add category"
+          onAdd={() => setEditing({ category: null })}
           hint="Rules sort your activity automatically. Edit one and everything re-sorts."
         />
       </SettingGroup>
@@ -236,10 +251,11 @@ export function SettingsView() {
         </SettingRow>
       </SettingGroup>
 
-      <ContextEditorModal
+      <CategoryEditorModal
         open={editing !== null}
-        context={editing?.context ?? null}
+        category={editing?.category ?? null}
         rules={rules}
+        categories={categories}
         onClose={() => setEditing(null)}
         onSaved={refresh}
       />
@@ -260,41 +276,45 @@ export function SettingsView() {
   );
 }
 
-function ContextRow({
+function CategoryRow({
   ctx,
   rules,
   onEdit,
 }: {
-  ctx: Context;
+  ctx: Category;
   rules: Rule[];
   onEdit: () => void;
 }) {
-  const swatch = ctx.slug ? contextColorVar(ctx.slug) : ctx.color;
-  const ctxRules = rules.filter((r) => r.context_id === ctx.id);
+  const swatch = ctx.slug ? categoryColorVar(ctx.slug) : ctx.color;
+  const ctxRules = rules.filter((r) => r.category_id === ctx.id);
   return (
-    <div className="flex items-center gap-[13px] px-4 py-[13px]">
+    <div className="flex flex-wrap items-start gap-x-[13px] gap-y-2 px-4 py-[13px]">
       <span
-        className="h-[18px] w-[18px] flex-shrink-0 border border-edge"
+        className="mt-0.5 h-[18px] w-[18px] flex-shrink-0 border border-edge"
         style={{ background: swatch }}
       />
-      <span className="w-[108px] flex-shrink-0 text-sm font-semibold uppercase tracking-[0.02em]">
+      <span className="w-[120px] flex-shrink-0 break-words text-sm font-semibold uppercase leading-tight tracking-[0.02em]">
         {ctx.name}
       </span>
-      <span className="flex flex-1 flex-wrap items-center gap-1.5 text-[12.5px] text-muted">
+      <span className="flex min-w-[160px] flex-1 flex-wrap items-center gap-1.5 text-[12.5px] text-muted">
         {ctxRules.length === 0 ? (
           <span className="italic">No rules yet</span>
         ) : (
-          ctxRules.map((r) => (
-            <code
-              key={r.id}
-              className="border border-rule bg-surface px-[7px] py-px font-sans font-semibold text-fg"
-            >
-              {r.match_field === "title" ? `title: ${r.pattern}` : r.pattern}
-            </code>
-          ))
+          ctxRules.map((r) => {
+            const isTitle = r.match_field === "title";
+            return (
+              <span
+                key={r.id}
+                className="inline-flex items-center gap-1.5 border border-rule bg-surface px-[7px] py-0.5 font-sans font-semibold text-fg"
+              >
+                {!isTitle && <AppIcon name={r.pattern} size={14} />}
+                {isTitle ? `title: ${r.pattern}` : r.pattern}
+              </span>
+            );
+          })
         )}
       </span>
-      <IconButton aria-label={`Edit ${ctx.name}`} onClick={onEdit}>
+      <IconButton className="ml-auto" aria-label={`Edit ${ctx.name}`} onClick={onEdit}>
         ✎
       </IconButton>
     </div>

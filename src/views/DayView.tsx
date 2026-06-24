@@ -9,11 +9,11 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { StatTile } from "@/components/ui/StatTile";
 import { Dial } from "@/components/dial/Dial";
 import { useDayData } from "@/hooks/useDayData";
-import { CANONICAL_CONTEXTS, contextColorVar } from "@/lib/contexts";
+import { CANONICAL_CATEGORIES, categoryColorVar } from "@/lib/categories";
 import { addDays, dayBounds, isSameDay } from "@/lib/dates";
 import { formatClock, formatDuration } from "@/lib/format";
 import { summarizeRun } from "@/lib/runs";
-import { getWatcherStatus, type ContextRun } from "@/lib/tauri";
+import { getWatcherStatus, type CategoryRun } from "@/lib/tauri";
 
 export interface DayViewProps {
   date: Date;
@@ -27,7 +27,7 @@ export function DayView({ date, onDateChange }: DayViewProps) {
 
   const { data, loading, error, refresh } = useDayData(start, end, isToday);
 
-  const [selectedRun, setSelectedRun] = useState<ContextRun | null>(null);
+  const [selectedRun, setSelectedRun] = useState<CategoryRun | null>(null);
   const [isolated, setIsolated] = useState<string | null>(null);
   const [captureHealthy, setCaptureHealthy] = useState(true);
 
@@ -48,14 +48,14 @@ export function DayView({ date, onDateChange }: DayViewProps) {
     };
   }, [start]);
 
-  const deepSecs = data?.contexts.find((c) => c.slug === "deep")?.secs ?? 0;
-  const researchSecs = data?.contexts.find((c) => c.slug === "research")?.secs ?? 0;
+  const deepSecs = data?.categories.find((c) => c.slug === "deep")?.secs ?? 0;
+  const researchSecs = data?.categories.find((c) => c.slug === "research")?.secs ?? 0;
   const activeSecs = data?.active_secs ?? 0;
   const focusPct = activeSecs > 0 ? Math.round(((deepSecs + researchSecs) / activeSecs) * 100) : 0;
-  // The day's leading context — `contexts` is sorted longest-first by the rollup, so [0]
+  // The day's leading category — `categories` is sorted longest-first by the rollup, so [0]
   // is the headline. Featuring whatever actually led (vs. a fixed "Deep work" that's
   // often ~0) keeps the stat honest instead of looking broken.
-  const topContext = data?.contexts[0];
+  const topCategory = data?.categories[0];
 
   const inspector: InspectorDetail | null = selectedRun
     ? buildInspector(selectedRun)
@@ -102,9 +102,9 @@ export function DayView({ date, onDateChange }: DayViewProps) {
               <div className="flex border-t-[3px] border-edge">
                 <StatTile value={formatDuration(activeSecs)} label="Active" />
                 <StatTile
-                  value={topContext ? formatDuration(topContext.secs) : "—"}
-                  label={topContext ? topContext.name : "Top context"}
-                  colorVar={topContext ? contextColorVar(topContext.slug) : undefined}
+                  value={topCategory ? formatDuration(topCategory.secs) : "—"}
+                  label={topCategory ? topCategory.name : "Top category"}
+                  colorVar={topCategory ? categoryColorVar(topCategory.slug) : undefined}
                   className="border-l-2 border-edge pl-3.5"
                 />
                 <StatTile
@@ -116,11 +116,11 @@ export function DayView({ date, onDateChange }: DayViewProps) {
               </div>
 
               <div className="mt-[18px] flex flex-wrap gap-[9px]">
-                {CANONICAL_CONTEXTS.map((c) => (
+                {CANONICAL_CATEGORIES.map((c) => (
                   <Chip
                     key={c.slug}
                     label={c.name}
-                    colorVar={contextColorVar(c.slug)}
+                    colorVar={categoryColorVar(c.slug)}
                     active={isolated === c.slug}
                     onClick={() => toggleIsolate(c.slug)}
                   />
@@ -132,7 +132,7 @@ export function DayView({ date, onDateChange }: DayViewProps) {
           </div>
 
           <Ledger
-            contexts={data.contexts}
+            categories={data.categories}
             isolated={isolated}
             onHover={setIsolated}
             onToggle={toggleIsolate}
@@ -193,17 +193,17 @@ function DayNav({
 }
 
 function Ledger({
-  contexts,
+  categories,
   isolated,
   onHover,
   onToggle,
 }: {
-  contexts: { slug: string; name: string; secs: number; pct: number }[];
+  categories: { slug: string; name: string; secs: number; pct: number }[];
   isolated: string | null;
   onHover: (slug: string | null) => void;
   onToggle: (slug: string) => void;
 }) {
-  const rows = contexts.filter((c) => c.secs > 0);
+  const rows = categories.filter((c) => c.secs > 0);
   if (rows.length === 0) return null;
   return (
     <>
@@ -216,7 +216,7 @@ function Ledger({
           <LedgerRow
             key={row.slug}
             name={row.name}
-            colorVar={contextColorVar(row.slug)}
+            colorVar={categoryColorVar(row.slug)}
             durationLabel={formatDuration(row.secs)}
             pct={Math.round(row.pct)}
             dimmed={isolated !== null && isolated !== row.slug}
@@ -230,12 +230,12 @@ function Ledger({
   );
 }
 
-function buildInspector(run: ContextRun): InspectorDetail {
+function buildInspector(run: CategoryRun): InspectorDetail {
   const sm = summarizeRun(run);
   const subtitle = sm.projectLabel ? `${sm.projectLabel} · ${sm.apps}` : sm.apps;
   return {
-    colorVar: contextColorVar(run.context_slug),
-    title: run.context_name,
+    colorVar: categoryColorVar(run.category_slug),
+    title: run.category_name,
     subtitle,
     durationLabel: formatDuration(run.secs),
     rangeLabel: `${formatClock(run.start)}–${formatClock(run.end)}`,

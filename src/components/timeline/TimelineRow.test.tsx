@@ -6,12 +6,12 @@ import { render, fireEvent } from "@testing-library/react";
 import { TimelineRow } from "./TimelineRow";
 import type { TimelineRun } from "@/lib/tauri";
 
-const deep = { context_slug: "deep", context_name: "Deep work" };
+const deep = { category_slug: "deep", category_name: "Deep work" };
 
 // A Deep run that absorbed a brief Comms detour (D34a).
 const RUN: TimelineRun = {
-  context_slug: "deep",
-  context_name: "Deep work",
+  category_slug: "deep",
+  category_name: "Deep work",
   start: 1_000_000_000,
   end: 1_000_006_120,
   secs: 4600, // host (Deep) only
@@ -20,7 +20,7 @@ const RUN: TimelineRun = {
   segments: [
     { start: 1_000_000_000, end: 1_000_001_800, app: "Cursor", ...deep, project: "usageos", secs: 1800 },
     { start: 1_000_001_800, end: 1_000_003_400, app: "iTerm", ...deep, project: "usageos", secs: 1600 },
-    { start: 1_000_003_400, end: 1_000_003_940, app: "Slack", context_slug: "comms", context_name: "Comms", project: null, secs: 540 },
+    { start: 1_000_003_400, end: 1_000_003_940, app: "Slack", category_slug: "comms", category_name: "Comms", project: null, secs: 540 },
     { start: 1_000_003_940, end: 1_000_006_120, app: "Cursor", ...deep, project: "usageos", secs: 1200 },
   ],
 };
@@ -38,7 +38,7 @@ describe("TimelineRow", () => {
     fireEvent.click(getByRole("button"));
     expect(getByRole("button")).toHaveAttribute("aria-expanded", "true");
     expect(getByText(/4 app switches/i)).toBeInTheDocument();
-    // the absorbed Comms detour carries its own context marker
+    // the absorbed Comms detour carries its own category marker
     expect(getByTitle("Comms")).toBeInTheDocument();
   });
 });

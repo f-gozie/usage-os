@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { CANONICAL_CONTEXTS, contextColorVar } from "@/lib/contexts";
+import { CANONICAL_CATEGORIES, categoryColorVar } from "@/lib/categories";
 import { Chip } from "./Chip";
 
 const meta = {
@@ -22,8 +22,8 @@ export const Active: Story = {
 export const Legend: StoryObj = {
   render: () => (
     <div className="flex flex-wrap gap-[9px]">
-      {CANONICAL_CONTEXTS.map((c) => (
-        <Chip key={c.slug} label={c.name} colorVar={contextColorVar(c.slug)} />
+      {CANONICAL_CATEGORIES.map((c) => (
+        <Chip key={c.slug} label={c.name} colorVar={categoryColorVar(c.slug)} />
       ))}
     </div>
   ),

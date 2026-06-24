@@ -47,6 +47,17 @@ pub struct ActivityLog {
     pub is_private: bool,
 }
 
+/// An app with tracked time that matches no rule — its `category_id` is NULL, so it
+/// rolls up as "Uncategorized" (Other). Surfaced in Settings so the user can sort it
+/// into a category. `total_secs`/`last_seen` are all-time (retention-bounded): sorting
+/// it once re-sorts every past day it appears on (read-time segmentation, D40).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct UncategorizedApp {
+    pub process_name: String,
+    pub total_secs: i64,
+    pub last_seen: i64,
+}
+
 /// A canonical project (D30). Keyed on the git remote `owner/repo` (or folder name
 /// when a repo has no remote); folder/title/url aliases resolve to it via
 /// `project_aliases`.
@@ -106,14 +117,14 @@ pub struct NewEvent<'a> {
     pub timestamp: i64,
 }
 
-/// A context (the redesign's noun for the legacy `categories` table — the SQL table
+/// A category (the redesign's noun for the legacy `categories` table — the SQL table
 /// and column names stay `categories`/`category_id` per D31; only the IPC surface is
 /// renamed). `slug` carries the canonical identity (`deep`|`research`|`comms`|`breaks`)
-/// the UI maps to a colour token `--c-<slug>`; `None` = a user-created context (it
+/// the UI maps to a colour token `--c-<slug>`; `None` = a user-created category (it
 /// supplies its own `color`). Exposing `slug` lets the editor protect the canonical
 /// four from deletion and colour their swatches from the theme-aware token.
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct Context {
+pub struct Category {
     pub id: i64,
     pub slug: Option<String>,
     pub name: String,
@@ -123,10 +134,10 @@ pub struct Context {
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Rule {
     pub id: i64,
-    // The owning context. The SQL column stays `category_id` (D31); the IPC field is
-    // `context_id`. (`ActivityLog.category_id` keeps the legacy name — it's read in the
+    // The owning category. The SQL column stays `category_id` (D31); the IPC field is
+    // `category_id`. (`ActivityLog.category_id` keeps the legacy name — it's read in the
     // hot rollup/capture paths and renaming it buys no IPC-naming win.)
-    pub context_id: i64,
+    pub category_id: i64,
     pub match_field: String, // "process" or "title"
     pub pattern: String,
     pub ignore_title: bool,
@@ -260,13 +271,42 @@ pub fn get_activity_logs(
     logs.collect()
 }
 
-// --- Context CRUD (the `categories` table; IPC noun is "context", D31) ---
+/// Trivial uncategorized spans below this (active seconds, all-time) are hidden from the
+/// Settings list to keep it calm — a sub-minute glance isn't worth sorting.
+const UNCATEGORIZED_FLOOR_SECS: i64 = 60;
 
-pub fn get_contexts(conn: &Connection) -> Result<Vec<Context>> {
+/// Apps with tracked time but no matching rule (`category_id IS NULL`), grouped by app
+/// with their all-time active total and last-seen time. Excludes idle and trivial
+/// (<`UNCATEGORIZED_FLOOR_SECS`) spans; ranked by total desc. Powers the Settings
+/// "Uncategorized" list — sorting one writes a rule + reprocess fixes every past day.
+pub fn get_uncategorized_apps(conn: &Connection) -> Result<Vec<UncategorizedApp>> {
+    let mut stmt = conn.prepare(
+        "SELECT process_name,
+                SUM(end_time - start_time) AS total_secs,
+                MAX(end_time) AS last_seen
+         FROM activity_logs
+         WHERE category_id IS NULL AND is_idle = 0
+         GROUP BY process_name
+         HAVING total_secs >= ?1
+         ORDER BY total_secs DESC",
+    )?;
+    let rows = stmt.query_map([UNCATEGORIZED_FLOOR_SECS], |row| {
+        Ok(UncategorizedApp {
+            process_name: row.get(0)?,
+            total_secs: row.get(1)?,
+            last_seen: row.get(2)?,
+        })
+    })?;
+    rows.collect()
+}
+
+// --- Category CRUD (the `categories` table; IPC noun is "category", D31) ---
+
+pub fn get_categories(conn: &Connection) -> Result<Vec<Category>> {
     let mut stmt =
         conn.prepare("SELECT id, slug, name, color FROM categories ORDER BY name ASC")?;
     let rows = stmt.query_map([], |row| {
-        Ok(Context {
+        Ok(Category {
             id: row.get(0)?,
             slug: row.get(1)?,
             name: row.get(2)?,
@@ -276,16 +316,16 @@ pub fn get_contexts(conn: &Connection) -> Result<Vec<Context>> {
     rows.collect()
 }
 
-/// Context identity for the rollup: `(id, slug, name)`. `slug` (e.g. "deep") maps to a
-/// colour token in the UI; `None` for a user-created context. Kept separate from
+/// Category identity for the rollup: `(id, slug, name)`. `slug` (e.g. "deep") maps to a
+/// colour token in the UI; `None` for a user-created category. Kept separate from
 /// [`get_categories`] so the slug stays out of the legacy IPC `Category` shape.
-pub fn get_context_metas(conn: &Connection) -> Result<Vec<(i64, Option<String>, String)>> {
+pub fn get_category_metas(conn: &Connection) -> Result<Vec<(i64, Option<String>, String)>> {
     let mut stmt = conn.prepare("SELECT id, slug, name FROM categories")?;
     let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
     rows.collect()
 }
 
-pub fn create_context(conn: &Connection, name: &str, color: &str) -> Result<i64> {
+pub fn create_category(conn: &Connection, name: &str, color: &str) -> Result<i64> {
     conn.execute(
         "INSERT INTO categories (name, color) VALUES (?1, ?2)",
         (name, color),
@@ -293,10 +333,10 @@ pub fn create_context(conn: &Connection, name: &str, color: &str) -> Result<i64>
     Ok(conn.last_insert_rowid())
 }
 
-/// Rename / recolour a context (name + colour only — `slug` is immutable canonical
+/// Rename / recolour a category (name + colour only — `slug` is immutable canonical
 /// identity, never edited). The Settings editor uses this for both canonical and
-/// user-created contexts.
-pub fn update_context(conn: &Connection, id: i64, name: &str, color: &str) -> Result<()> {
+/// user-created categories.
+pub fn update_category(conn: &Connection, id: i64, name: &str, color: &str) -> Result<()> {
     conn.execute(
         "UPDATE categories SET name = ?1, color = ?2 WHERE id = ?3",
         (name, color, id),
@@ -304,7 +344,7 @@ pub fn update_context(conn: &Connection, id: i64, name: &str, color: &str) -> Re
     Ok(())
 }
 
-pub fn delete_context(conn: &Connection, id: i64) -> Result<()> {
+pub fn delete_category(conn: &Connection, id: i64) -> Result<()> {
     conn.execute(
         "UPDATE activity_logs SET category_id = NULL WHERE category_id = ?1",
         [id],
@@ -322,7 +362,7 @@ pub fn get_rules(conn: &Connection) -> Result<Vec<Rule>> {
     let rows = stmt.query_map([], |row| {
         Ok(Rule {
             id: row.get(0)?,
-            context_id: row.get(1)?,
+            category_id: row.get(1)?,
             match_field: row.get(2)?,
             pattern: row.get(3)?,
             ignore_title: row.get::<_, i64>(4)? != 0,
@@ -333,14 +373,14 @@ pub fn get_rules(conn: &Connection) -> Result<Vec<Rule>> {
 
 pub fn create_rule(
     conn: &Connection,
-    context_id: i64,
+    category_id: i64,
     match_field: &str,
     pattern: &str,
     ignore_title: bool,
 ) -> Result<i64> {
     conn.execute(
         "INSERT INTO rules (category_id, match_field, pattern, ignore_title) VALUES (?1, ?2, ?3, ?4)",
-        (context_id, match_field, pattern, ignore_title as i64),
+        (category_id, match_field, pattern, ignore_title as i64),
     )?;
     Ok(conn.last_insert_rowid())
 }
@@ -369,7 +409,7 @@ pub fn find_category(
             .to_lowercase()
             .contains(&rule.pattern.to_lowercase())
         {
-            return Ok(Some(rule.context_id));
+            return Ok(Some(rule.category_id));
         }
     }
     Ok(None)
@@ -390,12 +430,12 @@ pub fn reprocess_logs(conn: &Connection) -> Result<()> {
         if rule.match_field == "process" {
             conn.execute(
                 "UPDATE activity_logs SET category_id = ?1 WHERE category_id IS NULL AND lower(process_name) LIKE lower(?2)",
-                (rule.context_id, pattern),
+                (rule.category_id, pattern),
             )?;
         } else {
             conn.execute(
                 "UPDATE activity_logs SET category_id = ?1 WHERE category_id IS NULL AND lower(window_title) LIKE lower(?2)",
-                (rule.context_id, pattern),
+                (rule.category_id, pattern),
             )?;
         }
     }
@@ -486,7 +526,7 @@ pub fn export_events_csv<W: Write>(conn: &Connection, w: &mut W) -> Result<usize
 
 /// Wipe the captured record — events plus the registries derived purely from them
 /// (projects + their aliases via cascade, sites) — in a single transaction. **Preserves**
-/// user configuration: contexts (`categories`), rules, exclusions, settings, and the
+/// user configuration: categories (`categories`), rules, exclusions, settings, and the
 /// migration ledger. The capture writer shares this connection's `Mutex`, so it can't
 /// interleave; its in-memory open-span id simply becomes a no-op `UPDATE` after the wipe
 /// (the next focus change opens a fresh span). No `VACUUM` — freed pages are reclaimed
@@ -791,6 +831,34 @@ mod tests {
         conn
     }
 
+    /// Insert a span with an explicit duration (the bare `insert_activity_log` helper
+    /// makes zero-length spans, which the uncategorized SUM would never surface).
+    fn span(conn: &Connection, app: &str, start: i64, secs: i64, cat: Option<i64>, idle: bool) {
+        conn.execute(
+            "INSERT INTO activity_logs (process_name, window_title, start_time, end_time, is_idle, category_id)
+             VALUES (?1, '', ?2, ?3, ?4, ?5)",
+            rusqlite::params![app, start, start + secs, idle as i64, cat],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn uncategorized_apps_groups_ranks_and_floors() {
+        let conn = setup_test_db();
+        span(&conn, "Obsidian", 1000, 120, None, false);
+        span(&conn, "Obsidian", 2000, 180, None, false); // → 300 total, last_seen 2180
+        span(&conn, "TablePlus", 3000, 90, None, false);
+        span(&conn, "Tiny", 4000, 30, None, false); // below the 60s floor → hidden
+        span(&conn, "Cursor", 5000, 600, Some(1), false); // categorized → excluded
+        span(&conn, "idlewatch", 6000, 600, None, true); // idle → excluded
+
+        let apps = get_uncategorized_apps(&conn).unwrap();
+        let names: Vec<&str> = apps.iter().map(|a| a.process_name.as_str()).collect();
+        assert_eq!(names, vec!["Obsidian", "TablePlus"]); // ranked by total desc
+        assert_eq!(apps[0].total_secs, 300);
+        assert_eq!(apps[0].last_seen, 2180);
+    }
+
     // --- Schema tests ---
 
     #[test]
@@ -841,7 +909,7 @@ mod tests {
     #[test]
     fn test_find_category_matches_process_name() {
         let conn = setup_test_db();
-        let cat_id = create_context(&conn, "Browsers", "#ff0000").unwrap();
+        let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
         create_rule(&conn, cat_id, "process", "firefox", false).unwrap();
 
         let result = find_category(&conn, "firefox", "Some Page").unwrap();
@@ -851,7 +919,7 @@ mod tests {
     #[test]
     fn test_find_category_case_insensitive() {
         let conn = setup_test_db();
-        let cat_id = create_context(&conn, "Browsers", "#ff0000").unwrap();
+        let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
         create_rule(&conn, cat_id, "process", "firefox", false).unwrap();
 
         let result = find_category(&conn, "Firefox", "Some Page").unwrap();
@@ -861,7 +929,7 @@ mod tests {
     #[test]
     fn test_find_category_matches_window_title() {
         let conn = setup_test_db();
-        let cat_id = create_context(&conn, "Development", "#00ff00").unwrap();
+        let cat_id = create_category(&conn, "Development", "#00ff00").unwrap();
         create_rule(&conn, cat_id, "title", "github", false).unwrap();
 
         let result = find_category(&conn, "firefox", "GitHub - Pull Request").unwrap();
@@ -871,7 +939,7 @@ mod tests {
     #[test]
     fn test_find_category_no_match() {
         let conn = setup_test_db();
-        create_context(&conn, "Browsers", "#ff0000").unwrap();
+        create_category(&conn, "Browsers", "#ff0000").unwrap();
         // No rules created
 
         let result = find_category(&conn, "firefox", "Some Page").unwrap();
@@ -890,7 +958,7 @@ mod tests {
     #[test]
     fn test_reprocess_logs_clears_and_reapplies() {
         let conn = setup_test_db();
-        let cat_id = create_context(&conn, "Browsers", "#ff0000").unwrap();
+        let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
 
         // Insert logs without category
         insert_activity_log(&conn, "firefox", "GitHub", false, 1000, None).unwrap();
@@ -917,18 +985,18 @@ mod tests {
     // --- Category CRUD tests ---
 
     #[test]
-    fn test_context_crud() {
+    fn test_category_crud() {
         let conn = setup_test_db();
-        // The 4 canonical contexts are seeded by migration 2, so assert against that
+        // The 4 canonical categories are seeded by migration 2, so assert against that
         // baseline rather than an empty table.
-        let baseline = get_contexts(&conn).unwrap().len();
+        let baseline = get_categories(&conn).unwrap().len();
 
         // Create
-        let id = create_context(&conn, "Work", "#0000ff").unwrap();
+        let id = create_category(&conn, "Work", "#0000ff").unwrap();
         assert!(id > 0);
 
         // Read
-        let cats = get_contexts(&conn).unwrap();
+        let cats = get_categories(&conn).unwrap();
         assert_eq!(cats.len(), baseline + 1);
         let work = cats
             .iter()
@@ -937,30 +1005,30 @@ mod tests {
         assert_eq!(work.color, "#0000ff");
 
         // Delete
-        delete_context(&conn, id).unwrap();
-        assert_eq!(get_contexts(&conn).unwrap().len(), baseline);
+        delete_category(&conn, id).unwrap();
+        assert_eq!(get_categories(&conn).unwrap().len(), baseline);
     }
 
     #[test]
-    fn test_delete_context_cascades_rules() {
+    fn test_delete_category_cascades_rules() {
         let conn = setup_test_db();
-        let cat_id = create_context(&conn, "Work", "#0000ff").unwrap();
+        let cat_id = create_category(&conn, "Work", "#0000ff").unwrap();
         create_rule(&conn, cat_id, "process", "slack", false).unwrap();
 
         assert_eq!(get_rules(&conn).unwrap().len(), 1);
 
-        delete_context(&conn, cat_id).unwrap();
+        delete_category(&conn, cat_id).unwrap();
         // Rules should be cascade-deleted
         assert_eq!(get_rules(&conn).unwrap().len(), 0);
     }
 
     #[test]
-    fn test_delete_context_nullifies_activity_logs() {
+    fn test_delete_category_nullifies_activity_logs() {
         let conn = setup_test_db();
-        let cat_id = create_context(&conn, "Work", "#0000ff").unwrap();
+        let cat_id = create_category(&conn, "Work", "#0000ff").unwrap();
         insert_activity_log(&conn, "slack", "General", false, 1000, Some(cat_id)).unwrap();
 
-        delete_context(&conn, cat_id).unwrap();
+        delete_category(&conn, cat_id).unwrap();
 
         let logs = get_activity_logs(&conn, 0, 2000).unwrap();
         assert_eq!(
@@ -974,7 +1042,7 @@ mod tests {
     #[test]
     fn test_rule_crud() {
         let conn = setup_test_db();
-        let cat_id = create_context(&conn, "Dev", "#00ff00").unwrap();
+        let cat_id = create_category(&conn, "Dev", "#00ff00").unwrap();
 
         // Create
         let rule_id = create_rule(&conn, cat_id, "process", "code", false).unwrap();
@@ -983,7 +1051,7 @@ mod tests {
         // Read
         let rules = get_rules(&conn).unwrap();
         assert_eq!(rules.len(), 1);
-        assert_eq!(rules[0].context_id, cat_id);
+        assert_eq!(rules[0].category_id, cat_id);
         assert_eq!(rules[0].match_field, "process");
         assert_eq!(rules[0].pattern, "code");
 
@@ -995,7 +1063,7 @@ mod tests {
     #[test]
     fn test_rule_ignore_title() {
         let conn = setup_test_db();
-        let cat_id = create_context(&conn, "Dev", "#00ff00").unwrap();
+        let cat_id = create_category(&conn, "Dev", "#00ff00").unwrap();
         create_rule(&conn, cat_id, "process", "code", true).unwrap();
 
         let rules = get_rules(&conn).unwrap();
@@ -1366,32 +1434,32 @@ mod tests {
         assert!(!logs[0].is_private);
     }
 
-    // --- Context update test ---
+    // --- Category update test ---
 
     #[test]
-    fn test_update_context_persists_name_and_color() {
+    fn test_update_category_persists_name_and_color() {
         let conn = setup_test_db();
-        let id = create_context(&conn, "Old", "#000000").unwrap();
-        update_context(&conn, id, "New", "#ffffff").unwrap();
-        let c = get_contexts(&conn)
+        let id = create_category(&conn, "Old", "#000000").unwrap();
+        update_category(&conn, id, "New", "#ffffff").unwrap();
+        let c = get_categories(&conn)
             .unwrap()
             .into_iter()
             .find(|c| c.id == id)
-            .expect("context");
+            .expect("category");
         assert_eq!(c.name, "New");
         assert_eq!(c.color, "#ffffff");
     }
 
     #[test]
-    fn test_get_contexts_exposes_canonical_slug() {
+    fn test_get_categories_exposes_canonical_slug() {
         let conn = setup_test_db();
-        // The 4 canonical seeds (migration 2) carry slugs; a user context does not.
-        assert!(get_contexts(&conn)
+        // The 4 canonical seeds (migration 2) carry slugs; a user category does not.
+        assert!(get_categories(&conn)
             .unwrap()
             .iter()
             .any(|c| c.slug.as_deref() == Some("deep")));
-        let id = create_context(&conn, "Mine", "#123456").unwrap();
-        assert!(get_contexts(&conn)
+        let id = create_category(&conn, "Mine", "#123456").unwrap();
+        assert!(get_categories(&conn)
             .unwrap()
             .iter()
             .any(|c| c.id == id && c.slug.is_none()));
@@ -1478,7 +1546,7 @@ mod tests {
         .unwrap();
         resolve_or_create_site(&conn, "github.com", None, "project-host").unwrap();
         // Config that must survive.
-        let ctx = create_context(&conn, "Mine", "#123456").unwrap();
+        let ctx = create_category(&conn, "Mine", "#123456").unwrap();
         create_rule(&conn, ctx, "process", "zed", false).unwrap();
         create_exclusion(&conn, "app", "1Password", "exclude").unwrap();
         set_setting(&conn, "theme", "warm").unwrap();
@@ -1494,7 +1562,7 @@ mod tests {
         assert_eq!(aliases, 0, "aliases cascade with projects");
         assert!(get_sites(&conn).unwrap().is_empty());
         // Config preserved.
-        assert!(get_contexts(&conn)
+        assert!(get_categories(&conn)
             .unwrap()
             .iter()
             .any(|c| c.name == "Mine"));

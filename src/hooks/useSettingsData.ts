@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
-  getContexts,
+  getCategories,
   getExclusions,
   getRules,
   getSettings,
-  type Context,
+  getUncategorizedApps,
+  type Category,
   type Exclusion,
   type Rule,
+  type UncategorizedApp,
 } from "@/lib/tauri";
 
 export interface SettingsData {
-  contexts: Context[];
+  categories: Category[];
   rules: Rule[];
   exclusions: Exclusion[];
+  /** Apps with tracked time that match no rule (all-time, ranked). */
+  uncategorized: UncategorizedApp[];
   /** The key/value settings table, flattened for lookup. */
   settings: Record<string, string>;
 }
@@ -26,7 +30,7 @@ export interface SettingsDataState {
 }
 
 /**
- * Loads everything the Settings view edits — contexts, rules, exclusions, and the
+ * Loads everything the Settings view edits — categories, rules, exclusions, and the
  * key/value settings — in one shot. Mirrors `useDayData`'s `{ data, loading, error,
  * refresh }` shape; every mutation in the view runs its command then calls `refresh()`.
  */
@@ -38,16 +42,18 @@ export function useSettingsData(): SettingsDataState {
   const fetchAll = useCallback(async () => {
     try {
       setError(null);
-      const [contexts, rules, exclusions, settings] = await Promise.all([
-        getContexts(),
+      const [categories, rules, exclusions, uncategorized, settings] = await Promise.all([
+        getCategories(),
         getRules(),
         getExclusions(),
+        getUncategorizedApps(),
         getSettings(),
       ]);
       setData({
-        contexts,
+        categories,
         rules,
         exclusions,
+        uncategorized,
         settings: Object.fromEntries(settings.map((s) => [s.key, s.value])),
       });
     } catch (e) {

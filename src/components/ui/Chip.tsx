@@ -2,14 +2,14 @@ import { cn } from "@/lib/utils";
 
 export interface ChipProps {
   label: string;
-  /** CSS colour for the swatch (a context token, e.g. `var(--c-deep)`). */
+  /** CSS colour for the swatch (a category token, e.g. `var(--c-deep)`). */
   colorVar: string;
   active?: boolean;
   onClick?: () => void;
 }
 
 /** Legend chip: colour swatch + text label (colour is never the only cue). Clicking
- *  isolates the context. */
+ *  isolates the category. */
 export function Chip({ label, colorVar, active = false, onClick }: ChipProps) {
   return (
     <button

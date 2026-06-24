@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 
+import { AppPicker } from "@/components/settings/AppPicker";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { RadioGroup } from "@/components/ui/RadioGroup";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { TextInput } from "@/components/ui/TextInput";
+import { useInstalledApps } from "@/hooks/useInstalledApps";
 import { createExclusion } from "@/lib/tauri";
 
 type MatchType = "app" | "site" | "title";
@@ -17,6 +19,7 @@ export interface ExclusionModalProps {
 }
 
 export function ExclusionModal({ open, onClose, onSaved }: ExclusionModalProps) {
+  const apps = useInstalledApps();
   const [matchType, setMatchType] = useState<MatchType>("app");
   const [pattern, setPattern] = useState("");
   const [mode, setMode] = useState<Mode>("exclude");
@@ -31,9 +34,14 @@ export function ExclusionModal({ open, onClose, onSaved }: ExclusionModalProps) 
     setError(null);
   }, [open]);
 
+  // For the App type, the picker drives `pattern` as a single selection.
+  const appSelected = matchType === "app" && pattern ? new Set([pattern.toLowerCase()]) : new Set<string>();
+  const toggleApp = (name: string) =>
+    setPattern((p) => (p.toLowerCase() === name.toLowerCase() ? "" : name));
+
   const submit = async () => {
     if (!pattern.trim()) {
-      setError("Pattern can't be empty.");
+      setError(matchType === "app" ? "Pick an app first." : "This can't be empty.");
       return;
     }
     setSaving(true);
@@ -67,39 +75,58 @@ export function ExclusionModal({ open, onClose, onSaved }: ExclusionModalProps) 
     >
       <div>
         <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-          Match
+          What to match
         </span>
         <SegmentedControl
           aria-label="Match type"
           value={matchType}
-          onChange={(v) => setMatchType(v as MatchType)}
+          onChange={(v) => {
+            setMatchType(v as MatchType);
+            setPattern(""); // switching kind clears the picked app / typed text
+          }}
           options={[
             { value: "app", label: "App" },
-            { value: "site", label: "Site" },
-            { value: "title", label: "Title" },
+            { value: "site", label: "Website" },
+            { value: "title", label: "Window title" },
           ]}
         />
       </div>
 
-      <TextInput
-        label="Pattern"
-        value={pattern}
-        onChange={(e) => setPattern(e.target.value)}
-        autoFocus
-        placeholder={matchType === "site" ? "chase.com" : "1Password"}
-      />
+      {matchType === "app" ? (
+        <div>
+          <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+            App
+          </span>
+          <AppPicker apps={apps} selected={appSelected} onToggle={toggleApp} />
+        </div>
+      ) : (
+        <div>
+          <TextInput
+            label={matchType === "site" ? "Website contains" : "Window title contains"}
+            value={pattern}
+            onChange={(e) => setPattern(e.target.value)}
+            autoFocus
+            placeholder={matchType === "site" ? "chase.com" : "Passwords"}
+          />
+          <p className="mt-2 text-xs text-muted">
+            Matches when the {matchType === "site" ? "web address" : "window title"}{" "}
+            <span className="font-semibold text-fg">contains</span> this text — plain text, not a
+            wildcard.
+          </p>
+        </div>
+      )}
 
       <div>
         <span className="mb-2.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-          Mode
+          How
         </span>
         <RadioGroup
           aria-label="Mode"
           value={mode}
           onChange={(v) => setMode(v as Mode)}
           options={[
-            { value: "exclude", label: "Exclude", description: "Drop the event entirely — no record." },
-            { value: "private", label: "Private", description: "Count the time, store no title or URL." },
+            { value: "exclude", label: "Exclude", description: "Drop it entirely — no record that it ran." },
+            { value: "private", label: "Private", description: "Count the time, but save no title or web address." },
           ]}
         />
       </div>

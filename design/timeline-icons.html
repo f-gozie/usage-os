@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Timeline (icons)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616;
+  --now:#161616; --casing:#161616; --bar-bg:#161616; --bar-fg:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8;
+  --now:#EDE9DD; --casing:transparent; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4;
+  --now:#F4F4F2; --casing:transparent; --bar-bg:#000000; --bar-fg:#F4F4F2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);transition:background .25s;}
+body{font-family:'Jost',system-ui,sans-serif;color:var(--fg);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;align-items:center;padding:22px 18px 56px;}
+button{font-family:inherit;cursor:pointer;}
+a{color:inherit;text-decoration:none;}
+
+.notes{width:100%;max-width:1000px;border:2px dashed var(--rule);padding:12px 16px;margin-bottom:18px;font-size:12.5px;color:var(--muted);line-height:1.6;}
+.notes b{font-family:'Anton';font-weight:400;letter-spacing:.03em;text-transform:uppercase;color:var(--fg);font-size:12px;}
+.notes code{font-weight:600;color:var(--fg);background:var(--surface);border:1px solid var(--rule);padding:0 5px;}
+
+.app{width:100%;max-width:1000px;background:var(--bg);border:3px solid var(--edge);border-radius:5px;overflow:hidden;}
+.tb{background:var(--bar-bg);display:flex;align-items:center;gap:9px;padding:11px 16px;}
+.tbd{width:12px;height:12px;border-radius:50%;}
+.tbn{flex:1;text-align:center;color:var(--bar-fg);font-weight:600;font-size:12px;letter-spacing:.34em;text-transform:uppercase;margin-left:-46px;}
+.tbs{color:rgba(255,255,255,.6);font-size:10.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;display:flex;align-items:center;gap:6px;}
+.tbs .live{width:8px;height:8px;border-radius:50%;background:var(--c-comms);animation:pulse 2.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.hd{display:flex;justify-content:space-between;align-items:flex-end;padding:18px 22px 0;}
+.brand{font-family:'Anton',sans-serif;font-size:36px;line-height:.82;text-transform:uppercase;letter-spacing:.01em;}
+.brand .o{color:var(--c-research);}
+.hd .right{display:flex;align-items:center;gap:16px;}
+.hd .date{text-align:right;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);line-height:1.6;}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-weight:600;font-size:10px;letter-spacing:.08em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 9px;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+.tabs{display:flex;align-items:center;gap:0;margin:16px 22px 0;border-bottom:3px solid var(--edge);}
+.tabs a{font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:11px 16px;color:var(--muted);position:relative;top:3px;border-bottom:3px solid transparent;}
+.tabs a.on{color:var(--fg);border-bottom-color:var(--fg);}
+.panel{padding:22px 24px 26px;}
+
+.tlhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.tlhead .lbl{font-family:'Anton',sans-serif;font-size:22px;text-transform:uppercase;letter-spacing:.02em;}
+.legend{display:flex;flex-wrap:wrap;gap:8px;}
+.chip{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;border:2px solid var(--edge);padding:5px 9px;}
+.chip .s{width:11px;height:11px;border:1px solid var(--edge);}
+
+/* ── the app-icon primitive ─────────────────────────────── */
+.ai{border-radius:4px;flex-shrink:0;object-fit:cover;display:inline-block;vertical-align:middle;}
+.ai.mono{display:inline-flex;align-items:center;justify-content:center;font-weight:700;color:var(--bg);background:var(--edge);font-size:9px;line-height:1;letter-spacing:0;}
+
+.srow{border-top:1px solid var(--rule);}
+.shead{display:grid;grid-template-columns:50px 1fr;gap:16px;align-items:start;padding:14px 10px;margin:0 -10px;cursor:pointer;transition:background .12s;}
+.shead:hover{background:var(--surface);}
+.shead .t{font-weight:600;font-size:13px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;padding-top:2px;}
+.shead .ev{display:flex;gap:14px;min-width:0;}
+.shead .spine{width:5px;align-self:stretch;min-height:40px;flex-shrink:0;}
+.shead .body{min-width:0;flex:1;}
+.shead .ctx{font-weight:600;font-size:15px;}
+.plabel{font-size:13px;color:var(--fg);font-weight:600;margin-top:7px;line-height:1.5;}
+.apps{display:flex;flex-wrap:wrap;align-items:center;gap:5px 7px;font-size:12px;color:var(--muted);margin-top:8px;}
+.apps .ax{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--fg);}
+.apps .sep{color:var(--rule);}
+.apps .sw{color:var(--muted);font-weight:600;}
+.shead .dur{flex-shrink:0;display:flex;gap:11px;justify-content:flex-end;align-items:flex-start;width:128px;}
+.shead .dur .nums{text-align:right;}
+.shead .dur .d{font-family:'Anton',sans-serif;font-size:18px;line-height:1;}
+.shead .dur .r{font-size:11px;color:var(--muted);font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums;}
+.shead .chev{color:var(--muted);font-size:15px;width:12px;transition:transform .15s;padding-top:1px;}
+.srow.open .chev{transform:rotate(90deg);}
+.detail{display:none;padding:0 10px 14px 66px;}
+.srow.open .detail{display:block;}
+.dlabel{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);padding:8px 0 6px;white-space:nowrap;}
+.drow{display:flex;align-items:center;gap:12px;padding:7px 0;font-size:12.5px;border-top:1px solid var(--rule);}
+.drow:first-of-type{border-top:none;}
+.drow .dt{width:46px;flex-shrink:0;color:var(--muted);font-variant-numeric:tabular-nums;}
+.drow .di{flex-shrink:0;display:flex;align-items:center;}
+.drow .nm{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.drow .nm .ttl{color:var(--muted);font-weight:500;margin-left:7px;}
+.drow .dd{flex-shrink:0;width:52px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;}
+
+.idle{display:grid;grid-template-columns:50px 1fr;gap:16px;align-items:center;padding:9px 10px;margin:0 -10px;border-top:1px solid var(--rule);}
+.idle .lbl{display:flex;align-items:center;gap:12px;font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+.idle .lbl .dash{flex:1;border-top:2px dotted var(--rule);}
+.nowrow{display:grid;grid-template-columns:50px 1fr;gap:16px;align-items:center;padding:12px 10px 2px;margin:0 -10px;border-top:1px solid var(--rule);}
+.nowrow .t{font-weight:600;font-size:13px;color:var(--c-research);text-align:right;font-variant-numeric:tabular-nums;}
+.nowrow .now{display:flex;align-items:center;gap:12px;font-weight:600;font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
+.nowrow .now .tri{width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid var(--now);}
+.nowrow .now .line{flex:1;height:2px;background:var(--now);}
+.hint{font-size:11px;font-weight:500;color:var(--muted);margin-top:16px;text-align:center;}
+.foot{background:var(--bar-bg);color:var(--bar-fg);font-size:10px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;text-align:center;padding:11px;}
+@media(max-width:680px){.brand{font-size:28px;}.shead .dur{width:96px;}}
+</style>
+</head>
+<body>
+
+<div class="notes">
+  <b>Proposal — the app-icon primitive, everywhere.</b> Small icons in the switch rows and the run summary line, so the Timeline stops looking bare. Resolved from your installed apps by <code>process&nbsp;name</code>; anything that doesn’t resolve (the app itself, <code>usage-os</code>) falls back to a monogram. Same primitive will be reused in the dial legend, modals and Settings. Click the big <b style="font-size:11px">Deep work</b> block — it’s expanded so you can see icons in the switch list.
+</div>
+
+<div class="app">
+  <div class="tb">
+    <span class="tbd" style="background:var(--c-research)"></span>
+    <span class="tbd" style="background:var(--c-comms)"></span>
+    <span class="tbd" style="background:var(--c-deep)"></span>
+    <span class="tbn">UsageOS</span>
+    <span class="tbs"><span class="live"></span>Tracking</span>
+  </div>
+  <div class="hd">
+    <div class="brand">USAGE<span class="o">OS</span></div>
+    <div class="right">
+      <div class="date">Wednesday<br>24 June 2026</div>
+      <div class="themesw" id="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+    </div>
+  </div>
+  <div class="tabs">
+    <a href="day.html">Day</a><a href="week.html">Week</a><a href="timeline-icons.html" class="on">Timeline</a><a href="settings.html">Settings</a>
+  </div>
+
+  <section class="panel">
+    <div class="tlhead">
+      <div class="lbl">Today</div>
+      <div class="legend">
+        <span class="chip"><span class="s" style="background:var(--c-deep)"></span>Deep</span>
+        <span class="chip"><span class="s" style="background:var(--c-research)"></span>Research</span>
+        <span class="chip"><span class="s" style="background:var(--c-comms)"></span>Comms</span>
+        <span class="chip"><span class="s" style="background:var(--c-breaks)"></span>Breaks</span>
+      </div>
+    </div>
+    <div class="agenda" id="agenda"></div>
+    <div class="hint">Each block is a stretch of one kind of work. Click one to see every app switch inside it.</div>
+  </section>
+
+  <div class="foot">Your data never leaves this machine</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var CATS={deep:"Deep work",research:"Research",comms:"Comms",breaks:"Breaks"};
+var CV={deep:"--c-deep",research:"--c-research",comms:"--c-comms",breaks:"--c-breaks"};
+
+/* ── app-icon resolver (mirrors the real one: by process name, fuzzy, fallback) ── */
+var ICON={cursor:"cursor",iterm:"iterm",iterm2:"iterm",claude:"claude","google chrome":"chrome",
+  chrome:"chrome",slack:"slack",spotify:"spotify","visual studio code":"vscode","vs code":"vscode",
+  code:"vscode",safari:"safari",zed:"zed",ghostty:"ghostty",discord:"discord",figma:"figma",
+  notion:"notion",messages:"messages",mail:"mail",telegram:"telegram",whatsapp:"whatsapp",
+  music:"music",tableplus:"tableplus",superwhisper:"superwhisper",xcode:"xcode",brave:"brave",
+  "prime video":"primevideo",teams:"teams",zoom:"zoom",
+  "usage-os":"usageos",usageos:"usageos",usageos2:"usageos",nudge:"nudge"};
+function slugFor(name){
+  var k=name.toLowerCase().trim();
+  if(ICON[k])return ICON[k];
+  for(var key in ICON){if(k===key)return ICON[key];}
+  for(var key2 in ICON){if(k.indexOf(key2)>=0||key2.indexOf(k)>=0)return ICON[key2];}
+  return null;
+}
+function appIcon(name,px){
+  px=px||16; var s=slugFor(name);
+  if(s)return '<img class="ai" style="width:'+px+'px;height:'+px+'px" src="assets/app-icons/'+s+'.png" alt="">';
+  var letter=(name.replace(/[^A-Za-z0-9]/g,"")[0]||"?").toUpperCase();
+  return '<span class="ai mono" style="width:'+px+'px;height:'+px+'px;font-size:'+Math.round(px*0.56)+'px">'+letter+'</span>';
+}
+
+var PHASES=[
+ {ctx:"deep",s:540,e:642,mix:[["Cursor","nudge"],["iTerm2","nudge"],["Claude",null],["Nudge",null],["Google Chrome","nudge"],["Claude",null],["usage-os",null]]},
+ {ctx:"comms",s:642,e:651,mix:[["Slack",null]]},
+ {ctx:"research",s:675,e:732,mix:[["Google Chrome","Favour"],["Claude",null],["Safari",null]]},
+ {ctx:"deep",s:739,e:856,mix:[["Claude",null],["usage-os",null],["iTerm2",null],["Claude",null],["Cursor","nudge"],["Google Chrome","nudge"],["usage-os",null],["Claude",null]]},
+ {ctx:"breaks",s:856,e:866,mix:[["Spotify",null]]},
+ {ctx:"deep",s:866,e:930,mix:[["Claude",null],["usage-os",null],["iTerm2",null],["Claude",null]]}
+];
+var NOW=930, PAT=[8,4,11,3,7,5,9,4,6,12,5,15,3,10,6,25,4,5];
+function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function pad(n){return(n<10?"0":"")+n;}
+function hm(t){return pad(Math.floor(t/60))+":"+pad(t%60);}
+function durM(d){var h=Math.floor(d/60),m=d%60;return h>0?(m>0?h+"h "+m+"m":h+"h"):m+"m";}
+function durS(d){return d<60?d+"s":durM(Math.round(d/60));}
+function uniq(a){var o=[];a.forEach(function(x){if(x!=null&&o.indexOf(x)<0)o.push(x);});return o;}
+
+var EVENTS=[];
+PHASES.forEach(function(ph){var t=ph.s,i=0;while(t<ph.e){var len=Math.min(PAT[i%PAT.length],ph.e-t);var m=ph.mix[i%ph.mix.length];
+  EVENTS.push({s:t,e:t+len,app:m[0],proj:m[1],ctx:ph.ctx});t+=len;i++;}});
+function contextRuns(){var runs=[],cur=null;EVENTS.forEach(function(ev){
+  if(cur&&cur.ctx===ev.ctx&&ev.s-cur.e<1){cur.e=ev.e;cur.evs.push(ev);}else{cur={ctx:ev.ctx,s:ev.s,e:ev.e,evs:[ev]};runs.push(cur);}});return runs;}
+
+function render(){
+  var a=document.getElementById("agenda");a.innerHTML="";var prev=null;
+  var runs=contextRuns();
+  var biggest=runs.reduce(function(b,r){return (r.e-r.s)>(b?b.e-b.s:0)?r:b;},null);
+  runs.forEach(function(r){
+    if(prev!==null&&r.s-prev>=10)a.insertAdjacentHTML("beforeend",'<div class="idle"><div></div><div class="lbl"><span>Away · '+durM(r.s-prev)+'</span><span class="dash"></span></div></div>');
+    prev=r.e;
+    var tot=r.e-r.s;
+    var apps=uniq(r.evs.map(function(e){return e.app;}));
+    var sw=0;for(var k=1;k<r.evs.length;k++)if(r.evs[k].app!==r.evs[k-1].app)sw++;
+    // run summary apps line — with icons
+    var appsHTML=apps.slice(0,4).map(function(ap){return '<span class="ax">'+appIcon(ap,15)+ap+'</span>';}).join('<span class="sep">·</span>');
+    if(apps.length>4)appsHTML+='<span class="sep">·</span><span class="sw">+'+(apps.length-4)+'</span>';
+    if(sw>1)appsHTML+='<span class="sep">·</span><span class="sw">'+sw+' switches</span>';
+    var plabel = (apps.length===1)? '' : '<div class="plabel">'+apps[0]+'</div>';
+    var appsLine='<div class="apps">'+appsHTML+'</div>';
+    if(apps.length===1) plabel='';
+    // detail switch rows — with icons + (mock) titles
+    var detail=r.evs.map(function(ev){
+      var ttl=ev.proj?('<span class="ttl">'+ev.proj+'</span>'):'';
+      return '<div class="drow"><span class="dt">'+hm(ev.s)+'</span>'+
+        '<span class="di">'+appIcon(ev.app,18)+'</span>'+
+        '<span class="nm">'+ev.app+ttl+'</span>'+
+        '<span class="dd">'+durS(ev.e-ev.s)+'</span></div>';
+    }).join("");
+    var row=document.createElement("div");row.className="srow"+(r===biggest?" open":"");
+    row.innerHTML='<div class="shead"><div class="t">'+hm(r.s)+'</div><div class="ev"><span class="spine" style="background:'+cssv(CV[r.ctx])+'"></span>'+
+      '<div class="body"><div class="ctx">'+CATS[r.ctx]+'</div>'+plabel+appsLine+'</div>'+
+      '<div class="dur"><div class="nums"><div class="d">'+durM(tot)+'</div><div class="r">'+hm(r.s)+'–'+hm(r.e)+'</div></div><span class="chev">›</span></div></div>'+
+      '<div class="detail"><div class="dlabel">'+r.evs.length+' app switches</div>'+detail+'</div>';
+    row.querySelector(".shead").addEventListener("click",function(){row.classList.toggle("open");});
+    a.appendChild(row);
+  });
+  var n=document.createElement("div");n.className="nowrow";
+  n.innerHTML='<div class="t">'+hm(NOW)+'</div><div class="now"><span class="tri"></span>Now<span class="line"></span></div>';
+  a.appendChild(n);
+}
+document.getElementById("themesw").addEventListener("click",function(e){var b=e.target.closest("button[data-t]");if(!b)return;
+  document.documentElement.setAttribute("data-theme",b.dataset.t);
+  document.querySelectorAll("#themesw button").forEach(function(x){x.classList.toggle("on",x===b);});render();});
+render();
+})();
+</script>
+</body>
+</html>

@@ -8,16 +8,19 @@ import { SettingsView } from "./SettingsView";
 // Fixed settings payload (inside the factory to dodge hoisting).
 vi.mock("@/hooks/useSettingsData", () => {
   const DATA = {
-    contexts: [
+    categories: [
       { id: 1, slug: "deep", name: "Deep work", color: "#1B45BE" },
       { id: 9, slug: null, name: "Design", color: "#7A4FC2" },
     ],
     rules: [
-      { id: 11, context_id: 1, match_field: "process", pattern: "Cursor", ignore_title: false },
-      { id: 12, context_id: 9, match_field: "title", pattern: "*.fig", ignore_title: false },
+      { id: 11, category_id: 1, match_field: "process", pattern: "Cursor", ignore_title: false },
+      { id: 12, category_id: 9, match_field: "title", pattern: "*.fig", ignore_title: false },
     ],
     exclusions: [
       { id: 21, match_type: "app", pattern: "1Password", mode: "exclude", created_at: 0 },
+    ],
+    uncategorized: [
+      { process_name: "TablePlus", total_secs: 2040, last_seen: 1000 },
     ],
     settings: { data_retention_days: "365", theme: "paper" },
   };
@@ -41,24 +44,25 @@ vi.mock("@/lib/tauri", () => ({
   getDatabasePath: vi.fn().mockResolvedValue("/tmp/usage.db"),
   setRetentionDays: vi.fn().mockResolvedValue(0),
   createExclusion: vi.fn(),
-  createContext: vi.fn(),
+  createCategory: vi.fn(),
   createRule: vi.fn(),
-  updateContext: vi.fn(),
-  deleteContext: vi.fn(),
+  updateCategory: vi.fn(),
+  deleteCategory: vi.fn(),
   deleteRule: vi.fn(),
   reprocessLogs: vi.fn(),
   deleteAllData: vi.fn().mockResolvedValue(undefined),
+  listInstalledApps: vi.fn().mockResolvedValue([]),
 }));
 
 describe("SettingsView", () => {
   it("renders the four buildable groups with their content", () => {
     const { getByText } = render(<SettingsView />);
     // Group headers.
-    expect(getByText("Contexts & rules")).toBeInTheDocument();
+    expect(getByText("Categories & rules")).toBeInTheDocument();
     expect(getByText("Privacy & exclusions")).toBeInTheDocument();
     expect(getByText("Appearance")).toBeInTheDocument();
     expect(getByText("Your data")).toBeInTheDocument();
-    // A context + its rule chip.
+    // A category + its rule chip.
     expect(getByText("Deep work")).toBeInTheDocument();
     expect(getByText("Cursor")).toBeInTheDocument();
     // An exclusion + the always-on incognito row.

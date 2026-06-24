@@ -19,7 +19,7 @@ async getActivityStats(startTime: number, endTime: number) : Promise<Result<Acti
 }
 },
 /**
- * Build the Day view — per-axis context aggregates, context-runs, and the template
+ * Build the Day view — per-axis category aggregates, category-runs, and the template
  * recap (D34) — for a `[start_time, end_time]` Unix-second range. Numbers are computed
  * in Rust (hard rule 6); the frontend only renders this.
  */
@@ -46,7 +46,7 @@ async getWeek(dayStarts: number[], weekEnd: number) : Promise<Result<WeekView, A
 }
 },
 /**
- * Build the Timeline view — the day's context-runs, each with its inner app-switch
+ * Build the Timeline view — the day's category-runs, each with its inner app-switch
  * segments (D34) — for a `[start_time, end_time]` Unix-second range. Same read-model
  * inputs as `get_day`; numbers in Rust (hard rule 6).
  */
@@ -58,33 +58,33 @@ async getTimeline(startTime: number, endTime: number) : Promise<Result<TimelineV
     else return { status: "error", error: e  as any };
 }
 },
-async getContexts() : Promise<Result<Context[], AppError>> {
+async getCategories() : Promise<Result<Category[], AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_contexts") };
+    return { status: "ok", data: await TAURI_INVOKE("get_categories") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async createContext(name: string, color: string) : Promise<Result<number, AppError>> {
+async createCategory(name: string, color: string) : Promise<Result<number, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("create_context", { name, color }) };
+    return { status: "ok", data: await TAURI_INVOKE("create_category", { name, color }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async updateContext(id: number, name: string, color: string) : Promise<Result<null, AppError>> {
+async updateCategory(id: number, name: string, color: string) : Promise<Result<null, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("update_context", { id, name, color }) };
+    return { status: "ok", data: await TAURI_INVOKE("update_category", { id, name, color }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async deleteContext(id: number) : Promise<Result<null, AppError>> {
+async deleteCategory(id: number) : Promise<Result<null, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("delete_context", { id }) };
+    return { status: "ok", data: await TAURI_INVOKE("delete_category", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -98,9 +98,9 @@ async getRules() : Promise<Result<Rule[], AppError>> {
     else return { status: "error", error: e  as any };
 }
 },
-async createRule(contextId: number, matchField: string, pattern: string, ignoreTitle: boolean | null) : Promise<Result<number, AppError>> {
+async createRule(categoryId: number, matchField: string, pattern: string, ignoreTitle: boolean | null) : Promise<Result<number, AppError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("create_rule", { contextId, matchField, pattern, ignoreTitle }) };
+    return { status: "ok", data: await TAURI_INVOKE("create_rule", { categoryId, matchField, pattern, ignoreTitle }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -211,11 +211,37 @@ async exportEventsCsv() : Promise<Result<string, AppError>> {
 },
 /**
  * Erase the captured record (events + derived projects/sites), preserving the user's
- * configuration (contexts, rules, exclusions, settings). One transaction (see `db`).
+ * configuration (categories, rules, exclusions, settings). One transaction (see `db`).
  */
 async deleteAllData() : Promise<Result<null, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_all_data") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * The installed-app catalog (name + icon data-URI) backing the UI's `AppIcon`. Reads
+ * public app bundles and caches 64px PNGs next to the DB (an app-owned dir — no new
+ * fs scope, no network; hard rule 1). Read-only; returns an empty list rather than
+ * erroring when nothing scans (e.g. on CI Linux), so the UI just shows monograms.
+ */
+async listInstalledApps() : Promise<Result<InstalledApp[], AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("list_installed_apps") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Apps with tracked time that match no rule (they roll up as "Uncategorized"), for the
+ * Settings list — all-time, ranked, trivial spans floored (see `db`). Numbers in Rust.
+ */
+async getUncategorizedApps() : Promise<Result<UncategorizedApp[], AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_uncategorized_apps") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -269,18 +295,18 @@ is_private: boolean }
  */
 export type AppError = { kind: "Db"; message: string } | { kind: "LockPoisoned" }
 /**
- * A context (the redesign's noun for the legacy `categories` table — the SQL table
+ * A category (the redesign's noun for the legacy `categories` table — the SQL table
  * and column names stay `categories`/`category_id` per D31; only the IPC surface is
  * renamed). `slug` carries the canonical identity (`deep`|`research`|`comms`|`breaks`)
- * the UI maps to a colour token `--c-<slug>`; `None` = a user-created context (it
+ * the UI maps to a colour token `--c-<slug>`; `None` = a user-created category (it
  * supplies its own `color`). Exposing `slug` lets the editor protect the canonical
  * four from deletion and colour their swatches from the theme-aware token.
  */
-export type Context = { id: number; slug: string | null; name: string; color: string }
+export type Category = { id: number; slug: string | null; name: string; color: string }
 /**
- * A continuous stretch of one context — a dial arc, click-to-inspect.
+ * A continuous stretch of one category — a dial arc, click-to-inspect.
  */
-export type ContextRun = { context_slug: string; context_name: string; 
+export type CategoryRun = { category_slug: string; category_name: string; 
 /**
  * Span bounds (Unix secs); the arc is drawn start→end.
  */
@@ -290,9 +316,9 @@ start: number; end: number;
  */
 secs: number; projects: ProjectSlice[]; apps: string[] }
 /**
- * One context's total share of the active day (the ledger/legend/stats unit).
+ * One category's total share of the active day (the ledger/legend/stats unit).
  */
-export type ContextSlice = { slug: string; name: string; secs: number; pct: number }
+export type CategorySlice = { slug: string; name: string; secs: number; pct: number }
 /**
  * One day's compact summary for the Week view: a mini-dial's arcs plus the two totals
  * the week summary needs. `deep_secs` is carried so "deepest day" is a Rust number (rule 6).
@@ -301,18 +327,30 @@ export type DaySlice = {
 /**
  * Local midnight (Unix secs) — the mini-dial's angular origin.
  */
-day_start: number; active_secs: number; deep_secs: number; runs: ContextRun[] }
+day_start: number; active_secs: number; deep_secs: number; runs: CategoryRun[] }
 /**
  * Everything the Day view needs, computed from one day of events.
  */
-export type DayView = { active_secs: number; idle_secs: number; contexts: ContextSlice[]; runs: ContextRun[]; recap: Recap }
+export type DayView = { active_secs: number; idle_secs: number; categories: CategorySlice[]; runs: CategoryRun[]; recap: Recap }
 /**
  * A sensitive-handling rule (D8): match an app/site/title and either drop the
  * event (`mode = "exclude"`) or record time without title/url (`mode = "private"`).
  */
 export type Exclusion = { id: number; match_type: string; pattern: string; mode: string; created_at: number }
 /**
- * A project's share of time *inside* a context-run (shown as a text line, never a bar).
+ * One user-facing application and (best-effort) its icon as a data-URI PNG.
+ */
+export type InstalledApp = { 
+/**
+ * Display name — the bundle's file stem (e.g. "Visual Studio Code", "Nudge — …").
+ */
+name: string; 
+/**
+ * `data:image/png;base64,…`, or `None` when no icon could be extracted.
+ */
+icon: string | null }
+/**
+ * A project's share of time *inside* a category-run (shown as a text line, never a bar).
  */
 export type ProjectSlice = { name: string; secs: number }
 /**
@@ -320,33 +358,40 @@ export type ProjectSlice = { name: string; secs: number }
  * Models prose (Phase 3) will reuse the same facts behind the `ai` trait.
  */
 export type Recap = { text: string; generated_by: string }
-export type Rule = { id: number; context_id: number; match_field: string; pattern: string; ignore_title: boolean }
+export type Rule = { id: number; category_id: number; match_field: string; pattern: string; ignore_title: boolean }
 /**
  * One persisted setting key/value (replaces the awkward `[string, string][]`).
  */
 export type Setting = { key: string; value: string }
 /**
- * A context-run plus its inner app-switch segments — one expandable Timeline row (D34).
+ * A category-run plus its inner app-switch segments — one expandable Timeline row (D34).
  */
-export type TimelineRun = { context_slug: string; context_name: string; start: number; end: number; secs: number; projects: ProjectSlice[]; apps: string[]; segments: TimelineSegment[] }
+export type TimelineRun = { category_slug: string; category_name: string; start: number; end: number; secs: number; projects: ProjectSlice[]; apps: string[]; segments: TimelineSegment[] }
 /**
- * One focused-window event inside a context-run — the Timeline's click-to-expand detail.
+ * One focused-window event inside a category-run — the Timeline's click-to-expand detail.
  */
 export type TimelineSegment = { start: number; end: number; app: string; 
 /**
- * The segment's own context. After excursion-absorb (D34a) a run may contain an absorbed
- * detour of a *different* context, so each segment carries its own — the expand stays honest.
+ * The segment's own category. After excursion-absorb (D34a) a run may contain an absorbed
+ * detour of a *different* category, so each segment carries its own — the expand stays honest.
  */
-context_slug: string; context_name: string; 
+category_slug: string; category_name: string; 
 /**
  * Resolved project name, or `None` when none was inferred (the UI shows "—").
  */
 project: string | null; secs: number }
 /**
- * Everything the Timeline view needs: the day's context-runs, each with its segments.
+ * Everything the Timeline view needs: the day's category-runs, each with its segments.
  * The "Away" idle gaps and the now-marker are derived on the frontend from run bounds.
  */
 export type TimelineView = { runs: TimelineRun[] }
+/**
+ * An app with tracked time that matches no rule — its `category_id` is NULL, so it
+ * rolls up as "Uncategorized" (Other). Surfaced in Settings so the user can sort it
+ * into a category. `total_secs`/`last_seen` are all-time (retention-bounded): sorting
+ * it once re-sorts every past day it appears on (read-time segmentation, D40).
+ */
+export type UncategorizedApp = { process_name: string; total_secs: number; last_seen: number }
 /**
  * Health of the background capture watcher (replaces an untyped `serde_json::Value`).
  */

@@ -17,8 +17,11 @@ mod enrich;
 // a transaction, checksum-guarded). Paired with the crate-root `migrations/` dir.
 mod migrations;
 // `rollup` is the pure read-time layer that turns a day's events into the view the
-// dial renders (per-axis aggregates + context-runs + template recap — D34, hard rule 6).
+// dial renders (per-axis aggregates + category-runs + template recap — D34, hard rule 6).
 mod rollup;
+// `apps` is the installed-app catalog + offline icon extraction (sips, cached) —
+// isolated like the other native surfaces (hard rule 5). Powers the UI's app icons.
+mod apps;
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -72,7 +75,7 @@ fn get_activity_stats(
     db::get_activity_logs(&conn, start_time, end_time).map_err(AppError::from)
 }
 
-/// Build the Day view — per-axis context aggregates, context-runs, and the template
+/// Build the Day view — per-axis category aggregates, category-runs, and the template
 /// recap (D34) — for a `[start_time, end_time]` Unix-second range. Numbers are computed
 /// in Rust (hard rule 6); the frontend only renders this.
 #[tauri::command]
@@ -84,15 +87,15 @@ fn get_day(
 ) -> Result<rollup::DayView, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     let events = db::get_activity_logs(&conn, start_time, end_time)?;
-    let contexts: HashMap<i64, rollup::ContextMeta> = db::get_context_metas(&conn)?
+    let categories: HashMap<i64, rollup::CategoryMeta> = db::get_category_metas(&conn)?
         .into_iter()
-        .map(|(id, slug, name)| (id, rollup::ContextMeta { slug, name }))
+        .map(|(id, slug, name)| (id, rollup::CategoryMeta { slug, name }))
         .collect();
     let projects: HashMap<i64, String> = db::get_projects(&conn)?
         .into_iter()
         .map(|p| (p.id, p.display_name))
         .collect();
-    Ok(rollup::build_day_view(&events, &contexts, &projects))
+    Ok(rollup::build_day_view(&events, &categories, &projects))
 }
 
 /// Build the Week view — 7 day-slices (each a mini-dial's runs + totals) plus week-level
@@ -107,9 +110,9 @@ fn get_week(
     week_end: i64,
 ) -> Result<rollup::WeekView, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    let contexts: HashMap<i64, rollup::ContextMeta> = db::get_context_metas(&conn)?
+    let categories: HashMap<i64, rollup::CategoryMeta> = db::get_category_metas(&conn)?
         .into_iter()
-        .map(|(id, slug, name)| (id, rollup::ContextMeta { slug, name }))
+        .map(|(id, slug, name)| (id, rollup::CategoryMeta { slug, name }))
         .collect();
     let projects: HashMap<i64, String> = db::get_projects(&conn)?
         .into_iter()
@@ -120,13 +123,16 @@ fn get_week(
         let end = day_starts.get(i + 1).copied().unwrap_or(week_end);
         let events = db::get_activity_logs(&conn, start, end)?;
         days.push(rollup::build_day_slice(
-            start, &events, &contexts, &projects,
+            start,
+            &events,
+            &categories,
+            &projects,
         ));
     }
     Ok(rollup::build_week_view(days))
 }
 
-/// Build the Timeline view — the day's context-runs, each with its inner app-switch
+/// Build the Timeline view — the day's category-runs, each with its inner app-switch
 /// segments (D34) — for a `[start_time, end_time]` Unix-second range. Same read-model
 /// inputs as `get_day`; numbers in Rust (hard rule 6).
 #[tauri::command]
@@ -138,48 +144,48 @@ fn get_timeline(
 ) -> Result<rollup::TimelineView, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     let events = db::get_activity_logs(&conn, start_time, end_time)?;
-    let contexts: HashMap<i64, rollup::ContextMeta> = db::get_context_metas(&conn)?
+    let categories: HashMap<i64, rollup::CategoryMeta> = db::get_category_metas(&conn)?
         .into_iter()
-        .map(|(id, slug, name)| (id, rollup::ContextMeta { slug, name }))
+        .map(|(id, slug, name)| (id, rollup::CategoryMeta { slug, name }))
         .collect();
     let projects: HashMap<i64, String> = db::get_projects(&conn)?
         .into_iter()
         .map(|p| (p.id, p.display_name))
         .collect();
-    Ok(rollup::build_timeline(&events, &contexts, &projects))
+    Ok(rollup::build_timeline(&events, &categories, &projects))
 }
 
 #[tauri::command]
 #[specta::specta]
-fn get_contexts(db: State<DbState>) -> Result<Vec<db::Context>, AppError> {
+fn get_categories(db: State<DbState>) -> Result<Vec<db::Category>, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    db::get_contexts(&conn).map_err(AppError::from)
+    db::get_categories(&conn).map_err(AppError::from)
 }
 
 #[tauri::command]
 #[specta::specta]
-fn create_context(db: State<DbState>, name: String, color: String) -> Result<i64, AppError> {
+fn create_category(db: State<DbState>, name: String, color: String) -> Result<i64, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    db::create_context(&conn, &name, &color).map_err(AppError::from)
+    db::create_category(&conn, &name, &color).map_err(AppError::from)
 }
 
 #[tauri::command]
 #[specta::specta]
-fn update_context(
+fn update_category(
     db: State<DbState>,
     id: i64,
     name: String,
     color: String,
 ) -> Result<(), AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    db::update_context(&conn, id, &name, &color).map_err(AppError::from)
+    db::update_category(&conn, id, &name, &color).map_err(AppError::from)
 }
 
 #[tauri::command]
 #[specta::specta]
-fn delete_context(db: State<DbState>, id: i64) -> Result<(), AppError> {
+fn delete_category(db: State<DbState>, id: i64) -> Result<(), AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    db::delete_context(&conn, id).map_err(AppError::from)
+    db::delete_category(&conn, id).map_err(AppError::from)
 }
 
 #[tauri::command]
@@ -193,7 +199,7 @@ fn get_rules(db: State<DbState>) -> Result<Vec<db::Rule>, AppError> {
 #[specta::specta]
 fn create_rule(
     db: State<DbState>,
-    context_id: i64,
+    category_id: i64,
     match_field: String,
     pattern: String,
     ignore_title: Option<bool>,
@@ -201,7 +207,7 @@ fn create_rule(
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     db::create_rule(
         &conn,
-        context_id,
+        category_id,
         &match_field,
         &pattern,
         ignore_title.unwrap_or(false),
@@ -318,12 +324,36 @@ fn export_events_csv(app: tauri::AppHandle, db: State<DbState>) -> Result<String
 }
 
 /// Erase the captured record (events + derived projects/sites), preserving the user's
-/// configuration (contexts, rules, exclusions, settings). One transaction (see `db`).
+/// configuration (categories, rules, exclusions, settings). One transaction (see `db`).
 #[tauri::command]
 #[specta::specta]
 fn delete_all_data(db: State<DbState>) -> Result<(), AppError> {
     let mut conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     db::delete_all_data(&mut conn).map_err(AppError::from)
+}
+
+/// The installed-app catalog (name + icon data-URI) backing the UI's `AppIcon`. Reads
+/// public app bundles and caches 64px PNGs next to the DB (an app-owned dir — no new
+/// fs scope, no network; hard rule 1). Read-only; returns an empty list rather than
+/// erroring when nothing scans (e.g. on CI Linux), so the UI just shows monograms.
+#[tauri::command]
+#[specta::specta]
+fn list_installed_apps(app: tauri::AppHandle) -> Result<Vec<apps::InstalledApp>, AppError> {
+    let db_path = db::get_db_path(&app).map_err(AppError::Db)?;
+    let cache_dir = db_path.with_file_name("icon-cache");
+    Ok(apps::list_installed(
+        &apps::default_search_dirs(),
+        &cache_dir,
+    ))
+}
+
+/// Apps with tracked time that match no rule (they roll up as "Uncategorized"), for the
+/// Settings list — all-time, ranked, trivial spans floored (see `db`). Numbers in Rust.
+#[tauri::command]
+#[specta::specta]
+fn get_uncategorized_apps(db: State<DbState>) -> Result<Vec<db::UncategorizedApp>, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    db::get_uncategorized_apps(&conn).map_err(AppError::from)
 }
 
 /// The single source of command registration. Both the runtime invoke handler
@@ -335,10 +365,10 @@ fn make_builder() -> Builder<tauri::Wry> {
         get_day,
         get_week,
         get_timeline,
-        get_contexts,
-        create_context,
-        update_context,
-        delete_context,
+        get_categories,
+        create_category,
+        update_category,
+        delete_category,
         get_rules,
         create_rule,
         delete_rule,
@@ -353,6 +383,8 @@ fn make_builder() -> Builder<tauri::Wry> {
         get_database_path,
         export_events_csv,
         delete_all_data,
+        list_installed_apps,
+        get_uncategorized_apps,
     ])
 }
 

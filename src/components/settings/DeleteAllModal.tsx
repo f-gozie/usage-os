@@ -59,7 +59,7 @@ export function DeleteAllModal({ open, onClose, onDeleted }: DeleteAllModalProps
     >
       <p className="text-[12.5px] font-semibold leading-relaxed text-c-research">
         This wipes every recorded event from{" "}
-        <code className="font-sans">usage.db</code>. Your contexts, rules and exclusions stay. It
+        <code className="font-sans">usage.db</code>. Your categories, rules and exclusions stay. It
         cannot be undone.
       </p>
       <TextInput

@@ -1,5 +1,5 @@
 /*
- * Bauhaus design tokens — the frozen visual contract (context/design-system.md).
+ * Bauhaus design tokens — the frozen visual contract (category/design-system.md).
  * Three themes, all first-class, selected via [data-theme] on <html>. Components
  * never hardcode colour; every value comes from a var here. Mirrors design/*.html.
  */
