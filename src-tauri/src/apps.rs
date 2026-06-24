@@ -22,6 +22,10 @@ pub struct InstalledApp {
     pub name: String,
     /// `data:image/png;base64,…`, or `None` when no icon could be extracted.
     pub icon: Option<String>,
+    /// A canonical category slug suggested from the app's `LSApplicationCategoryType`
+    /// (D47), or `None` when the type is absent or too ambiguous to map. Used to
+    /// pre-suggest a category in the Uncategorized list — never to auto-assign.
+    pub suggested_slug: Option<String>,
 }
 
 /// `.icns` stems that conventionally name the *app* icon (vs document icons).
@@ -40,6 +44,41 @@ pub fn default_search_dirs() -> Vec<PathBuf> {
         dirs.push(PathBuf::from(&home).join("Applications"));
     }
     dirs
+}
+
+/// Map Apple's `LSApplicationCategoryType` (e.g. `public.app-category.developer-tools`)
+/// to one of our canonical category slugs, for a *suggested* default in the
+/// Uncategorized list (D47). Deliberately conservative: only high-confidence types map;
+/// ambiguous ones (`productivity`/`business`/`utilities` span several of our categories,
+/// browsers usually set none) return `None` so we never suggest the wrong bucket. The
+/// rules engine remains the only thing that actually assigns.
+pub fn suggest_slug(category_type: &str) -> Option<&'static str> {
+    let leaf = category_type.rsplit('.').next().unwrap_or(category_type);
+    Some(match leaf {
+        "developer-tools" | "graphics-design" => "deep",
+        "social-networking" => "comms",
+        "music" | "video" => "personal",
+        "games" | "entertainment" | "sports" => "breaks",
+        _ => return None,
+    })
+}
+
+/// Read an app bundle's `LSApplicationCategoryType` via `NSBundle` — in-process (no
+/// subprocess), handles binary *and* XML `Info.plist`. `None` if the bundle can't be
+/// read or the key is absent. Degrades to `None` on non-macOS (CI Linux).
+#[cfg(target_os = "macos")]
+fn read_app_category(app: &Path) -> Option<String> {
+    use objc2_foundation::{NSBundle, NSString};
+    let path = NSString::from_str(app.to_str()?);
+    let bundle = NSBundle::bundleWithPath(&path)?;
+    let key = NSString::from_str("LSApplicationCategoryType");
+    let value = bundle.objectForInfoDictionaryKey(&key)?;
+    Some(value.downcast::<NSString>().ok()?.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn read_app_category(_app: &Path) -> Option<String> {
+    None
 }
 
 /// Enumerate apps under `search_dirs` (recursing one level into `*.localized` PWA
@@ -76,6 +115,10 @@ fn collect_dir(
             apps.push(InstalledApp {
                 name: stem.to_string(),
                 icon: extract_icon(&path, stem, cache_dir),
+                suggested_slug: read_app_category(&path)
+                    .as_deref()
+                    .and_then(suggest_slug)
+                    .map(str::to_string),
             });
         } else if recurse_localized && fname.ends_with(".localized") && path.is_dir() {
             // Chrome/Brave PWA containers — one level deep only.
@@ -204,6 +247,30 @@ mod tests {
         assert_eq!(b64(b"foo"), "Zm9v");
         assert_eq!(b64(b"foob"), "Zm9vYg==");
         assert_eq!(b64(b"foobar"), "Zm9vYmFy");
+    }
+
+    #[test]
+    fn suggest_slug_maps_high_confidence_types_and_abstains() {
+        assert_eq!(
+            suggest_slug("public.app-category.developer-tools"),
+            Some("deep")
+        );
+        assert_eq!(
+            suggest_slug("public.app-category.graphics-design"),
+            Some("deep")
+        );
+        assert_eq!(
+            suggest_slug("public.app-category.social-networking"),
+            Some("comms")
+        );
+        assert_eq!(suggest_slug("public.app-category.music"), Some("personal"));
+        assert_eq!(suggest_slug("public.app-category.video"), Some("personal"));
+        assert_eq!(suggest_slug("public.app-category.games"), Some("breaks"));
+        // Ambiguous types span several of our categories → abstain (no wrong suggestion).
+        assert_eq!(suggest_slug("public.app-category.productivity"), None);
+        assert_eq!(suggest_slug("public.app-category.business"), None);
+        assert_eq!(suggest_slug("public.app-category.utilities"), None);
+        assert_eq!(suggest_slug(""), None);
     }
 
     #[test]

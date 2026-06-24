@@ -992,17 +992,17 @@ mod tests {
         let baseline = get_categories(&conn).unwrap().len();
 
         // Create
-        let id = create_category(&conn, "Work", "#0000ff").unwrap();
+        let id = create_category(&conn, "Errands", "#0000ff").unwrap();
         assert!(id > 0);
 
         // Read
         let cats = get_categories(&conn).unwrap();
         assert_eq!(cats.len(), baseline + 1);
-        let work = cats
+        let errands = cats
             .iter()
-            .find(|c| c.name == "Work")
-            .expect("Work category");
-        assert_eq!(work.color, "#0000ff");
+            .find(|c| c.name == "Errands")
+            .expect("Errands category");
+        assert_eq!(errands.color, "#0000ff");
 
         // Delete
         delete_category(&conn, id).unwrap();
@@ -1012,7 +1012,7 @@ mod tests {
     #[test]
     fn test_delete_category_cascades_rules() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Work", "#0000ff").unwrap();
+        let cat_id = create_category(&conn, "Errands", "#0000ff").unwrap();
         create_rule(&conn, cat_id, "process", "slack", false).unwrap();
 
         assert_eq!(get_rules(&conn).unwrap().len(), 1);
@@ -1025,7 +1025,7 @@ mod tests {
     #[test]
     fn test_delete_category_nullifies_activity_logs() {
         let conn = setup_test_db();
-        let cat_id = create_category(&conn, "Work", "#0000ff").unwrap();
+        let cat_id = create_category(&conn, "Errands", "#0000ff").unwrap();
         insert_activity_log(&conn, "slack", "General", false, 1000, Some(cat_id)).unwrap();
 
         delete_category(&conn, cat_id).unwrap();

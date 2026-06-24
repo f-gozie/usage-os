@@ -50,6 +50,7 @@ objc2-foundation = { version = "0.3.2", features = [
     "NSString",
     "NSNotification",
     "NSOperation",
+    "NSBundle",
     "block2",
 ] }
 objc2-application-services = { version = "0.3.2", features = [

@@ -348,7 +348,13 @@ name: string;
 /**
  * `data:image/png;base64,…`, or `None` when no icon could be extracted.
  */
-icon: string | null }
+icon: string | null; 
+/**
+ * A canonical category slug suggested from the app's `LSApplicationCategoryType`
+ * (D47), or `None` when the type is absent or too ambiguous to map. Used to
+ * pre-suggest a category in the Uncategorized list — never to auto-assign.
+ */
+suggested_slug: string | null }
 /**
  * A project's share of time *inside* a category-run (shown as a text line, never a bar).
  */

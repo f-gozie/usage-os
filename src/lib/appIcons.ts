@@ -23,20 +23,31 @@ const ALIAS: Record<string, string> = {
 let mapPromise: Promise<Map<string, string>> | null = null;
 let loadedMap: Map<string, string> | null = null;
 const resolveCache = new Map<string, string | null>();
+// Parallel map: normalized name → suggested canonical category slug (D47), from each
+// app's LSApplicationCategoryType. Populated by the same one-time catalog load.
+let loadedSuggestMap: Map<string, string> | null = null;
+const suggestCache = new Map<string, string | null>();
 
-/** Load (once) the installed-app icon map: normalized name → data-URI. Failures
- *  resolve to an empty map so the UI just shows monograms. */
+/** Load (once) the installed-app icon map: normalized name → data-URI (and, in parallel,
+ *  the suggested-category map). Failures resolve to empty maps so the UI just shows
+ *  monograms and no suggestions. */
 export function loadIconMap(): Promise<Map<string, string>> {
   if (!mapPromise) {
     mapPromise = listInstalledApps()
       .then((apps) => {
         const m = new Map<string, string>();
-        for (const a of apps) if (a.icon) m.set(norm(a.name), a.icon);
+        const sm = new Map<string, string>();
+        for (const a of apps) {
+          if (a.icon) m.set(norm(a.name), a.icon);
+          if (a.suggested_slug) sm.set(norm(a.name), a.suggested_slug);
+        }
         loadedMap = m;
+        loadedSuggestMap = sm;
         return m;
       })
       .catch(() => {
         loadedMap = new Map();
+        loadedSuggestMap = new Map();
         return loadedMap;
       });
   }
@@ -71,4 +82,15 @@ export function resolveIcon(name: string): string | null | undefined {
   const icon = resolve(loadedMap, name);
   resolveCache.set(name, icon);
   return icon;
+}
+
+/** Resolve a process name to a *suggested* canonical category slug (or null), using the
+ *  same exact→alias→prefix matching as icons. `undefined` only while the catalog hasn't
+ *  loaded yet (caller should await `loadIconMap()`). A suggestion only — never assigns. */
+export function resolveSuggestedSlug(name: string): string | null | undefined {
+  if (suggestCache.has(name)) return suggestCache.get(name);
+  if (!loadedSuggestMap) return undefined;
+  const slug = resolve(loadedSuggestMap, name);
+  suggestCache.set(name, slug);
+  return slug;
 }

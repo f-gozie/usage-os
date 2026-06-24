@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { AppIcon } from "@/components/ui/AppIcon";
+import { loadIconMap, resolveSuggestedSlug } from "@/lib/appIcons";
 import { categoryColorVar } from "@/lib/categories";
 import { formatDuration } from "@/lib/format";
 import { createRule, reprocessLogs, type Category, type UncategorizedApp } from "@/lib/tauri";
@@ -26,6 +27,16 @@ export function UncategorizedApps({
 }: UncategorizedAppsProps) {
   const [openFor, setOpenFor] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // The app catalog drives the category suggestion (from each app's Apple-assigned
+  // category, D47). Load once, then re-render so suggestions appear.
+  const [catalogReady, setCatalogReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void loadIconMap().then(() => alive && setCatalogReady(true));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!openFor) return;
@@ -60,7 +71,12 @@ export function UncategorizedApps({
 
   return (
     <div>
-      {apps.map((a) => (
+      {apps.map((a) => {
+        const suggestedSlug = catalogReady ? resolveSuggestedSlug(a.process_name) : undefined;
+        const suggested = suggestedSlug
+          ? categories.find((c) => c.slug === suggestedSlug)
+          : undefined;
+        return (
         <div
           key={a.process_name}
           className="flex items-center gap-3 border-t-2 border-edge px-4 py-3 first:border-t-0"
@@ -72,7 +88,24 @@ export function UncategorizedApps({
               {formatDuration(a.total_secs)} all time · showing as Other
             </div>
           </div>
-          <div className="relative ml-auto" data-assign-menu>
+          <div className="relative ml-auto flex items-center gap-2" data-assign-menu>
+            {suggested && (
+              <button
+                type="button"
+                disabled={busy === a.process_name}
+                onClick={() => assign(a.process_name, suggested.id)}
+                title="Suggested from this app’s category"
+                className="flex items-center gap-1.5 border-2 border-edge bg-fg px-2.5 py-[7px] text-[11.5px] font-semibold uppercase tracking-[0.04em] text-bg disabled:opacity-50"
+              >
+                <span
+                  className="h-2.5 w-2.5 shrink-0 border border-bg"
+                  style={{
+                    background: suggested.slug ? categoryColorVar(suggested.slug) : suggested.color,
+                  }}
+                />
+                {suggested.name}
+              </button>
+            )}
             <button
               type="button"
               disabled={busy === a.process_name}
@@ -112,7 +145,8 @@ export function UncategorizedApps({
             )}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
