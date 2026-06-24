@@ -24,9 +24,10 @@ const IDLE_GAP_ENDS_RUN_SECS: i64 = 5 * 60;
 
 /// D34a excursion-absorb: a brief detour into another context, sandwiched by the same context,
 /// folds into the surrounding run (the detour still shows as a segment in the Timeline expand).
-/// A detour whose **wall-clock span** exceeds this stays its own run. A starting value tuned by
-/// dogfooding the Timeline session-explorer — not yet locked. (Decided via a Codex↔Opus debate.)
-const ABSORB_SECS: i64 = 90;
+/// A detour whose **wall-clock span** exceeds this stays its own run. Raised 90→180s after
+/// dogfooding (D41): real switches cluster at 90–300s, so 90s left too many as separate blocks.
+/// Still a tunable knob; kept below `IDLE_GAP_ENDS_RUN_SECS` so the two stay distinct.
+const ABSORB_SECS: i64 = 180;
 /// Backstop on accumulation: a run may absorb at most this percent of its wall-clock as detours;
 /// once it's more interrupted than this it splits, so the dial never draws a falsely-unbroken
 /// focus stretch. Paired with a local-dominance check (host active ≥ excursion). Dogfood-tunable.

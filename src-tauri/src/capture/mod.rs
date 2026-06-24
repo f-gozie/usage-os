@@ -176,7 +176,22 @@ enum Resolved {
     Track(Focus),
 }
 
+/// Frontmost apps that mean "the user is away," not "an app in use": macOS swaps these in when
+/// the screen locks / the screensaver runs. Input-idle reads ~0 while locked, so the idle gate
+/// can't catch it (D41) — this is the reliable away signal, so we treat focus on them like an
+/// excluded app: close the open span, drop, and don't resume.
+const AWAY_APPS: &[&str] = &["loginwindow", "ScreenSaverEngine"];
+
+fn is_away_app(app: &str) -> bool {
+    AWAY_APPS.iter().any(|a| a.eq_ignore_ascii_case(app))
+}
+
 fn resolve_focus(conn: &Connection, ev: &FocusEvent) -> rusqlite::Result<Resolved> {
+    // Locked screen / screensaver → away: close the open span and drop. The idle gate is blind
+    // while locked (input-idle reads ~0), so the frontmost away-app is the signal we trust (D41).
+    if is_away_app(&ev.app_name) {
+        return Ok(Resolved::Excluded);
+    }
     let title = ev.window_title.as_deref().unwrap_or("");
     let site = ev.url.as_deref().and_then(enrich::parse_site);
 
@@ -451,6 +466,27 @@ mod tests {
         assert_eq!(logs[0].process_name, "Code");
         assert_eq!(logs[0].end_time, 1050, "previous span closed at the switch");
         assert!(st.current.is_none() && st.last_focus.is_none());
+    }
+
+    #[test]
+    fn away_app_closes_span_and_is_never_tracked() {
+        // Locking the screen makes `loginwindow` frontmost; it must not accrue (the idle gate
+        // is blind while locked — D41) and must not be resumed afterwards.
+        let conn = test_db();
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
+        feed(&conn, &mut st, &focus("loginwindow", None, 1100)); // screen locked
+        let logs = all_logs(&conn);
+        assert_eq!(logs.len(), 1, "the lock screen is never recorded");
+        assert_eq!(logs[0].process_name, "Code");
+        assert_eq!(
+            logs[0].end_time, 1100,
+            "the previous span closes at lock time"
+        );
+        assert!(
+            st.current.is_none() && st.last_focus.is_none(),
+            "away clears resume state — post-unlock work starts fresh"
+        );
     }
 
     #[test]
