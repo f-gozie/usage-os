@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Chip } from "@/components/ui/Chip";
 import { DegradedBanner } from "@/components/ui/DegradedBanner";
@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { StatTile } from "@/components/ui/StatTile";
 import { Dial } from "@/components/dial/Dial";
 import { useDayData } from "@/hooks/useDayData";
+import { useRecap } from "@/hooks/useRecap";
 import { CANONICAL_CATEGORIES, categoryColorVar } from "@/lib/categories";
 import { addDays, dayBounds, isSameDay } from "@/lib/dates";
 import { formatClock, formatDuration } from "@/lib/format";
@@ -26,6 +27,15 @@ export function DayView({ date, onDateChange }: DayViewProps) {
   const nowMinutes = isToday ? (Date.now() / 1000 - start) / 60 : null;
 
   const { data, loading, error, refresh } = useDayData(start, end, isToday);
+  // The AI recap is fetched lazily, off the day-load path (D11); the card shows the instant
+  // template recap from `getDay` until this resolves, then upgrades in place.
+  const { recap: aiRecap, refetch: refetchRecap } = useRecap(start, end);
+
+  // Manual refresh re-runs both the day data and the (un-polled) AI narration.
+  const handleRefresh = useCallback(() => {
+    refresh();
+    refetchRecap();
+  }, [refresh, refetchRecap]);
 
   const [selectedRun, setSelectedRun] = useState<CategoryRun | null>(null);
   const [isolated, setIsolated] = useState<string | null>(null);
@@ -65,7 +75,7 @@ export function DayView({ date, onDateChange }: DayViewProps) {
 
   return (
     <div>
-      <DayNav date={date} isToday={isToday} onDateChange={onDateChange} onRefresh={refresh} />
+      <DayNav date={date} isToday={isToday} onDateChange={onDateChange} onRefresh={handleRefresh} />
 
       {!captureHealthy && (
         <div className="mb-5">
@@ -73,19 +83,24 @@ export function DayView({ date, onDateChange }: DayViewProps) {
             title="Tracking hit a snag"
             description="UsageOS ran into repeated errors while recording. Your existing data is safe."
             actionLabel="Retry"
-            onAction={refresh}
+            onAction={handleRefresh}
           />
         </div>
       )}
 
       {error ? (
-        <ErrorState message={error} onRetry={refresh} />
+        <ErrorState message={error} onRetry={handleRefresh} />
       ) : loading && !data ? (
         <LoadingState />
       ) : data ? (
         <>
           <div className="mb-5">
-            <RecapCard text={data.recap.text} generatedBy={data.recap.generated_by} />
+            {/* Prefer the on-device AI prose once it lands; the template (always present) is
+                the instant floor until then, and the fallback if narration fails. */}
+            <RecapCard
+              text={(aiRecap ?? data.recap).text}
+              generatedBy={(aiRecap ?? data.recap).generated_by}
+            />
           </div>
 
           <div className="grid grid-cols-1 items-center gap-[30px] md:grid-cols-[330px_1fr]">

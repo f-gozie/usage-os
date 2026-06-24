@@ -13,6 +13,7 @@ import type {
   DayView,
   Exclusion,
   InstalledApp,
+  Recap,
   Result,
   Rule,
   Setting,
@@ -73,6 +74,16 @@ export async function getActivityStats(
  */
 export async function getDay(startTime: number, endTime: number): Promise<DayView> {
   return unwrap(await commands.getDay(startTime, endTime));
+}
+
+/**
+ * Narrate the day's recap with the on-device Foundation Models sidecar, falling back to the
+ * deterministic template (D48) on any failure. Async + lazy: call this AFTER the day loads
+ * (`getDay` already returns the instant template recap) and upgrade the recap card in place
+ * when it resolves. Numbers are computed in Rust (hard rule 6); the model only phrases them.
+ */
+export async function getRecap(startTime: number, endTime: number): Promise<Recap> {
+  return unwrap(await commands.getRecap(startTime, endTime));
 }
 
 /**

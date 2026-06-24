@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  usageos-ai sidecar entitlements (C8 / hard rule 1 — "nothing leaves the machine").
+
+  Deliberately EMPTY. The sidecar grants itself no capabilities, and crucially NO
+  com.apple.security.network.client — so the no-network guarantee is ENFORCED and
+  auditable in the open source, not merely observed. On-device FoundationModels
+  inference needs no special entitlement. If this ever needs a key, it must never be
+  a network one (that would break the product's whole promise).
+-->
+<plist version="1.0">
+<dict/>
+</plist>

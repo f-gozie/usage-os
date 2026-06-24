@@ -8,6 +8,11 @@
 
 use crate::rollup::{format_recap_prompt, render_template_recap, Recap, RecapFacts};
 
+/// The real narrator: the Foundation Models Swift sidecar over stdio (chunk C). Cross-platform
+/// by compile (the shell plugin is portable); on a machine without the sidecar/model it simply
+/// errors → template (C5). Tests + cross-platform CI use [`FakeNarrator`] instead (C19).
+pub mod sidecar;
+
 /// `generated_by` tag set when the on-device model produced the prose (vs `"template"`).
 const GENERATED_BY_MODEL: &str = "foundation-models";
 

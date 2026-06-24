@@ -28,3 +28,8 @@ storybook-static
 
 # Swift Package Manager build cache (spikes/, sidecar/ — never commit compiled module caches)
 .build/
+
+# Built sidecar binaries — produced per-platform by sidecar/build.sh, bundled by `tauri build`.
+# Never committed (large, platform-specific); the .gitkeep preserves the externalBin slot.
+/src-tauri/binaries/*
+!/src-tauri/binaries/.gitkeep

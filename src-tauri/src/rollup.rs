@@ -177,6 +177,27 @@ pub fn build_day_view(
     projects: &HashMap<i64, String>,
     day_start: i64,
 ) -> DayView {
+    let (active_secs, idle_secs, category_slices) = aggregate_categories(events, categories);
+    let runs = build_runs(events, categories, projects);
+    let facts = compute_recap_facts(active_secs, day_start, &category_slices, &runs);
+    let recap = render_template_recap(&facts);
+
+    DayView {
+        active_secs,
+        idle_secs,
+        categories: category_slices,
+        runs,
+        recap,
+    }
+}
+
+/// Aggregate a day's events into `(active_secs, idle_secs, category_slices)` — the slices
+/// sorted longest-first (slug as tie-breaker). Shared by the Day view and the recap-facts
+/// builder so both see identical totals.
+fn aggregate_categories(
+    events: &[ActivityLog],
+    categories: &HashMap<i64, CategoryMeta>,
+) -> (i64, i64, Vec<CategorySlice>) {
     let mut active_secs = 0;
     let mut idle_secs = 0;
     // slug -> (name, secs); name kept for display, secs accumulated.
@@ -213,17 +234,22 @@ pub fn build_day_view(
     // Deterministic order: longest first, slug as the tie-breaker.
     category_slices.sort_by(|a, b| b.secs.cmp(&a.secs).then_with(|| a.slug.cmp(&b.slug)));
 
-    let runs = build_runs(events, categories, projects);
-    let facts = compute_recap_facts(active_secs, day_start, &category_slices, &runs);
-    let recap = render_template_recap(&facts);
+    (active_secs, idle_secs, category_slices)
+}
 
-    DayView {
-        active_secs,
-        idle_secs,
-        categories: category_slices,
-        runs,
-        recap,
-    }
+/// Compute just the day's [`RecapFacts`] from its events — the same aggregation
+/// [`build_day_view`] runs, minus the template recap. The lazy `get_recap` command feeds
+/// these to the Foundation Models narrator ([`crate::ai::build_recap`]), which falls back to
+/// the template (D48) on any failure (hard rule 6 / C5).
+pub(crate) fn build_recap_facts(
+    events: &[ActivityLog],
+    categories: &HashMap<i64, CategoryMeta>,
+    projects: &HashMap<i64, String>,
+    day_start: i64,
+) -> RecapFacts {
+    let (active_secs, _idle_secs, category_slices) = aggregate_categories(events, categories);
+    let runs = build_runs(events, categories, projects);
+    compute_recap_facts(active_secs, day_start, &category_slices, &runs)
 }
 
 /// One day's slice for the Week grid: per-day active + deep totals and the dial arcs. Reuses

@@ -108,6 +108,38 @@ fn get_day(
     ))
 }
 
+/// Narrate the day's recap for a `[start_time, end_time]` range with the on-device Foundation
+/// Models sidecar, falling back to the deterministic template (D48) on any failure (hard rule
+/// 6 / C5). Async + lazy by design (D11): `get_day` already returns the instant template
+/// recap, so this never blocks the day load — the UI shows the template immediately, then
+/// upgrades the recap card in place when this resolves. Numbers are still computed in Rust;
+/// the model only phrases them.
+#[tauri::command]
+#[specta::specta]
+async fn get_recap(
+    db: State<'_, DbState>,
+    narrator: State<'_, ai::sidecar::SidecarNarrator>,
+    start_time: i64,
+    end_time: i64,
+) -> Result<rollup::Recap, AppError> {
+    // Read + aggregate under the lock, then DROP it before the await — a std Mutex guard must
+    // never be held across the (slow, ~seconds) model call.
+    let facts = {
+        let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+        let events = db::get_activity_logs(&conn, start_time, end_time)?;
+        let categories: HashMap<i64, rollup::CategoryMeta> = db::get_category_metas(&conn)?
+            .into_iter()
+            .map(|(id, slug, name)| (id, rollup::CategoryMeta { slug, name }))
+            .collect();
+        let projects: HashMap<i64, String> = db::get_projects(&conn)?
+            .into_iter()
+            .map(|p| (p.id, p.display_name))
+            .collect();
+        rollup::build_recap_facts(&events, &categories, &projects, start_time)
+    };
+    Ok(ai::build_recap(narrator.inner(), &facts).await)
+}
+
 /// Build the Week view — 7 day-slices (each a mini-dial's runs + totals) plus week-level
 /// aggregates (D34, hard rule 6). `day_starts` are the 7 local midnights (DST-correct,
 /// computed by the frontend like `get_day`'s bounds); `week_end` is the exclusive end of
@@ -373,6 +405,7 @@ fn make_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         get_activity_stats,
         get_day,
+        get_recap,
         get_week,
         get_timeline,
         get_categories,
@@ -404,6 +437,9 @@ pub fn run() {
 
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        // The recap sidecar (D49 chunk C) is spawned via the shell plugin; the capability is
+        // scoped to exactly the one named sidecar (capabilities/default.json).
+        .plugin(tauri_plugin_shell::init())
         .invoke_handler(builder.invoke_handler())
         .setup(|app| {
             let db_path = db::get_db_path(app.handle())?;
@@ -430,6 +466,16 @@ pub fn run() {
             }
 
             app.manage(db_conn.clone());
+
+            // Recap narrator (chunk C): the Foundation Models sidecar behind the `ai::Narrator`
+            // trait, managed so the lazy `get_recap` command can reach it. Prewarm runs off the
+            // main thread — the cold model load is ~5s and must never block launch; it's
+            // best-effort (the D48 template always covers a missing/cold model — C5).
+            app.manage(ai::sidecar::SidecarNarrator::new(app.handle().clone()));
+            let warm_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                ai::sidecar::prewarm(&warm_handle).await;
+            });
 
             // Capture: the source registers on THIS (main) thread — the macOS impl
             // attaches its observers to the main CFRunLoop (D29) — while the

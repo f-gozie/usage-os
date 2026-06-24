@@ -32,6 +32,22 @@ async getDay(startTime: number, endTime: number) : Promise<Result<DayView, AppEr
 }
 },
 /**
+ * Narrate the day's recap for a `[start_time, end_time]` range with the on-device Foundation
+ * Models sidecar, falling back to the deterministic template (D48) on any failure (hard rule
+ * 6 / C5). Async + lazy by design (D11): `get_day` already returns the instant template
+ * recap, so this never blocks the day load — the UI shows the template immediately, then
+ * upgrades the recap card in place when this resolves. Numbers are still computed in Rust;
+ * the model only phrases them.
+ */
+async getRecap(startTime: number, endTime: number) : Promise<Result<Recap, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_recap", { startTime, endTime }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Build the Week view — 7 day-slices (each a mini-dial's runs + totals) plus week-level
  * aggregates (D34, hard rule 6). `day_starts` are the 7 local midnights (DST-correct,
  * computed by the frontend like `get_day`'s bounds); `week_end` is the exclusive end of

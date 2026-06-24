@@ -48,6 +48,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      # tauri-build validates that every `externalBin` path EXISTS at compile time (on all
+      # platforms), so cargo build/test/clippy need the sidecar binary present. The real
+      # FoundationModels sidecar is macOS-26-only Swift (built by sidecar/build.sh + the
+      # non-blocking Swift lane below), and the app is never RUN in CI — tests use the
+      # FakeNarrator (C19). So a stub satisfies the bundler; nothing executes it.
+      - name: Stage placeholder sidecar binary
+        shell: bash
+        run: |
+          TRIPLE="$(rustc --print host-tuple 2>/dev/null || rustc -vV | sed -n 's/^host: //p')"
+          mkdir -p src-tauri/binaries
+          printf '#!/bin/sh\n' > "src-tauri/binaries/usageos-ai-$TRIPLE"
+          chmod +x "src-tauri/binaries/usageos-ai-$TRIPLE"
+          echo "staged src-tauri/binaries/usageos-ai-$TRIPLE"
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -102,3 +116,28 @@ jobs:
       - name: Build Rust (validate compilation)
         working-directory: src-tauri
         run: cargo build
+
+  # The real Foundation Models sidecar (Swift) only compiles against the macOS 26 SDK with
+  # Apple Intelligence — unavailable on standard GitHub runners. This lane attempts the build
+  # so it starts passing the moment hosted runners reach macOS 26; until then it skips
+  # gracefully (green) and never gates the cross-platform `test` matrix (C19/C20).
+  sidecar-swift:
+    name: Sidecar (Swift, macOS 26 — non-blocking)
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build usageos-ai sidecar (skips if SDK < macOS 26)
+        shell: bash
+        run: |
+          SDK_VER="$(xcrun --sdk macosx --show-sdk-version 2>/dev/null || echo 0)"
+          MAJOR="${SDK_VER%%.*}"
+          echo "macOS SDK version: $SDK_VER"
+          if [ "${MAJOR:-0}" -ge 26 ]; then
+            echo "Building the FoundationModels sidecar against the macOS $SDK_VER SDK."
+            ( cd sidecar/usageos-ai && swift build -c release )
+          else
+            echo "SDK < 26 — FoundationModels is unavailable on this runner; skipping the build."
+            echo "(The sidecar is verified on-device + by sidecar/build.sh; see the spike README.)"
+          fi
