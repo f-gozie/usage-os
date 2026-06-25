@@ -179,7 +179,7 @@ function DayNav({
         <button
           type="button"
           aria-label="Refresh"
-          title="Refresh (updates automatically every 30s)"
+          title="Refresh — updates the day (auto every 30s) and re-writes the summary"
           onClick={onRefresh}
           className="mr-1 flex h-[34px] w-9 items-center justify-center border-2 border-edge bg-bg text-sm font-bold text-fg"
         >

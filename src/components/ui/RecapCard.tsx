@@ -27,7 +27,14 @@ export function RecapCard({ text, generatedBy }: RecapCardProps) {
           {isFm ? "⌁ Summarized on-device" : "≡ Template"}
         </span>
       </div>
-      <p className="text-[17px] font-medium leading-[1.45]">{text}</p>
+      {/* Keyed on the source so remounting (template → on-device) replays the subtle
+          fade-up once when the AI prose arrives; the instant template doesn't animate. */}
+      <p
+        key={isFm ? "fm" : "template"}
+        className={cn("text-[17px] font-medium leading-[1.45]", isFm && "recap-in")}
+      >
+        {text}
+      </p>
     </div>
   );
 }

@@ -38,6 +38,12 @@ async getDay(startTime: number, endTime: number) : Promise<Result<DayView, AppEr
  * recap, so this never blocks the day load — the UI shows the template immediately, then
  * upgrades the recap card in place when this resolves. Numbers are still computed in Rust;
  * the model only phrases them.
+ * 
+ * Cached (D52): each day is narrated once. The cache key is a content fingerprint of the
+ * day's facts, so a frozen past day is an instant hit (no spawn, no battery) and a rule
+ * reprocess that changes the facts produces a new key and re-narrates exactly once. Today
+ * regenerates as its facts grow (settle-on-open; a manual refresh re-runs it). Only real
+ * model recaps are cached — never the template fallback.
  */
 async getRecap(startTime: number, endTime: number) : Promise<Result<Recap, AppError>> {
     try {

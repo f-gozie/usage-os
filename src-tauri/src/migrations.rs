@@ -50,6 +50,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "relatable_default_categories",
         sql: include_str!("../migrations/0006_relatable_default_categories.sql"),
     },
+    Migration {
+        version: 7,
+        name: "recap_cache",
+        sql: include_str!("../migrations/0007_recap_cache.sql"),
+    },
 ];
 
 /// FNV-1a (64-bit): a small, stable, dependency-free hash. Not cryptographic — its only

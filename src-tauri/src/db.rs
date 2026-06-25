@@ -452,6 +452,8 @@ pub fn cleanup_old_data(conn: &Connection, retention_days: i64) -> Result<usize>
     }
     let cutoff = now_unix() - (retention_days * 86400);
     let deleted = conn.execute("DELETE FROM activity_logs WHERE end_time < ?1", [cutoff])?;
+    // Cached recaps are derived from the events — prune any whose whole day is past retention.
+    conn.execute("DELETE FROM recap_cache WHERE day_start < ?1", [cutoff])?;
     if deleted > 0 {
         println!(
             "[Database] Cleaned up {} old activity logs (retention: {} days)",
@@ -459,6 +461,50 @@ pub fn cleanup_old_data(conn: &Connection, retention_days: i64) -> Result<usize>
         );
     }
     Ok(deleted)
+}
+
+// --- Recap cache (D52): on-device AI recaps keyed by (day_start, facts fingerprint) ---
+
+/// Look up a cached AI recap by its facts fingerprint. A hit means the exact same facts were
+/// already narrated — return the stored `(text, generated_by)` with no model call. A miss
+/// (new day, or the day's facts changed via a rule reprocess → new fingerprint) returns `None`
+/// so the caller regenerates.
+pub fn get_cached_recap(
+    conn: &Connection,
+    day_start: i64,
+    fingerprint: &str,
+) -> Result<Option<(String, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT text, generated_by FROM recap_cache WHERE day_start = ?1 AND fingerprint = ?2",
+    )?;
+    let mut rows = stmt.query((day_start, fingerprint))?;
+    if let Some(row) = rows.next()? {
+        Ok(Some((row.get(0)?, row.get(1)?)))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Store a freshly-narrated AI recap under its facts fingerprint (upsert). Callers cache ONLY
+/// model recaps, never the template fallback — so a cold/unavailable model retries on the next
+/// open instead of caching a placeholder.
+pub fn put_cached_recap(
+    conn: &Connection,
+    day_start: i64,
+    fingerprint: &str,
+    text: &str,
+    generated_by: &str,
+) -> Result<()> {
+    conn.execute(
+        "INSERT INTO recap_cache (day_start, fingerprint, text, generated_by, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(day_start, fingerprint) DO UPDATE SET
+            text = excluded.text,
+            generated_by = excluded.generated_by,
+            created_at = excluded.created_at",
+        (day_start, fingerprint, text, generated_by, now_unix()),
+    )?;
+    Ok(())
 }
 
 // --- Data ownership: export / wipe ---
@@ -537,6 +583,8 @@ pub fn delete_all_data(conn: &mut Connection) -> Result<()> {
     tx.execute("DELETE FROM project_aliases", [])?;
     tx.execute("DELETE FROM projects", [])?;
     tx.execute("DELETE FROM sites", [])?;
+    // Recaps are derived from the events — they must die with them (the privacy promise).
+    tx.execute("DELETE FROM recap_cache", [])?;
     tx.commit()?;
     Ok(())
 }
@@ -1572,5 +1620,60 @@ mod tests {
             get_setting(&conn, "theme").unwrap(),
             Some("warm".to_string())
         );
+    }
+
+    #[test]
+    fn recap_cache_roundtrips_and_misses_on_a_different_fingerprint() {
+        let conn = setup_test_db();
+        put_cached_recap(
+            &conn,
+            1000,
+            "abc123",
+            "You spent the day on usage_os.",
+            "foundation-models",
+        )
+        .unwrap();
+
+        // Hit: same day + fingerprint returns the stored prose + tag.
+        assert_eq!(
+            get_cached_recap(&conn, 1000, "abc123").unwrap(),
+            Some((
+                "You spent the day on usage_os.".into(),
+                "foundation-models".into()
+            ))
+        );
+        // Miss: a changed fingerprint (the day's facts changed) is never matched.
+        assert_eq!(get_cached_recap(&conn, 1000, "different").unwrap(), None);
+        // Miss: a different day.
+        assert_eq!(get_cached_recap(&conn, 2000, "abc123").unwrap(), None);
+
+        // Upsert: re-narrating the same key replaces the prose.
+        put_cached_recap(&conn, 1000, "abc123", "A quieter day.", "foundation-models").unwrap();
+        assert_eq!(
+            get_cached_recap(&conn, 1000, "abc123").unwrap().unwrap().0,
+            "A quieter day."
+        );
+    }
+
+    #[test]
+    fn recap_cache_is_wiped_by_delete_all_data() {
+        let mut conn = setup_test_db();
+        put_cached_recap(&conn, 1000, "fp", "prose", "foundation-models").unwrap();
+        delete_all_data(&mut conn).unwrap();
+        assert_eq!(get_cached_recap(&conn, 1000, "fp").unwrap(), None);
+    }
+
+    #[test]
+    fn recap_cache_is_pruned_by_retention() {
+        let conn = setup_test_db();
+        let recent_day = now_unix() - 86_400; // yesterday — within a 30-day window
+        let old_day = now_unix() - (60 * 86_400); // 60 days ago — past it
+        put_cached_recap(&conn, recent_day, "fp", "recent", "foundation-models").unwrap();
+        put_cached_recap(&conn, old_day, "fp", "old", "foundation-models").unwrap();
+
+        cleanup_old_data(&conn, 30).unwrap();
+
+        assert!(get_cached_recap(&conn, recent_day, "fp").unwrap().is_some());
+        assert_eq!(get_cached_recap(&conn, old_day, "fp").unwrap(), None);
     }
 }

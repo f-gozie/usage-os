@@ -764,6 +764,29 @@ pub(crate) fn format_recap_prompt(facts: &RecapFacts) -> String {
     lines.join("\n")
 }
 
+/// Bumped whenever the model's *input or behavior* changes in a way that should re-narrate
+/// every day — the prompt format here, OR the Swift sidecar's instructions/temperature. The
+/// recap fingerprint folds this in, so a bump invalidates every cached recap (D52): they
+/// regenerate once, under the new version. (1 = the initial shipped recap, D51.)
+pub(crate) const RECAP_CACHE_VERSION: u32 = 1;
+
+/// A stable content fingerprint of a day's recap facts, the key for the recap cache (D52). It
+/// hashes the EXACT prompt the model narrates (identical facts → identical key) plus the cache
+/// version. Because the key *is* the content, invalidation is free: a rule reprocess that
+/// changes a day's facts yields a new fingerprint and the old cached row is never matched.
+/// The fingerprint must cover everything that determines the prose — if the narrator ever
+/// takes input beyond this prompt, fold it in here too.
+pub(crate) fn recap_fingerprint(facts: &RecapFacts) -> String {
+    // FNV-1a (64-bit): small, stable, dependency-free — the same hash the migration runner uses.
+    let input = format!("v{RECAP_CACHE_VERSION}\n{}", format_recap_prompt(facts));
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in input.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{hash:016x}")
+}
+
 /// The single real project that clearly led the day (≥ 40% of active time), if any.
 /// "No project" never qualifies — we don't narrate the absence of a project.
 fn leading_project(runs: &[CategoryRun], active_secs: i64) -> Option<String> {
@@ -1207,5 +1230,40 @@ mod tests {
             assert_eq!(cr.category_slug, tr.category_slug);
             assert_eq!((cr.start, cr.end, cr.secs), (tr.start, tr.end, tr.secs));
         }
+    }
+
+    #[test]
+    fn recap_fingerprint_is_stable_and_sensitive() {
+        let base = RecapFacts {
+            active_secs: 17580,
+            leading: Some(CategoryFact {
+                name: "Work".into(),
+                secs: 11400,
+            }),
+            second: Some(CategoryFact {
+                name: "Browsing".into(),
+                secs: 5400,
+            }),
+            leading_project: Some("usageos".into()),
+            longest_focus: Some(FocusFact {
+                secs: 4320,
+                when: "in the morning",
+            }),
+        };
+        // Deterministic: identical facts → identical key (the cache-hit guarantee).
+        assert_eq!(recap_fingerprint(&base), recap_fingerprint(&base));
+
+        // Sensitive: a changed number → a new key, so a rule reprocess re-narrates the day.
+        let mut changed = base.clone();
+        changed.active_secs = 9999;
+        assert_ne!(recap_fingerprint(&base), recap_fingerprint(&changed));
+
+        // Sensitive: a renamed category → a new key (the prose would differ).
+        let mut renamed = base.clone();
+        renamed.leading = Some(CategoryFact {
+            name: "Deep".into(),
+            secs: 11400,
+        });
+        assert_ne!(recap_fingerprint(&base), recap_fingerprint(&renamed));
     }
 }

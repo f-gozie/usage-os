@@ -114,6 +114,12 @@ fn get_day(
 /// recap, so this never blocks the day load — the UI shows the template immediately, then
 /// upgrades the recap card in place when this resolves. Numbers are still computed in Rust;
 /// the model only phrases them.
+///
+/// Cached (D52): each day is narrated once. The cache key is a content fingerprint of the
+/// day's facts, so a frozen past day is an instant hit (no spawn, no battery) and a rule
+/// reprocess that changes the facts produces a new key and re-narrates exactly once. Today
+/// regenerates as its facts grow (settle-on-open; a manual refresh re-runs it). Only real
+/// model recaps are cached — never the template fallback.
 #[tauri::command]
 #[specta::specta]
 async fn get_recap(
@@ -122,9 +128,9 @@ async fn get_recap(
     start_time: i64,
     end_time: i64,
 ) -> Result<rollup::Recap, AppError> {
-    // Read + aggregate under the lock, then DROP it before the await — a std Mutex guard must
-    // never be held across the (slow, ~seconds) model call.
-    let facts = {
+    // Read + aggregate under the lock, fingerprint the facts, and check the cache — then DROP
+    // the lock before the await (a std Mutex guard must never cross the ~seconds model call).
+    let (facts, fingerprint, cached) = {
         let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
         let events = db::get_activity_logs(&conn, start_time, end_time)?;
         let categories: HashMap<i64, rollup::CategoryMeta> = db::get_category_metas(&conn)?
@@ -135,9 +141,31 @@ async fn get_recap(
             .into_iter()
             .map(|p| (p.id, p.display_name))
             .collect();
-        rollup::build_recap_facts(&events, &categories, &projects, start_time)
+        let facts = rollup::build_recap_facts(&events, &categories, &projects, start_time);
+        let fingerprint = rollup::recap_fingerprint(&facts);
+        let cached = db::get_cached_recap(&conn, start_time, &fingerprint)?;
+        (facts, fingerprint, cached)
     };
-    Ok(ai::build_recap(narrator.inner(), &facts).await)
+
+    // Hit: the exact same facts were already narrated — return instantly, no model call.
+    if let Some((text, generated_by)) = cached {
+        return Ok(rollup::Recap { text, generated_by });
+    }
+
+    // Miss: narrate off the lock, then cache ONLY a real model recap (never the template — a
+    // cold/unavailable model must retry on the next open instead of caching a placeholder).
+    let recap = ai::build_recap(narrator.inner(), &facts).await;
+    if recap.generated_by == ai::GENERATED_BY_MODEL {
+        let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+        db::put_cached_recap(
+            &conn,
+            start_time,
+            &fingerprint,
+            &recap.text,
+            &recap.generated_by,
+        )?;
+    }
+    Ok(recap)
 }
 
 /// Build the Week view — 7 day-slices (each a mini-dial's runs + totals) plus week-level

@@ -17,9 +17,13 @@ use tauri_plugin_shell::ShellExt;
 
 use super::{AiError, Narrator};
 
-/// The externalBin name (tauri.conf.json) and capability scope. Tauri resolves the real file
-/// by appending `-$TARGET_TRIPLE` (e.g. `binaries/usageos-ai-aarch64-apple-darwin`).
-const SIDECAR: &str = "binaries/usageos-ai";
+/// The sidecar program name passed to `shell().sidecar(...)`. It must be the **basename** Tauri
+/// places next to the executable: the bundler/dev-copy strips both the `binaries/` prefix and
+/// the `-$TARGET_TRIPLE` suffix, and `new_sidecar` joins the name *literally* to the exe dir
+/// (it does NOT re-append the triple). So `"binaries/usageos-ai"` resolves to the non-existent
+/// `<exe_dir>/binaries/usageos-ai` and fails with ENOENT — it must be just `"usageos-ai"`.
+/// (The externalBin entry in tauri.conf.json stays `binaries/usageos-ai`, the *source* path.)
+const SIDECAR: &str = "usageos-ai";
 
 /// Per-recap timeout (C7). The model is ~5 s cold / ~1–2 s warm; this is generous headroom so
 /// a wedged call falls back to the template instead of hanging the (already-lazy) recap.
@@ -78,12 +82,23 @@ impl Narrator for SidecarNarrator {
             // first complete one (the sidecar emits exactly one response line per request).
             let mut buf = String::new();
             while let Some(event) = rx.recv().await {
-                if let CommandEvent::Stdout(bytes) = event {
-                    buf.push_str(&String::from_utf8_lossy(&bytes));
-                    if let Some(nl) = buf.find('\n') {
-                        let json: String = buf.drain(..=nl).collect();
-                        return parse_response(json.trim());
+                match event {
+                    CommandEvent::Stdout(bytes) => {
+                        buf.push_str(&String::from_utf8_lossy(&bytes));
+                        if let Some(nl) = buf.find('\n') {
+                            let json: String = buf.drain(..=nl).collect();
+                            return parse_response(json.trim());
+                        }
                     }
+                    // If the child dies without a response, return now instead of waiting out
+                    // the whole timeout.
+                    CommandEvent::Terminated(t) => {
+                        return Err(AiError::Model(format!(
+                            "sidecar exited early (code {:?})",
+                            t.code
+                        )));
+                    }
+                    _ => {}
                 }
             }
             Err(AiError::Model("no response".into()))
@@ -120,12 +135,12 @@ fn parse_response(line: &str) -> Result<String, AiError> {
 /// optimization, never a correctness requirement (the template always covers a cold/missing
 /// model). Spawn the future with [`tauri::async_runtime::spawn`]; don't block startup.
 pub async fn prewarm(app: &AppHandle) {
-    let spawned = app
+    if let Ok((mut rx, _child)) = app
         .shell()
         .sidecar(SIDECAR)
-        .and_then(|cmd| cmd.args(["--prewarm"]).spawn());
-    if let Ok((mut rx, _child)) = spawned {
-        // Drain (briefly) so the child runs to completion rather than being torn down early;
+        .and_then(|cmd| cmd.args(["--prewarm"]).spawn())
+    {
+        // Drain briefly so the child runs to completion rather than being torn down early;
         // we don't care about the contents.
         let _ =
             tokio::time::timeout(RECAP_TIMEOUT, async { while rx.recv().await.is_some() {} }).await;

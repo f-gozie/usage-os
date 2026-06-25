@@ -14,7 +14,8 @@ use crate::rollup::{format_recap_prompt, render_template_recap, Recap, RecapFact
 pub mod sidecar;
 
 /// `generated_by` tag set when the on-device model produced the prose (vs `"template"`).
-const GENERATED_BY_MODEL: &str = "foundation-models";
+/// `pub` so the `get_recap` command can cache only model recaps, never the template (D52).
+pub const GENERATED_BY_MODEL: &str = "foundation-models";
 
 /// Why a narration attempt failed. [`build_recap`] treats every variant identically — fall
 /// back to the template — but keeping them distinct keeps the failure legible for logging.
@@ -63,6 +64,7 @@ pub async fn build_recap<N: Narrator>(narrator: &N, facts: &RecapFacts) -> Recap
             text: text.trim().to_string(),
             generated_by: GENERATED_BY_MODEL.to_string(),
         },
+        // Fall back to the template on ANY failure or empty output (C5).
         _ => render_template_recap(facts),
     }
 }

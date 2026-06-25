@@ -10,15 +10,15 @@
     "opener:allow-reveal-item-in-dir",
     {
       "identifier": "shell:allow-spawn",
-      "allow": [{ "name": "binaries/usageos-ai", "sidecar": true }]
+      "allow": [{ "name": "usageos-ai", "sidecar": true }]
     },
     {
       "identifier": "shell:allow-stdin-write",
-      "allow": [{ "name": "binaries/usageos-ai", "sidecar": true }]
+      "allow": [{ "name": "usageos-ai", "sidecar": true }]
     },
     {
       "identifier": "shell:allow-kill",
-      "allow": [{ "name": "binaries/usageos-ai", "sidecar": true }]
+      "allow": [{ "name": "usageos-ai", "sidecar": true }]
     }
   ]
 }
