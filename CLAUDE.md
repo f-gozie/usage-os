@@ -60,5 +60,5 @@ No gamification (XP, streaks, goals, "boss fights" — all cut). No real-time in
   2. **decisions.md** — append any new ADR (append-only).
   3. **handoff** — at session end / `/handoff`, write a **new** `handoffs/` entry for the current state + next steps (never overwrite).
   A PR/push is not "done" until these reflect the code as it now is. A **non-blocking `.githooks/pre-push`** tripwire reminds when a push changes `src/`/`src-tauri/src/` without touching `context/plans/` or `decisions.md` — a backstop, not a substitute for the reconciliation above. (One-time per clone: `git config core.hooksPath .githooks`.)
-- Mockups before UI changes (the `mockup` skill). Reviews before merge (the `code-review` skill / `/code-review`).
+- Mockups before UI changes (the `mockup` skill). **Review every PR with `/review`** — the project's own review skill: it checks the diff against the hard rules, runs the real merge gates, gets an independent Codex cross-model second opinion, verifies findings against the code, and writes the report into the active plan's `reviews/` (paired to the impl-plan). It's the recommended pre-PR step, not a CI gate. (The generic `code-review` skill / `/code-review` is still fine for a quick diff-only pass.)
 - Distribution: notarized DMG + auto-update + Homebrew cask. Needs the Apple Developer cert.
