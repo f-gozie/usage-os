@@ -133,10 +133,21 @@ fn verify_applied_checksums(conn: &Connection, strict: bool) -> Result<()> {
                 }
             }
             None => {
-                return Err(drift_error(format!(
-                    "migration {version} ({name}) is recorded as applied but missing from \
-                     this build — the database was migrated by a newer version; do not downgrade"
-                )));
+                if strict {
+                    return Err(drift_error(format!(
+                        "migration {version} ({name}) is recorded as applied but missing from \
+                         this build — the database was migrated by a newer version; do not downgrade"
+                    )));
+                }
+                // Dev: the local DB has a migration this branch doesn't ship — normal when you
+                // switch from a feature branch that added it (e.g. another branch's 0007). The
+                // extra schema just sits unused here, so warn and continue rather than block the
+                // dev loop. The row stays, so switching back doesn't re-run it.
+                eprintln!(
+                    "[Database] migration {version} ({name}) is in the local dev DB but not this \
+                     build (a newer/other branch added it) — ignoring it. Switch back to that \
+                     branch, or delete the dev DB, to drop the extra schema."
+                );
             }
         }
     }
@@ -333,9 +344,9 @@ mod tests {
     }
 
     #[test]
-    fn detects_an_applied_migration_missing_from_this_build() {
-        let mut conn = fresh();
-        // Simulate a downgrade: the DB records a migration newer than anything this binary ships.
+    fn strict_rejects_a_migration_missing_from_this_build() {
+        let conn = fresh();
+        // The DB records a migration newer than anything this binary ships (a real downgrade).
         let future = MIGRATIONS.last().unwrap().version + 1;
         conn.execute(
             "INSERT INTO schema_migrations (version, name, checksum, applied_at)
@@ -343,8 +354,32 @@ mod tests {
             [future],
         )
         .unwrap();
-        let err = run_migrations(&mut conn).unwrap_err();
+        // Release (strict) refuses; dev tolerates (you switched from a branch that added it).
+        let err = verify_applied_checksums(&conn, true).unwrap_err();
         assert!(err.to_string().contains("missing from"));
+    }
+
+    #[test]
+    fn dev_tolerates_a_migration_from_another_branch() {
+        let conn = fresh();
+        // e.g. you ran another feature branch that added 0007, then checked this one out.
+        let other = MIGRATIONS.last().unwrap().version + 1;
+        conn.execute(
+            "INSERT INTO schema_migrations (version, name, checksum, applied_at)
+             VALUES (?1, 'other_branch_migration', 'x', 0)",
+            [other],
+        )
+        .unwrap();
+        // Dev (not strict): warn + continue, and the extra row is left in place.
+        verify_applied_checksums(&conn, false).unwrap();
+        let still_there: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM schema_migrations WHERE version = ?1",
+                [other],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(still_there, 1, "the extra migration row is preserved");
     }
 
     #[test]
