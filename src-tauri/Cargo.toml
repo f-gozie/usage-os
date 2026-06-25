@@ -1,8 +1,8 @@
 [package]
 name = "usage-os"
 version = "0.1.0"
-description = "A personal desktop utility app that tracks computer usage activity"
-authors = ["you"]
+description = "UsageOS — a private, on-device Mac app that records where your time goes and tells you the story of your day."
+authors = ["Favour Agozie"]
 edition = "2021"
 
 [lib]
@@ -18,12 +18,9 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# Generated IPC (hard rule 2, D17/D27). The specta v2 stack is release-candidate;
-# pin exactly and move as a set. NOTE: the standard's provisional rc.24 pin does
-# NOT build — specta rc.24 removed `#[specta(rename)]` on containers, which the
-# current tauri (2.9.3, the latest 2.x) still uses in its specta integration. The
-# highest combo that compiles with tauri 2.9.3 is the rc.20 trio (specta rc.20
-# still supports container rename). Move all four together; never float.
+# Generated IPC (hard rule 2; see D27). The specta v2 stack is a release candidate: pin exactly
+# and move all four together. rc.20 is the highest trio that compiles with tauri 2.9.3 (rc.24
+# dropped container `#[specta(rename)]`, which tauri's specta integration still uses).
 tauri-specta = { version = "=2.0.0-rc.20", features = ["derive", "typescript"] }
 specta = "=2.0.0-rc.20"
 specta-typescript = "=0.0.7"
@@ -34,11 +31,8 @@ user-idle = "0.6"
 rusqlite = { version = "0.31", features = ["bundled"] }
 tokio = { version = "1", features = ["rt", "time", "sync"] }
 
-# Native macOS capture (Phase 1.2b, D29/D32). Behind the `capture` trait and
-# `#[cfg(target_os = "macos")]` — never imported above `capture/macos/`. Exact pins
-# proven by the spikes (objc2 0.6.4 / objc2-* 0.3.2 / block2 0.6.2). The whole AX
-# surface (incl. the AXObserver family) lives in objc2-application-services — no
-# accessibility-sys (D29). libc also backs proc_pidinfo (terminal cwd).
+# Native macOS capture (see D29). Behind the `capture` trait + `#[cfg(target_os = "macos")]`.
+# The whole AX surface lives in objc2-application-services; libc backs proc_pidinfo (terminal cwd).
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3.2", features = [

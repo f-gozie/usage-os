@@ -30,7 +30,9 @@ import {
 } from "@/lib/tauri";
 import { THEMES, THEME_LABELS, useTheme, type Theme } from "@/providers/ThemeProvider";
 
-const CANON_ORDER = ["deep", "research", "comms", "breaks"];
+// Canonical display order — must include every canonical slug (incl. `personal` from D47) or that
+// category sorts out of place. Mirrors CANONICAL_CATEGORIES in lib/categories.ts.
+const CANON_ORDER = ["deep", "research", "comms", "breaks", "personal"];
 
 const RETENTION: ReadonlyArray<readonly [string, string]> = [
   ["30", "30 days"],
@@ -47,7 +49,11 @@ export function SettingsView() {
   const { data, loading, error, refresh } = useSettingsData();
   const { theme, setTheme } = useTheme();
 
-  const [editing, setEditing] = useState<{ category: Category | null } | null>(null);
+  const [editing, setEditing] = useState<{
+    category: Category | null;
+    /** A process name to pre-add when opening "New category…" from the Uncategorized list. */
+    seedApp?: string;
+  } | null>(null);
   const [exclusionOpen, setExclusionOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -147,7 +153,7 @@ export function SettingsView() {
           apps={uncategorized}
           categories={categories}
           onAssigned={refresh}
-          onNewCategory={() => setEditing({ category: null })}
+          onNewCategory={(appName) => setEditing({ category: null, seedApp: appName })}
           onError={(m) => setNotice(m)}
         />
       </SettingGroup>
@@ -254,6 +260,7 @@ export function SettingsView() {
       <CategoryEditorModal
         open={editing !== null}
         category={editing?.category ?? null}
+        seedApp={editing?.seedApp ?? null}
         rules={rules}
         categories={categories}
         onClose={() => setEditing(null)}

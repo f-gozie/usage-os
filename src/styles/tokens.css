@@ -23,6 +23,8 @@
   --on-ink: #EEEBE1;
   --bar-bg: #161616;
   --bar-fg: #EEEBE1;
+  --bar-muted: rgba(238, 235, 225, 0.65); /* muted text on the dark bar */
+  --scrim: rgba(22, 22, 22, 0.5); /* modal overlay dim */
 }
 
 [data-theme="warm"] {
@@ -43,6 +45,8 @@
   --on-ink: #1A1916;
   --bar-bg: #100F0C;
   --bar-fg: #EDE9DD;
+  --bar-muted: rgba(237, 233, 221, 0.65);
+  --scrim: rgba(0, 0, 0, 0.6);
 }
 
 [data-theme="black"] {
@@ -63,4 +67,6 @@
   --on-ink: #0E0E0E;
   --bar-bg: #000000;
   --bar-fg: #F4F4F2;
+  --bar-muted: rgba(244, 244, 242, 0.65);
+  --scrim: rgba(0, 0, 0, 0.65);
 }

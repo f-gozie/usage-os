@@ -1,13 +1,10 @@
-//! Project inference (D30) — port of `spikes/project-inference`, made
-//! persistence-aware. Turns capture signals (terminal cwd, browser url, window
-//! title) into a `project_id` via the repository, or an explicit abstain.
+//! Project inference (D30): turn capture signals (terminal cwd, browser url, window title) into
+//! a `project_id` via the repository, or an explicit abstain.
 //!
-//! The canonical identity is the git remote `owner/repo` (folder name as fallback);
-//! weak signals (folder/title/file names) are reconciled to an existing project by
-//! a `"name"` alias before a new project is created, so one project never fragments
-//! (the spike's headline finding). A wrong label costs more trust than a gap, so we
-//! assign only on a confident, unambiguous signal — else persist the abstain *kind*
-//! (`no-signal` vs `ambiguous`) for later correlation.
+//! The canonical identity is the git remote `owner/repo` (folder name as fallback). Weak signals
+//! (folder/title/file names) reconcile to an existing project by a `"name"` alias before a new
+//! one is created, so a project never fragments. A wrong label costs more trust than a gap, so
+//! we assign only on a confident signal — else persist the abstain kind (`no-signal`/`ambiguous`).
 
 use std::process::Command;
 
@@ -70,9 +67,14 @@ pub fn infer_project(conn: &Connection, sig: &ProjectSignals) -> Result<ProjectA
         }
     }
 
-    if let Some(title) = sig.title {
-        if let Classified::Project(c) = classify_title(title) {
-            return Ok(ProjectAssignment::Assigned(resolve(conn, &c)?));
+    // Title is a project signal only for native app windows (an editor's "file — project").
+    // When a URL is present the page is a browser tab, whose title is content — using it would
+    // mint fake projects ("YouTube"/"GitHub") for general pages, so skip it (D30).
+    if sig.url.is_none() {
+        if let Some(title) = sig.title {
+            if let Classified::Project(c) = classify_title(title) {
+                return Ok(ProjectAssignment::Assigned(resolve(conn, &c)?));
+            }
         }
     }
 
@@ -83,8 +85,8 @@ pub fn infer_project(conn: &Connection, sig: &ProjectSignals) -> Result<ProjectA
     }))
 }
 
-/// Persist a candidate to a `project_id`. Weak candidates first try to reconcile
-/// to an existing project by their `"name"` alias (D30 — no fragmentation).
+/// Persist a candidate to a `project_id`. Weak candidates first reconcile to an existing
+/// project by their `"name"` alias so a project doesn't fragment (D30).
 fn resolve(conn: &Connection, c: &Candidate) -> Result<i64> {
     if c.weak {
         if let Some(name) = &c.name_alias {
@@ -156,7 +158,9 @@ fn classify_url(url: &str) -> Classified {
         };
     }
 
-    if host.ends_with("github.com") {
+    // Exact host or a real subdomain — `ends_with("github.com")` alone would also match a
+    // look-alike like `evilgithub.com`.
+    if host == "github.com" || host.ends_with(".github.com") {
         let segs: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
         match (segs.first(), segs.get(1)) {
             (Some(owner), Some(repo)) if !GITHUB_NON_REPO.contains(owner) => {
@@ -173,8 +177,12 @@ fn classify_url(url: &str) -> Classified {
         }
     }
 
-    if host == "localhost" || host == "127.0.0.1" || host.starts_with("localhost:") {
-        return Classified::Ambiguous; // local dev server — project unknown
+    if host == "localhost"
+        || host == "127.0.0.1"
+        || host.starts_with("localhost:")
+        || host.starts_with("127.0.0.1:")
+    {
+        return Classified::Ambiguous; // local dev server (with or without a port) — project unknown
     }
     if DEV_DASHBOARDS.iter().any(|d| host.ends_with(d)) {
         return Classified::Ambiguous; // dev dashboard — project-ambiguous
@@ -211,7 +219,7 @@ fn classify_title(title: &str) -> Classified {
     })
 }
 
-// ── Vocabularies (seeded from the spike; data-driven later) ──────────────────
+// ── Vocabularies (static seed; data-driven later) ────────────────────────────
 
 const GITHUB_NON_REPO: &[&str] = &[
     "settings",
@@ -274,8 +282,8 @@ const APP_NAMES: &[&str] = &[
 
 // ── Plumbing ─────────────────────────────────────────────────────────────────
 
-/// Run `git -C <dir> ...`, returning trimmed stdout on success. Shells out (the
-/// consumer runs on a dedicated thread, so this never blocks the async executor).
+/// Run `git -C <dir> ...`, returning trimmed stdout on success. Shelling out is fine here —
+/// the consumer runs on a dedicated thread, off the async executor.
 fn git(dir: &str, args: &[&str]) -> Option<String> {
     let out = Command::new("git")
         .arg("-C")

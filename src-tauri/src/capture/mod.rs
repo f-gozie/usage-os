@@ -1,11 +1,9 @@
-//! Capture: the boundary that observes the active app/window (hard rule 5, D22).
+//! Capture: the boundary that observes the active app/window (hard rule 5).
 //!
-//! [`CaptureSource`] produces [`FocusEvent`]s; [`consume`] is the single writer — a
-//! state machine that owns the one open span in memory, applies D8 sensitive handling
-//! and D30 project inference, and self-ticks (via `recv_timeout`) to extend the open
-//! span and detect idle. All platform/native code lives behind this trait — nothing
-//! above `capture/` imports objc2. Tests use [`FakeCapture`]; production uses the
-//! event-driven [`macos::MacosCapture`] on macOS, else [`PollingCapture`].
+//! [`CaptureSource`] produces [`FocusEvent`]s; [`consume`] is the single writer — a state machine
+//! that owns the one open span, applies sensitive handling (D8) and project inference (D30), and
+//! self-ticks to extend the span and detect idle. All native code lives behind this trait. Tests
+//! use [`FakeCapture`]; production uses [`macos::MacosCapture`] on macOS, else [`PollingCapture`].
 
 mod fake;
 #[cfg(target_os = "macos")]
@@ -24,16 +22,12 @@ use rusqlite::Connection;
 use crate::db::{self, DbConnection, ExclusionMode, NewEvent};
 use crate::enrich::{self, ProjectAssignment, ProjectSignals};
 
-/// A focus change marshaled from the capture side to the consumer thread. All
-/// fields are owned/`Send` (D29). The signals are filled by whichever source is
-/// active: polling sets app only; the macOS impl adds title, url, and cwd. Idle is
-/// NOT a per-event signal — the consumer is the single source of idle truth (D39),
-/// reading input-idle on each tick against the per-app gate.
+/// A focus change marshaled from the capture source to the consumer thread (owned/`Send`).
+/// Polling fills app only; the macOS impl adds title, url, and cwd. Idle is not a per-event
+/// signal — the consumer is the sole source of idle truth (see D39).
 #[derive(Debug, Clone, Default)]
 pub struct FocusEvent {
     pub app_name: String,
-    pub bundle_id: Option<String>,
-    pub pid: i32,
     pub window_title: Option<String>,
     /// Browser front-tab URL (never set for incognito/private — D8).
     pub url: Option<String>,
@@ -98,23 +92,17 @@ pub fn default_source() -> Box<dyn CaptureSource> {
 
 // ── Span state machine (the consumer is the SOLE writer) ─────────────────────────
 
-/// How often the consumer wakes (when no events arrive) to re-check idle and extend
-/// the open span — the resolution of tail time and the max lost on a crash.
+/// How often the consumer wakes (with no events) to re-check idle and extend the open span —
+/// the resolution of tail time and the max lost on a crash.
 const TICK_SECS: i64 = 20;
-/// Default input-idle gate: at/over this many seconds with no input the open span is
-/// closed and time stops accruing. Also the everyday reading allowance — scroll/trackpad
-/// count as input, so genuine reading rarely trips it.
+/// Default input-idle gate (secs): past it with no input, the span closes. Generous enough that
+/// scroll/trackpad keep ordinary reading alive. Dogfood-tunable; see D39.
 const GATE_SECS: i64 = 120;
-/// A longer gate for apps where attentively watching with little input is the norm —
-/// supervising an AI coding agent, a long build/test run. Bounded, never disabled: a
-/// genuine walk-away still closes the span once idle crosses it, capping the over-count
-/// (the honest-mirror trade-off). D34a dogfood-tunable starting value (D39, set by the
-/// Codex+Opus debate).
+/// Longer idle gate (secs) for surfaces where you watch work happen with little input (an AI
+/// agent, a long build). Bounded — a real walk-away still closes the span. Dogfood-tunable; see D39.
 const PATIENT_GATE_SECS: i64 = 600;
-/// Process-name substrings (case-insensitive) that earn `PATIENT_GATE_SECS`: the
-/// editor / terminal / agent surfaces where you watch work happen without touching the
-/// keys. Mirrors the "deep work" starter rules (migration 0003) but is deliberately
-/// decoupled from categorization — a browser doing "research" is not a patient surface.
+/// Process-name substrings (case-insensitive) that earn `PATIENT_GATE_SECS` — decoupled from
+/// categorization (a browser "researching" is not a patient surface).
 const PATIENT_APPS: &[&str] = &[
     "Cursor", "Code", "Xcode", "iTerm", "Terminal", "Warp", "Ghostty", "Zed", "Claude",
 ];
@@ -143,12 +131,14 @@ struct Focus {
 }
 
 impl Focus {
-    /// Same window doing the same thing → coalesce rather than open a new span.
+    /// Same window doing the same thing → coalesce. Includes `project_id` so a terminal `cd` to a
+    /// different repo (same app + title) opens a new span under the new project (D30).
     fn same_window(&self, other: &Focus) -> bool {
         self.app == other.app
             && self.title == other.title
             && self.url == other.url
             && self.is_private == other.is_private
+            && self.project_id == other.project_id
     }
 }
 
@@ -159,9 +149,9 @@ struct OpenSpan {
     end: i64,
 }
 
-/// The consumer's entire mutable state. `last_focus` lets us reopen the *same* window
-/// after an idle-close (macOS emits no event when you return to an unchanged window —
-/// debate decision A); it's cleared after an excluded app (nothing to resume).
+/// The consumer's mutable state. `last_focus` lets us reopen the *same* window after an
+/// idle-close (macOS fires no event on return to an unchanged window); cleared after an
+/// excluded app (nothing to resume).
 #[derive(Default)]
 struct SpanState {
     current: Option<OpenSpan>,
@@ -176,10 +166,9 @@ enum Resolved {
     Track(Focus),
 }
 
-/// Frontmost apps that mean "the user is away," not "an app in use": macOS swaps these in when
-/// the screen locks / the screensaver runs. Input-idle reads ~0 while locked, so the idle gate
-/// can't catch it (D41) — this is the reliable away signal, so we treat focus on them like an
-/// excluded app: close the open span, drop, and don't resume.
+/// Frontmost apps that mean "away," not "in use" (the lock screen / screensaver). Input-idle
+/// reads ~0 while locked, so the idle gate is blind — these are the reliable away signal, treated
+/// like an excluded app (close the span, drop, don't resume). See D41.
 const AWAY_APPS: &[&str] = &["loginwindow", "ScreenSaverEngine"];
 
 fn is_away_app(app: &str) -> bool {
@@ -187,8 +176,7 @@ fn is_away_app(app: &str) -> bool {
 }
 
 fn resolve_focus(conn: &Connection, ev: &FocusEvent) -> rusqlite::Result<Resolved> {
-    // Locked screen / screensaver → away: close the open span and drop. The idle gate is blind
-    // while locked (input-idle reads ~0), so the frontmost away-app is the signal we trust (D41).
+    // Locked screen / screensaver → away: close the open span and drop (see D41).
     if is_away_app(&ev.app_name) {
         return Ok(Resolved::Excluded);
     }
@@ -264,9 +252,19 @@ fn open_span(conn: &Connection, focus: &Focus, ts: i64) -> rusqlite::Result<Open
     })
 }
 
-/// Handle one focus change: coalesce into the open span if it's the same window, else
-/// close the open span at the switch and open a new one. Excluded → close + drop.
-fn on_focus(conn: &Connection, state: &mut SpanState, ev: &FocusEvent) -> rusqlite::Result<()> {
+/// Handle one focus change: coalesce into the open span if it's the same window, else close the
+/// open span at the switch and open a new one. Excluded → close + drop.
+///
+/// `idle_secs` is the input-idle at arrival. Past the gate, an arriving event is background churn
+/// on an unattended window (a live title reads as a *new* window since the title is part of the
+/// identity), so it would spawn phantom spans — instead we close the span, remember the window for
+/// `on_tick` to resume, and neither extend nor open. Real input resets idle, so activity resumes.
+fn on_focus(
+    conn: &Connection,
+    state: &mut SpanState,
+    ev: &FocusEvent,
+    idle_secs: i64,
+) -> rusqlite::Result<()> {
     let focus = match resolve_focus(conn, ev)? {
         Resolved::Excluded => {
             if let Some(open) = state.current.take() {
@@ -278,11 +276,28 @@ fn on_focus(conn: &Connection, state: &mut SpanState, ev: &FocusEvent) -> rusqli
         Resolved::Track(focus) => focus,
     };
 
-    // Same window re-fire (e.g. a duplicate title event) → just extend in place.
+    // Gate on the app we'd keep (open span, else the last window) — patient apps get the longer
+    // gate, exactly like `on_tick`. Past it, drop the event as unattended churn.
+    let gate = state
+        .current
+        .as_ref()
+        .map(|open| open.focus.app.as_str())
+        .or_else(|| state.last_focus.as_ref().map(|f| f.app.as_str()))
+        .map_or(GATE_SECS, gate_secs_for);
+    if idle_secs >= gate {
+        state.current = None;
+        state.last_focus = Some(focus);
+        return Ok(());
+    }
+
+    // Same window re-fire (e.g. a duplicate title event) → extend in place (no-op if time didn't
+    // advance, so a burst of identical events doesn't rewrite the row).
     if let Some(open) = state.current.as_mut() {
         if open.focus.same_window(&focus) {
-            db::set_span_end(conn, open.id, ev.timestamp)?;
-            open.end = ev.timestamp;
+            if ev.timestamp > open.end {
+                db::set_span_end(conn, open.id, ev.timestamp)?;
+                open.end = ev.timestamp;
+            }
             state.last_focus = Some(focus);
             return Ok(());
         }
@@ -339,10 +354,9 @@ fn current_idle_secs() -> i64 {
 
 // ── Consumer (the sole DB writer; SQLite + git shell are blocking, so own thread) ─
 
-/// Drain focus events and self-tick into the repository until the channel closes. The
-/// idle gate is driven by a **wall-clock deadline checked on every wake** (not by the
-/// bare `recv_timeout` firing) — otherwise a chatty event stream (a live-updating tab
-/// title) while you're away would starve the gate and balloon the span.
+/// Drain focus events and self-tick into the repository until the channel closes. The idle gate
+/// is a wall-clock deadline checked on every wake (not the bare `recv_timeout` firing), so a
+/// chatty event stream while you're away can't starve the gate and balloon the span.
 pub fn consume(db_conn: DbConnection, rx: Receiver<FocusEvent>) {
     println!(
         "[Capture] consumer up (tick {}s, idle gate {}s)",
@@ -354,14 +368,18 @@ pub fn consume(db_conn: DbConnection, rx: Receiver<FocusEvent>) {
     loop {
         let wait = (next_tick - db::now_unix()).max(0) as u64;
         match rx.recv_timeout(Duration::from_secs(wait)) {
-            Ok(ev) => match db_conn.lock() {
-                Ok(conn) => {
-                    if let Err(e) = on_focus(&conn, &mut state, &ev) {
-                        eprintln!("[Capture] focus write failed: {}", e);
+            Ok(ev) => {
+                // Idle at event arrival, so a same-window churn while away can't extend the span.
+                let idle = current_idle_secs();
+                match db_conn.lock() {
+                    Ok(conn) => {
+                        if let Err(e) = on_focus(&conn, &mut state, &ev, idle) {
+                            eprintln!("[Capture] focus write failed: {}", e);
+                        }
                     }
+                    Err(e) => eprintln!("[Capture] db lock poisoned: {}", e),
                 }
-                Err(e) => eprintln!("[Capture] db lock poisoned: {}", e),
-            },
+            }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => break,
         }
@@ -399,7 +417,6 @@ mod tests {
     fn focus(app: &str, title: Option<&str>, ts: i64) -> FocusEvent {
         FocusEvent {
             app_name: app.to_string(),
-            pid: 1,
             window_title: title.map(|s| s.to_string()),
             timestamp: ts,
             ..Default::default()
@@ -410,9 +427,9 @@ mod tests {
         db::get_activity_logs(conn, 0, i64::MAX).unwrap()
     }
 
-    /// Drive a focus event through the state machine.
+    /// Drive a focus event through the state machine (active: idle = 0).
     fn feed(conn: &Connection, state: &mut SpanState, ev: &FocusEvent) {
-        on_focus(conn, state, ev).unwrap();
+        on_focus(conn, state, ev, 0).unwrap();
     }
 
     #[test]
@@ -568,6 +585,56 @@ mod tests {
         assert_eq!(logs[0].window_title, "");
         assert_eq!(logs[0].url, None);
         assert_eq!(logs[0].project_id, None);
+    }
+
+    #[test]
+    fn title_churn_while_idle_does_not_inflate_or_spawn_phantoms() {
+        // The user walks away; the focused window's title keeps changing (a build counter, a
+        // "(3)" badge). Each churn reads as a new window (title is part of identity), so without
+        // the on_focus idle gate it would spawn a chain of phantom spans and inflate the day.
+        let conn = test_db();
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Slack", Some("general"), 1000)); // opens at 1000, active
+        on_focus(
+            &conn,
+            &mut st,
+            &focus("Slack", Some("(1) general"), 1200),
+            200,
+        )
+        .unwrap();
+        on_focus(
+            &conn,
+            &mut st,
+            &focus("Slack", Some("(2) general"), 1400),
+            400,
+        )
+        .unwrap();
+        let logs = all_logs(&conn);
+        assert_eq!(logs.len(), 1, "churn while away spawns no phantom spans");
+        assert_eq!(logs[0].end_time, 1000, "the span did not accrue idle churn");
+        assert!(st.current.is_none(), "the span is closed while away");
+    }
+
+    #[test]
+    fn same_window_distinguishes_project() {
+        // A `cd` to a different repo (same app + title, different inferred project) is NOT the
+        // same window, so it opens a fresh span under the new project rather than extending (D30).
+        let base = Focus {
+            app: "iTerm".into(),
+            title: "zsh".into(),
+            url: None,
+            site: None,
+            project_id: Some(1),
+            project_abstain_reason: None,
+            is_private: false,
+        };
+        let mut other = base.clone();
+        assert!(base.same_window(&other));
+        other.project_id = Some(2);
+        assert!(
+            !base.same_window(&other),
+            "a project change is a new window"
+        );
     }
 
     #[test]

@@ -25,14 +25,27 @@ export function LedgerRow({
 }: LedgerRowProps) {
   return (
     <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
       className={cn(
-        "grid cursor-pointer items-center gap-3.5 border-t-2 border-edge py-2.5 transition-opacity last:border-b-2",
+        "grid items-center gap-3.5 border-t-2 border-edge py-2.5 transition-opacity last:border-b-2",
+        onClick && "cursor-pointer",
         "grid-cols-[130px_1fr_118px]",
         dimmed && "opacity-30",
       )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
     >
       <div className="flex items-center gap-2.5 text-[13px] font-semibold uppercase tracking-[0.03em]">
         <span className="h-4 w-4 flex-shrink-0 border border-edge" style={{ background: colorVar }} />

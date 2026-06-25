@@ -1,12 +1,8 @@
--- D47 — relatable default categories. The shipped defaults leaned on jargon
--- ("Deep work", "Comms", "Breaks") and had no Personal bucket. This gives FRESH installs
--- a plain-spoken five-category model: Work · Browsing · Messaging · Entertainment ·
--- Personal.
+-- D47 — fresh-install five-category model: Work · Browsing · Messaging · Entertainment · Personal.
 --
--- Scope: every statement is gated on an empty activity_logs, so this migration ONLY ever
--- changes a fresh database. An existing user's categories/rules are never modified —
--- those evolve by user action. (The dev DB's relatable names were applied directly, not
--- by this migration.) `slug` stays the stable identity (D46); SQL table names unchanged.
+-- INVARIANT: every statement is gated on an empty activity_logs, so this only ever touches a
+-- fresh database — an existing user's categories/rules are never rewritten. `slug` stays the
+-- stable identity (D46).
 
 -- (a) Relatable display names (fresh installs only).
 UPDATE categories SET name = 'Work'          WHERE slug = 'deep'     AND (SELECT COUNT(*) FROM activity_logs) = 0;

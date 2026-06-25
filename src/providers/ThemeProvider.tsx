@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -41,6 +42,9 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
+  // True once the user has explicitly picked a theme — so the async initial load can't clobber a
+  // choice the user made while it was still in flight.
+  const userChosen = useRef(false);
 
   // Reflect onto the document so the token set swaps.
   useEffect(() => {
@@ -54,7 +58,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       try {
         const settings = await getSettings();
         const saved = settings.find((s) => s.key === SETTING_KEY)?.value;
-        if (!cancelled && saved && isTheme(saved)) setThemeState(saved);
+        if (!cancelled && !userChosen.current && saved && isTheme(saved)) setThemeState(saved);
       } catch {
         // No backend (Storybook / tests) — keep the default.
       }
@@ -65,6 +69,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setTheme = useCallback((next: Theme) => {
+    userChosen.current = true;
     setThemeState(next);
     void updateSetting(SETTING_KEY, next).catch(() => {
       // Best-effort persistence.

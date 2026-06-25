@@ -20,7 +20,7 @@ export function DetailInspector({
   emptyHint = "Click any block on the dial to see the session.",
 }: DetailInspectorProps) {
   return (
-    <div className="mt-[18px] flex min-h-[64px] items-center gap-[15px] border-2 border-dashed border-edge px-4 py-3.5">
+    <div className="mt-[18px] flex min-h-16 items-center gap-[15px] border-2 border-dashed border-edge px-4 py-3.5">
       {detail ? (
         <>
           <span

@@ -1,10 +1,13 @@
 /** Local-day helpers for the dial. A "day" is the local calendar day (the day-start
  *  offset for night owls is deferred, D14). */
 
-/** Unix-second bounds [start, end] of the local calendar day containing `date`. */
+/** Unix-second half-open bounds [start, end) of the local calendar day containing `date`:
+ *  this midnight up to (not including) the next. Matches the backend's half-open window
+ *  and the Week path, so the final second isn't dropped. DST-correct — both ends are real
+ *  local midnights (the `Date` constructor normalizes day+1 across month/DST boundaries). */
 export function dayBounds(date: Date): { start: number; end: number } {
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59);
+  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
   return { start: Math.floor(start.getTime() / 1000), end: Math.floor(end.getTime() / 1000) };
 }
 

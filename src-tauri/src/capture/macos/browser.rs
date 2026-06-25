@@ -1,12 +1,9 @@
-//! Browser front-tab inspection via Apple Events (port of `spikes/browser-url`).
+//! Browser front-tab inspection via Apple Events.
 //!
-//! D8 is non-negotiable: an incognito/private window must never have its URL **or**
-//! its title recorded. The Chromium ladder reads `mode of front window` FIRST; if
-//! it isn't `"normal"` the caller drops both (C5/D8). Safari has no scriptable
-//! private-window property, so the safe-default is to not read its URL (R18) — and,
-//! because we can't *prove* it's non-private, we leave it as a non-browser here (its
-//! AX title is kept; no URL). Static scripts via `/usr/bin/osascript` (C7); a denied
-//! Automation grant (`-1743`) yields `Normal(None)` and we fall back (C6).
+//! D8 invariant: an incognito/private window must never have its URL OR title recorded — the
+//! Chromium ladder reads `mode of front window` first and drops both if it isn't `"normal"`.
+//! Safari has no scriptable private-window property, so we treat it as a non-browser (keep its
+//! AX title, read no URL) rather than risk leaking a private one — the R18 safe default.
 
 use std::process::Command;
 
@@ -23,10 +20,8 @@ pub enum BrowserUrl {
     Private,
 }
 
-/// Browser **bundle id** → its AppleScript application name, for Chromium-family
-/// browsers only. Names matter: Brave is `"Brave Browser"`, Edge is
-/// `"Microsoft Edge"` — hardcoding the wrong name silently fails (R15). Safari is
-/// intentionally absent (D8 safe-default, R18).
+/// Browser bundle id → its exact AppleScript application name (a wrong name silently fails).
+/// Chromium-family only; Safari is intentionally absent (the R18 safe default).
 fn chromium_app_name(bundle_id: &str) -> Option<&'static str> {
     match bundle_id {
         "com.google.Chrome" | "com.google.Chrome.canary" => Some("Google Chrome"),
@@ -39,8 +34,8 @@ fn chromium_app_name(bundle_id: &str) -> Option<&'static str> {
     }
 }
 
-/// Inspect the front browser window: privacy state + URL. `mode` is read **before**
-/// the URL (C5), so a private window is classified without ever touching its URL.
+/// Inspect the front browser window: privacy state + URL. `mode` is read before the URL, so a
+/// private window is classified without ever touching its URL (D8).
 pub fn inspect(bundle_id: &str) -> BrowserUrl {
     let Some(app) = chromium_app_name(bundle_id) else {
         return BrowserUrl::NotBrowser;
@@ -59,14 +54,14 @@ pub fn inspect(bundle_id: &str) -> BrowserUrl {
             Some(u) => BrowserUrl::Normal(Some(u.to_string())),
             None => BrowserUrl::Normal(None), // NOWIN / unexpected — a normal browser, no URL
         },
-        // -1743 / spawn error: a browser, but we couldn't read it. Keep the AX title
-        // (we can't prove it's private), no URL — the existing R18/C6 stance for URLs.
+        // Denied Automation (-1743) / spawn error: a browser we couldn't read. Keep the AX title
+        // (can't prove it's private), no URL — the R18 safe default.
         None => BrowserUrl::Normal(None),
     }
 }
 
-/// Run a static AppleScript; `Some(stdout)` on success, `None` on any failure
-/// (incl. `-1743` denial — fall back, never retry; C6).
+/// Run a static AppleScript; `Some(stdout)` on success, `None` on any failure (e.g. a
+/// denied Automation grant — fall back, never retry).
 fn run_osa(script: &str) -> Option<String> {
     let out = Command::new(OSASCRIPT)
         .arg("-e")

@@ -308,6 +308,10 @@ export type Category = { id: number; slug: string | null; name: string; color: s
  */
 export type CategoryRun = { category_slug: string; category_name: string; 
 /**
+ * Hex colour for a user-created category; `None` for canonical / uncategorized.
+ */
+category_color: string | null; 
+/**
  * Span bounds (Unix secs); the arc is drawn start→end.
  */
 start: number; end: number; 
@@ -318,7 +322,12 @@ secs: number; projects: ProjectSlice[]; apps: string[] }
 /**
  * One category's total share of the active day (the ledger/legend/stats unit).
  */
-export type CategorySlice = { slug: string; name: string; secs: number; pct: number }
+export type CategorySlice = { slug: string; name: string; secs: number; pct: number; 
+/**
+ * Hex colour for a user-created category; `None` for canonical (coloured by slug) or
+ * uncategorized.
+ */
+color: string | null }
 /**
  * One day's compact summary for the Week view: a mini-dial's arcs plus the two totals
  * the week summary needs. `deep_secs` is carried so "deepest day" is a Rust number (rule 6).
@@ -372,7 +381,11 @@ export type Setting = { key: string; value: string }
 /**
  * A category-run plus its inner app-switch segments — one expandable Timeline row (D34).
  */
-export type TimelineRun = { category_slug: string; category_name: string; start: number; end: number; secs: number; projects: ProjectSlice[]; apps: string[]; segments: TimelineSegment[] }
+export type TimelineRun = { category_slug: string; category_name: string; 
+/**
+ * Hex colour for a user-created category; `None` for canonical / uncategorized.
+ */
+category_color: string | null; start: number; end: number; secs: number; projects: ProjectSlice[]; apps: string[]; segments: TimelineSegment[] }
 /**
  * One focused-window event inside a category-run — the Timeline's click-to-expand detail.
  */
@@ -382,6 +395,10 @@ export type TimelineSegment = { start: number; end: number; app: string;
  * detour of a *different* category, so each segment carries its own — the expand stays honest.
  */
 category_slug: string; category_name: string; 
+/**
+ * Hex colour for a user-created category segment; `None` for canonical / uncategorized.
+ */
+category_color: string | null; 
 /**
  * Resolved project name, or `None` when none was inferred (the UI shows "—").
  */
