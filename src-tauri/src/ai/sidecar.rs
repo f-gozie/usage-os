@@ -65,19 +65,21 @@ impl Narrator for SidecarNarrator {
             .map_err(|e| AiError::Model(format!("encode: {e}")))?;
         let line = format!("{request}\n");
 
+        // Spawn + write up front (fast — not worth time-bounding); only the read loop below is
+        // the slow part the timeout guards. Keep `child` in scope so the timeout arm can kill it.
+        let (mut rx, mut child) = self
+            .app
+            .shell()
+            .sidecar(SIDECAR)
+            .map_err(|e| AiError::Unavailable(format!("sidecar: {e}")))?
+            .spawn()
+            .map_err(|e| AiError::Unavailable(format!("spawn: {e}")))?;
+
+        child
+            .write(line.as_bytes())
+            .map_err(|e| AiError::Model(format!("write: {e}")))?;
+
         let read = async {
-            let (mut rx, mut child) = self
-                .app
-                .shell()
-                .sidecar(SIDECAR)
-                .map_err(|e| AiError::Unavailable(format!("sidecar: {e}")))?
-                .spawn()
-                .map_err(|e| AiError::Unavailable(format!("spawn: {e}")))?;
-
-            child
-                .write(line.as_bytes())
-                .map_err(|e| AiError::Model(format!("write: {e}")))?;
-
             // C6: stdout arrives as arbitrary byte chunks — reassemble into lines and take the
             // first complete one (the sidecar emits exactly one response line per request).
             let mut buf = String::new();
@@ -107,7 +109,13 @@ impl Narrator for SidecarNarrator {
         // C7: a wedged model call must not hang the on-open render — time out, then fall back.
         match tokio::time::timeout(RECAP_TIMEOUT, read).await {
             Ok(result) => result,
-            Err(_) => Err(AiError::Model("timeout".into())),
+            Err(_) => {
+                // Dropping the child only closes stdin (EOF); a child mid-inference isn't blocked
+                // in readLine, so EOF won't stop it. Kill it so a wedged call stops using the model
+                // instead of lingering until inference finishes on its own.
+                let _ = child.kill();
+                Err(AiError::Model("timeout".into()))
+            }
         }
     }
 }

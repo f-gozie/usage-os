@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getRecap, type Recap } from "@/lib/tauri";
 
@@ -21,9 +21,16 @@ export interface RecapState {
 export function useRecap(startUnix: number, endUnix: number): RecapState {
   const [recap, setRecap] = useState<Recap | null>(null);
 
+  // Monotonic request id: only the newest narration may write state, so a slow earlier call
+  // (a cache miss can take up to the model timeout) resolving after a faster later one can't
+  // render the previous day's prose under the current day. Mirrors useViewData's latch.
+  const latest = useRef(0);
+
   const fetchRecap = useCallback(async () => {
+    const token = ++latest.current;
     try {
-      setRecap(await getRecap(startUnix, endUnix));
+      const next = await getRecap(startUnix, endUnix);
+      if (token === latest.current) setRecap(next);
     } catch {
       // Swallow — the template recap from getDay is always present; the AI prose is optional.
     }
