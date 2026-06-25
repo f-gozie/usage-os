@@ -11,9 +11,12 @@ import "@fontsource/jost/700.css";
 import "./styles/tokens.css";
 import "./index.css";
 import App from "./App";
+import { Glance } from "./components/glance/Glance";
+
+// The menubar tray opens a separate webview window at `#/glance` (see src-tauri tray setup).
+// Same bundle, different root — the popover, not the full app.
+const isGlance = window.location.hash === "#/glance";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+  <React.StrictMode>{isGlance ? <Glance /> : <App />}</React.StrictMode>,
 );

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Menubar glance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616; --c-personal:#2E8B57;
+  --now:#161616; --casing:#161616; --on-ink:#EEEBE1; --bar-bg:#161616; --bar-fg:#EEEBE1;
+  --desk:#C9C4B6;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8; --c-personal:#46B97E;
+  --now:#EDE9DD; --casing:transparent; --on-ink:#1A1916; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+  --desk:#0E0D0B;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4; --c-personal:#4FCB8A;
+  --now:#F4F4F2; --casing:transparent; --on-ink:#0E0E0E; --bar-bg:#000000; --bar-fg:#F4F4F2;
+  --desk:#050505;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--desk);transition:background .25s;}
+body{font-family:'Jost',system-ui,sans-serif;color:var(--fg);-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column;align-items:center;}
+
+.menubar{align-self:stretch;height:26px;background:rgba(255,255,255,.10);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:flex-end;gap:18px;padding:0 14px;}
+.menubar .mi{color:rgba(255,255,255,.62);font-size:12px;font-weight:600;}
+[data-theme="paper"] .menubar{background:rgba(22,22,22,.06);}[data-theme="paper"] .menubar .mi{color:rgba(22,22,22,.5);}
+.menubar .glyph{display:flex;align-items:center;gap:3px;padding:3px 7px;border-radius:5px;background:rgba(125,125,125,.18);}
+.menubar .glyph i{width:6px;height:6px;border-radius:50%;display:block;}
+
+/* control rail */
+.rail{display:flex;gap:26px;align-items:center;flex-wrap:wrap;justify-content:center;padding:18px 14px 6px;}
+.ctl{display:flex;align-items:center;gap:9px;}
+.ctl .cl{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5);}
+[data-theme="paper"] .ctl .cl{color:rgba(22,22,22,.45);}
+.seg{display:flex;border:2px solid var(--edge);background:var(--bg);}
+.seg button{font-weight:600;font-size:10px;letter-spacing:.06em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 11px;}
+.seg button+button{border-left:2px solid var(--edge);}
+.seg button.on{background:var(--edge);color:var(--bg);}
+.gallery{position:fixed;top:34px;left:18px;font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.55);text-decoration:none;}
+[data-theme="paper"] .gallery{color:rgba(22,22,22,.45);}
+
+.stage{flex:1;display:flex;align-items:center;justify-content:center;padding:14px;}
+.pop{width:316px;background:var(--bg);border:3px solid var(--edge);border-radius:6px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.35);}
+.head{background:var(--bar-bg);display:flex;align-items:center;gap:8px;padding:10px 13px;}
+.head .wm{font-family:'Anton',sans-serif;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:var(--bar-fg);}
+.head .wm .o{color:var(--c-research);}
+.head .live{margin-left:auto;display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.62);font-size:9.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;}
+.head .live .dot{width:7px;height:7px;border-radius:50%;background:var(--c-comms);animation:pulse 2.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.body{padding:14px 15px 13px;}
+.daterow{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px;}
+.daterow .d{font-weight:600;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
+.daterow .clk{font-family:'Anton',sans-serif;font-size:13px;}.daterow .clk .r{color:var(--c-research);}
+
+.viz{display:flex;align-items:center;justify-content:center;min-height:130px;}
+.dialc{position:relative;width:132px;height:132px;}
+.dialc svg{width:100%;display:block;overflow:visible;}
+.cen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.cen .big{font-family:'Anton',sans-serif;font-size:25px;line-height:.82;}
+.cen .lab{font-size:8px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;margin-top:4px;color:var(--muted);}
+.barwrap{width:100%;}
+.barwrap .scale{display:flex;justify-content:space-between;font-size:8.5px;font-weight:600;color:var(--muted);letter-spacing:.04em;margin-bottom:5px;padding:0 1px;}
+.barwrap svg{width:100%;display:block;}
+
+.kpis{display:flex;border-top:2px solid var(--edge);margin-top:13px;}
+.kpi{flex:1;padding:10px 0 5px;}
+.kpi+.kpi{border-left:1px solid var(--rule);padding-left:11px;}
+.kpi .v{font-family:'Anton',sans-serif;font-size:20px;line-height:.9;display:flex;align-items:center;gap:6px;}
+.kpi .v .s{width:10px;height:10px;border:1px solid var(--edge);flex-shrink:0;}
+.kpi .k{font-size:8.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:7px;}
+
+.bd{margin-top:13px;}
+.bd .sec{font-weight:600;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:9px;display:flex;align-items:center;gap:8px;}
+.bd .sec::after{content:"";flex:1;height:1px;background:var(--rule);}
+.brow{display:grid;grid-template-columns:78px 1fr 60px;align-items:center;gap:9px;margin-bottom:7px;}
+.brow .nm{display:flex;align-items:center;gap:6px;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.02em;}
+.brow .nm .s{width:9px;height:9px;flex-shrink:0;border:1px solid var(--edge);}
+.brow .bar{height:7px;background:var(--track);}.brow .bar>div{height:100%;}
+.brow .vl{text-align:right;font-family:'Anton',sans-serif;font-size:13px;}.brow .vl .pc{font-family:'Jost';font-size:9px;color:var(--muted);font-weight:600;margin-left:4px;}
+
+.foot{display:flex;align-items:center;gap:9px;padding:11px 15px;border-top:2px solid var(--edge);background:var(--surface);}
+.btn{font-weight:600;font-size:11px;letter-spacing:.06em;text-transform:uppercase;background:var(--edge);color:var(--bg);border:2px solid var(--edge);padding:9px 14px;flex:1;text-align:center;text-decoration:none;}
+.btn.ghost{background:transparent;color:var(--muted);flex:0 0 auto;padding:9px 13px;}
+.privacy{text-align:center;font-size:8.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);padding:7px 0 9px;background:var(--surface);border-top:1px solid var(--rule);}
+.note{max-width:340px;text-align:center;font-size:11.5px;font-weight:500;line-height:1.5;color:rgba(255,255,255,.62);padding:4px 0 24px;}
+[data-theme="paper"] .note{color:rgba(22,22,22,.55);}
+.note b{color:inherit;}
+</style>
+</head>
+<body>
+<div class="menubar">
+  <span class="mi">🔋</span><span class="mi">📶</span>
+  <span class="glyph"><i style="background:var(--c-research)"></i><i style="background:var(--c-comms)"></i><i style="background:var(--c-deep)"></i></span>
+  <span class="mi">Thu 15:30</span>
+</div>
+<a class="gallery" href="index.html">← Gallery</a>
+
+<div class="rail">
+  <div class="ctl"><span class="cl">Theme</span><div class="seg" id="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div></div>
+  <div class="ctl"><span class="cl">Day load</span><div class="seg" id="daysw"><button data-d="light" class="on">Light ~4h</button><button data-d="busy">Busy 15h</button></div></div>
+  <div class="ctl"><span class="cl">Glance viz</span><div class="seg" id="vizsw"><button data-v="donut" class="on">Donut</button><button data-v="bar">Bar</button><button data-v="dial">Dial</button></div></div>
+</div>
+
+<div class="stage">
+  <div class="pop">
+    <div class="head"><span class="wm">USAGE<span class="o">OS</span></span><span class="live"><span class="dot"></span>Tracking</span></div>
+    <div class="body">
+      <div class="daterow"><span class="d">Today</span><span class="clk"><span class="r">▸</span> Now <span id="nowLbl">15:30</span></span></div>
+      <div class="viz" id="viz"></div>
+      <div class="kpis">
+        <div class="kpi"><div class="v" id="kActive">—</div><div class="k">Active</div></div>
+        <div class="kpi"><div class="v" id="kTop">—</div><div class="k">Top category</div></div>
+        <div class="kpi"><div class="v" id="kFocus" style="color:var(--c-research)">—</div><div class="k">Focus</div></div>
+      </div>
+      <div class="bd"><div class="sec">Where it went</div><div id="ledger"></div></div>
+    </div>
+    <div class="foot"><a class="btn" href="day.html">Open UsageOS →</a><button class="btn ghost" id="quit">Quit</button></div>
+    <div class="privacy">On this Mac only</div>
+  </div>
+</div>
+<div class="note" id="note"></div>
+
+<script>
+(function(){
+"use strict";
+var NS="http://www.w3.org/2000/svg";
+var CATS={deep:{name:"Work",v:"--c-deep"},research:{name:"Browsing",v:"--c-research"},comms:{name:"Messaging",v:"--c-comms"},breaks:{name:"Entertainment",v:"--c-breaks"},personal:{name:"Personal",v:"--c-personal"}};
+var ORDER=["deep","research","comms","breaks","personal"];
+
+// Light day (~4h25, to 15:30) — coarse runs.
+var LIGHT={now:930,runs:[
+ {ctx:"deep",s:540,e:642},{ctx:"comms",s:642,e:651},{ctx:"deep",s:651,e:735},
+ {ctx:"research",s:755,e:812},{ctx:"deep",s:812,e:858},{ctx:"breaks",s:858,e:872},
+ {ctx:"comms",s:872,e:879},{ctx:"deep",s:879,e:921},{ctx:"personal",s:921,e:930}]};
+// Busy day (~15h active, to 23:00) — granular: many short runs + frequent switches.
+var BUSY=(function(){var runs=[],t=420,now=1380; // 07:00 → 23:00
+  var seq=["deep","deep","comms","deep","research","deep","comms","breaks","deep","research","personal","deep","comms","deep","breaks","research","deep","personal","comms","deep","breaks","deep","research","comms","deep","breaks","personal","research","deep","comms"];
+  var lens=[22,9,4,31,12,18,3,7,26,9,6,14,4,21,11,8,28,5,4,17,9,24,13,3,19,12,6,8,16,5];
+  var i=0;while(t<now&&i<200){var ctx=seq[i%seq.length],len=lens[i%lens.length];
+    if(t+len>now)len=now-t; runs.push({ctx:ctx,s:t,e:t+len}); t+=len+ (i%5===0?6:0); i++;}
+  return {now:now,runs:runs};})();
+
+var DAY=LIGHT, VIZ="donut";
+function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function col(c){return cssv(CATS[c].v);}
+function durM(d){var h=Math.floor(d/60),m=d%60;return h>0?(m>0?h+"h "+m+"m":h+"h"):m+"m";}
+function totals(){var t={active:0};ORDER.forEach(function(c){t[c]=0;});DAY.runs.forEach(function(r){var d=r.e-r.s;t.active+=d;t[r.ctx]+=d;});return t;}
+function polar(cx,cy,deg,r){var a=(deg-90)*Math.PI/180;return[cx+r*Math.cos(a),cy+r*Math.sin(a)];}
+function arc(cx,cy,r,a0,a1){var lg=(a1-a0)>180?1:0,p0=polar(cx,cy,a0,r),p1=polar(cx,cy,a1,r);
+  return "M"+p0[0].toFixed(2)+" "+p0[1].toFixed(2)+" A"+r+" "+r+" 0 "+lg+" 1 "+p1[0].toFixed(2)+" "+p1[1].toFixed(2);}
+function tpolar(cx,cy,t,r){var a=t/1440*2*Math.PI;return[cx+r*Math.sin(a),cy-r*Math.cos(a)];}
+function tarc(cx,cy,r,a,b){var lg=(b-a)>720?1:0,p0=tpolar(cx,cy,a,r),p1=tpolar(cx,cy,b,r);
+  return "M"+p0[0].toFixed(2)+" "+p0[1].toFixed(2)+" A"+r+" "+r+" 0 "+lg+" 1 "+p1[0].toFixed(2)+" "+p1[1].toFixed(2);}
+function el(t,a){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
+
+// A — proportion donut (arc sized by category share; always ≤5 clean segments).
+function donut(t){var C=66,R=44,cased=cssv("--casing")!=="transparent"&&cssv("--casing")!=="";
+  var svg=el("svg",{viewBox:"0 0 132 132",role:"img","aria-label":"category share donut"});
+  svg.appendChild(el("circle",{cx:C,cy:C,r:R,fill:"none",stroke:cssv("--track"),"stroke-width":11}));
+  var rows=ORDER.map(function(c){return{c:c,m:t[c]};}).filter(function(r){return r.m>0;});
+  var ang=0,gap=rows.length>1?4:0;
+  rows.forEach(function(r){var sweep=r.m/t.active*360;var a0=ang+gap/2,a1=ang+sweep-gap/2;if(a1>a0){
+    if(cased)svg.appendChild(el("path",{d:arc(C,C,R,a0,a1),stroke:cssv("--casing"),"stroke-width":12,fill:"none"}));
+    svg.appendChild(el("path",{d:arc(C,C,R,a0,a1),stroke:col(r.c),"stroke-width":cased?9:11,fill:"none","stroke-linecap":"butt"}));}
+    ang+=sweep;});
+  var wrap=document.createElement("div");wrap.className="dialc";wrap.appendChild(svg);
+  var cen=document.createElement("div");cen.className="cen";cen.innerHTML='<div class="big">'+durM(t.active)+'</div><div class="lab">Active</div>';
+  wrap.appendChild(cen);return wrap;}
+
+// B — 24h stacked bar (linear; reads cleanly even when busy).
+function bar(){var W=286,H=34;var wrap=document.createElement("div");wrap.className="barwrap";
+  var sc=document.createElement("div");sc.className="scale";sc.innerHTML="<span>0</span><span>6</span><span>12</span><span>18</span><span>24</span>";wrap.appendChild(sc);
+  var svg=el("svg",{viewBox:"0 0 "+W+" "+H,preserveAspectRatio:"none"});
+  svg.appendChild(el("rect",{x:0,y:0,width:W,height:H,fill:cssv("--track")}));
+  DAY.runs.forEach(function(r){var x=r.s/1440*W,w=Math.max(0.6,(r.e-r.s)/1440*W);
+    svg.appendChild(el("rect",{x:x.toFixed(2),y:0,width:w.toFixed(2),height:H,fill:col(r.ctx)}));});
+  var nx=DAY.now/1440*W; svg.appendChild(el("rect",{x:(nx-1).toFixed(2),y:-2,width:2,height:H+4,fill:cssv("--now")}));
+  svg.appendChild(el("rect",{x:0,y:0,width:W,height:H,fill:"none",stroke:cssv("--edge"),"stroke-width":2}));
+  wrap.appendChild(svg);return wrap;}
+
+// C — literal time-positioned dial (what crowds): every run as a 24h arc.
+function dial(t){var C=66,R=44,cased=cssv("--casing")!=="transparent"&&cssv("--casing")!=="";
+  var svg=el("svg",{viewBox:"0 0 132 132"});
+  svg.appendChild(el("circle",{cx:C,cy:C,r:R,fill:"none",stroke:cssv("--track"),"stroke-width":10}));
+  svg.appendChild(el("circle",{cx:C,cy:C,r:R+5,fill:"none",stroke:cssv("--edge"),"stroke-width":1.5}));
+  svg.appendChild(el("circle",{cx:C,cy:C,r:R-5,fill:"none",stroke:cssv("--edge"),"stroke-width":1.5}));
+  [0,6,12,18].forEach(function(h){var tt=h*60,pi=tpolar(C,C,tt,R-5),po=tpolar(C,C,tt,R+5);
+    svg.appendChild(el("line",{x1:pi[0].toFixed(1),y1:pi[1].toFixed(1),x2:po[0].toFixed(1),y2:po[1].toFixed(1),stroke:cssv("--edge"),"stroke-width":1.5}));});
+  DAY.runs.forEach(function(r){var a=r.s,b=r.e>r.s?r.e:r.s+0.5;
+    svg.appendChild(el("path",{d:tarc(C,C,R,a,b),stroke:col(r.ctx),"stroke-width":cased?8:10,fill:"none"}));});
+  var b1=tpolar(C,C,DAY.now,R+6),b2=tpolar(C,C,DAY.now-12,R+13),b3=tpolar(C,C,DAY.now+12,R+13);
+  svg.appendChild(el("polygon",{points:b1[0].toFixed(1)+","+b1[1].toFixed(1)+" "+b2[0].toFixed(1)+","+b2[1].toFixed(1)+" "+b3[0].toFixed(1)+","+b3[1].toFixed(1),fill:cssv("--now")}));
+  var wrap=document.createElement("div");wrap.className="dialc";wrap.appendChild(svg);
+  var cen=document.createElement("div");cen.className="cen";cen.innerHTML='<div class="big">'+durM(t.active)+'</div><div class="lab">Active</div>';
+  wrap.appendChild(cen);return wrap;}
+
+var NOTES={donut:"<b>Donut</b> — arcs sized by each category's <b>share</b> of the day. Always ≤5 clean segments, so it never crowds — at 4h or 15h. Trades away <i>when</i>.",
+ bar:"<b>Bar</b> — a 24h strip; keeps a sense of <i>when</i> and stays readable left-to-right even on a busy day. Tiny slivers read as texture, not noise.",
+ dial:"<b>Dial</b> — the literal time-positioned ring (same as the Day view). Toggle <b>Busy 15h</b>: this is the crowding you flagged. Great big on the Day page, too noisy this small."};
+
+function render(){var t=totals();var foc=t.active?Math.round((t.deep+t.research)/t.active*100):0;
+  var top=ORDER.map(function(c){return{c:c,m:t[c]};}).sort(function(a,b){return b.m-a.m;})[0];
+  var viz=document.getElementById("viz");viz.innerHTML="";
+  viz.appendChild(VIZ==="donut"?donut(t):VIZ==="bar"?bar():dial(t));
+  document.getElementById("nowLbl").textContent=(function(){var h=Math.floor(DAY.now/60),m=DAY.now%60;return (h<10?"0":"")+h+":"+(m<10?"0":"")+m;})();
+  document.getElementById("kActive").textContent=durM(t.active);
+  document.getElementById("kTop").innerHTML='<span class="s" style="background:'+col(top.c)+'"></span>'+CATS[top.c].name;
+  document.getElementById("kFocus").textContent=foc+"%";
+  var L=document.getElementById("ledger");L.innerHTML="";
+  ORDER.map(function(c){return{c:c,m:t[c]};}).filter(function(r){return r.m>0;}).sort(function(a,b){return b.m-a.m;}).slice(0,3)
+   .forEach(function(r){var pc=Math.round(r.m/t.active*100);var row=document.createElement("div");row.className="brow";
+    row.innerHTML='<div class="nm"><span class="s" style="background:'+col(r.c)+'"></span>'+CATS[r.c].name+'</div>'+
+     '<div class="bar"><div style="width:'+pc+'%;background:'+col(r.c)+'"></div></div>'+
+     '<div class="vl">'+durM(r.m)+'<span class="pc">'+pc+'%</span></div>';L.appendChild(row);});
+  document.getElementById("note").innerHTML=NOTES[VIZ];}
+
+function bind(id,attr,set){document.getElementById(id).addEventListener("click",function(e){var b=e.target.closest("button["+attr+"]");if(!b)return;
+  this.querySelectorAll("button").forEach(function(x){x.classList.remove("on");});b.classList.add("on");set(b.getAttribute(attr));});}
+bind("themesw","data-t",function(v){document.documentElement.setAttribute("data-theme",v);render();});
+bind("daysw","data-d",function(v){DAY=v==="busy"?BUSY:LIGHT;render();});
+bind("vizsw","data-v",function(v){VIZ=v;render();});
+document.getElementById("quit").addEventListener("click",function(){alert("(mockup) Quit — stops tracking and exits UsageOS.");});
+render();
+})();
+</script>
+</body>
+</html>

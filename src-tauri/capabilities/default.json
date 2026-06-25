@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "description": "Capability for the main window + the menubar glance popover",
+  "windows": ["main", "glance"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",

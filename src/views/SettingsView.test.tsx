@@ -52,6 +52,9 @@ vi.mock("@/lib/tauri", () => ({
   reprocessLogs: vi.fn(),
   deleteAllData: vi.fn().mockResolvedValue(undefined),
   listInstalledApps: vi.fn().mockResolvedValue([]),
+  getPermissions: vi.fn().mockResolvedValue({ accessibility: true, automation: "granted" }),
+  requestAccessibility: vi.fn().mockResolvedValue(undefined),
+  requestAutomation: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("SettingsView", () => {

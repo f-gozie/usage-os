@@ -16,6 +16,8 @@ mod migrations;
 mod rollup;
 // Installed-app catalog + offline icon extraction, isolated like the other native surfaces.
 mod apps;
+// macOS capture permissions (Accessibility + Automation) surfaced to onboarding + Settings.
+mod permissions;
 
 // The recap-narration seam (hard rule 5): a mockable `Narrator` + `build_recap` with a
 // deterministic template fallback (D48). `pub` so its not-yet-wired API isn't dead-code.
@@ -25,7 +27,12 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tauri::{Manager, State};
+use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{
+    AppHandle, Manager, PhysicalPosition, Position, Rect, Size, State, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, WindowEvent,
+};
 use tauri_specta::{collect_commands, Builder};
 
 type DbState = Arc<Mutex<Connection>>;
@@ -408,6 +415,162 @@ fn get_uncategorized_apps(db: State<DbState>) -> Result<Vec<db::UncategorizedApp
     db::get_uncategorized_apps(&conn).map_err(AppError::from)
 }
 
+/// Snapshot the two macOS capture permissions (Accessibility + Automation) for onboarding +
+/// Settings. Non-macOS builds report accessibility=true / automation=NotApplicable.
+#[tauri::command]
+#[specta::specta]
+fn get_permissions() -> Result<permissions::Permissions, AppError> {
+    Ok(permissions::status())
+}
+
+/// Prompt for Accessibility and open its System Settings → Privacy pane.
+#[tauri::command]
+#[specta::specta]
+fn request_accessibility() -> Result<(), AppError> {
+    permissions::request_accessibility();
+    Ok(())
+}
+
+/// Trigger the Automation consent prompt for running browsers and open its Privacy pane.
+#[tauri::command]
+#[specta::specta]
+fn request_automation() -> Result<(), AppError> {
+    permissions::request_automation();
+    Ok(())
+}
+
+/// Open a specific System Settings → Privacy pane (Accessibility or Automation).
+#[tauri::command]
+#[specta::specta]
+fn open_settings_pane(pane: permissions::SettingsPane) -> Result<(), AppError> {
+    permissions::open_settings(pane);
+    Ok(())
+}
+
+/// Show + focus the main window, hiding the glance popover (its "Open UsageOS" affordance).
+#[tauri::command]
+#[specta::specta]
+fn show_main_window(app: AppHandle) -> Result<(), AppError> {
+    show_main(&app);
+    if let Some(glance) = app.get_webview_window("glance") {
+        let _ = glance.hide();
+    }
+    Ok(())
+}
+
+/// Quit UsageOS entirely (stops background tracking) — the glance popover's "Quit".
+#[tauri::command]
+#[specta::specta]
+fn quit_app(app: AppHandle) -> Result<(), AppError> {
+    app.exit(0);
+    Ok(())
+}
+
+// ── Menubar tray + glance popover ─────────────────────────────────────────────
+
+/// Show + focus the main window (tray "Open" + the glance "Open UsageOS").
+fn show_main(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+/// Place the glance popover centred under the tray icon. Coordinates are physical; the tray
+/// `rect` is the icon's frame in the menubar. (Multi-display placement is verified on-device.)
+fn position_glance(window: &WebviewWindow, rect: &Rect) {
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let (tray_x, tray_y) = match rect.position {
+        Position::Physical(p) => (f64::from(p.x), f64::from(p.y)),
+        Position::Logical(p) => (p.x * scale, p.y * scale),
+    };
+    let (tray_w, tray_h) = match rect.size {
+        Size::Physical(s) => (f64::from(s.width), f64::from(s.height)),
+        Size::Logical(s) => (s.width * scale, s.height * scale),
+    };
+    let win_w = window
+        .outer_size()
+        .map(|s| f64::from(s.width))
+        .unwrap_or(320.0 * scale);
+    let x = (tray_x + tray_w / 2.0 - win_w / 2.0).max(0.0);
+    let y = tray_y + tray_h;
+    let _ = window.set_position(PhysicalPosition::new(x as i32, y as i32));
+}
+
+/// Left-click the tray icon: toggle the glance popover (created lazily, hidden on focus loss).
+fn toggle_glance(app: &AppHandle, rect: Rect) {
+    if let Some(window) = app.get_webview_window("glance") {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+        } else {
+            position_glance(&window, &rect);
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+        return;
+    }
+    match WebviewWindowBuilder::new(app, "glance", WebviewUrl::App("index.html#/glance".into()))
+        .decorations(false)
+        .resizable(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .inner_size(320.0, 460.0)
+        .build()
+    {
+        Ok(window) => {
+            position_glance(&window, &rect);
+            let _ = window.show();
+            let _ = window.set_focus();
+            let handle = window.clone();
+            window.on_window_event(move |event| {
+                // Dismiss when the user clicks away (standard menubar-popover behaviour).
+                if let WindowEvent::Focused(false) = event {
+                    let _ = handle.hide();
+                }
+            });
+        }
+        Err(e) => eprintln!("[Tray] failed to open the glance popover: {e}"),
+    }
+}
+
+/// Build the menubar tray: left-click toggles the glance popover; right-click shows a small
+/// menu (Open / Quit). The app keeps running + tracking when the main window is closed — it
+/// exits only via Quit.
+fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
+    let open = MenuItemBuilder::with_id("open", "Open UsageOS").build(app)?;
+    let quit = MenuItemBuilder::with_id("quit", "Quit UsageOS").build(app)?;
+    let menu = MenuBuilder::new(app).items(&[&open, &quit]).build()?;
+
+    let builder = TrayIconBuilder::with_id("main-tray")
+        .tooltip("UsageOS")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "open" => show_main(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                rect,
+                ..
+            } = event
+            {
+                toggle_glance(tray.app_handle(), rect);
+            }
+        });
+    let builder = match app.default_window_icon().cloned() {
+        Some(icon) => builder.icon(icon),
+        None => builder,
+    };
+    builder.build(app)?;
+    Ok(())
+}
+
 /// The single source of command registration. Both the runtime invoke handler
 /// and the generated TS bindings come from this Builder, so they cannot disagree
 /// (hard rule 2). Events stay empty until issue #211 is de-risked (commands-only).
@@ -438,6 +601,12 @@ fn make_builder() -> Builder<tauri::Wry> {
         delete_all_data,
         list_installed_apps,
         get_uncategorized_apps,
+        get_permissions,
+        request_accessibility,
+        request_automation,
+        open_settings_pane,
+        show_main_window,
+        quit_app,
     ])
 }
 
@@ -451,6 +620,17 @@ pub fn run() {
         // scoped to exactly the one named sidecar (capabilities/default.json).
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(builder.invoke_handler())
+        .on_window_event(|window, event| {
+            // Closing the main window HIDES it (tracking keeps running in the background); the
+            // app exits only via the tray "Quit". Other windows (the glance popover) close
+            // normally — its focus-loss handler hides it.
+            if window.label() == "main" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
             let db_path = db::get_db_path(app.handle())?;
 
@@ -492,6 +672,11 @@ pub fn run() {
             let (tx, rx) = std::sync::mpsc::channel();
             capture::default_source().start(tx);
             std::thread::spawn(move || capture::consume(db_conn, rx));
+
+            // Menubar tray + glance popover. Non-fatal: a tray failure shouldn't block launch.
+            if let Err(e) = setup_tray(app.handle()) {
+                eprintln!("[Startup] Tray setup failed: {}", e);
+            }
             Ok(())
         })
         .run(tauri::generate_context!());

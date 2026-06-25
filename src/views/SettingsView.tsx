@@ -18,12 +18,15 @@ import { AppIcon } from "@/components/ui/AppIcon";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useSettingsData } from "@/hooks/useSettingsData";
 import { categoryColorVar } from "@/lib/categories";
 import {
   deleteExclusion,
   exportEventsCsv,
   getDatabasePath,
+  requestAccessibility,
+  requestAutomation,
   setRetentionDays,
   type Category,
   type Rule,
@@ -48,6 +51,7 @@ function errMsg(e: unknown): string {
 export function SettingsView() {
   const { data, loading, error, refresh } = useSettingsData();
   const { theme, setTheme } = useTheme();
+  const { permissions, refetch: refetchPermissions } = usePermissions();
 
   const [editing, setEditing] = useState<{
     category: Category | null;
@@ -209,6 +213,30 @@ export function SettingsView() {
         />
       </SettingGroup>
 
+      {/* Permissions — re-grantable anytime (onboarding can be skipped) */}
+      <SettingGroup title="Permissions">
+        <SettingRow
+          label="Accessibility"
+          description="Lets UsageOS read the title of your active window — so it can tell what you were working on, not just which app. Without it, tracking is app-only."
+        >
+          {permissions?.accessibility ? (
+            <GrantedTag />
+          ) : (
+            <Pill onClick={() => void requestAccessibility().then(refetchPermissions)}>Grant</Pill>
+          )}
+        </SettingRow>
+        <SettingRow
+          label="Automation"
+          description="Optional — lets it read the address of the page you're on, so a browser shows the site, not just “Browsing.” Private windows are never read."
+        >
+          {permissions?.automation === "granted" ? (
+            <GrantedTag />
+          ) : (
+            <Pill onClick={() => void requestAutomation().then(refetchPermissions)}>Grant</Pill>
+          )}
+        </SettingRow>
+      </SettingGroup>
+
       {/* Appearance */}
       <SettingGroup title="Appearance">
         <SettingRow
@@ -325,6 +353,15 @@ function CategoryRow({
         ✎
       </IconButton>
     </div>
+  );
+}
+
+/** The "Granted ✓" state for a permission row (mirrors onboarding's granted pill). */
+function GrantedTag() {
+  return (
+    <span className="whitespace-nowrap border-2 border-edge bg-edge px-[11px] py-[5px] text-[11px] font-semibold uppercase tracking-[0.06em] text-bg">
+      Granted ✓
+    </span>
   );
 }
 
