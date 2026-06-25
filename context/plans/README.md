@@ -19,13 +19,13 @@ _Status ∈ `active` · `paused` · `done`. Add a row when a plan starts; update
 <date>-<slug>/
   plan.md          # the roadmap — the ONE living doc here (check off / annotate; don't rewrite history)
   impl-plans/      # the approved plan-mode plan for each task/PR (the detailed how):  YYYY-MM-DD-<task>.md
-  reviews/         # the /review report for each task/PR, paired to its impl-plan:     YYYY-MM-DD-<task>.md
+  reviews/         # the /usageos-review report for each task/PR, paired to its impl-plan:     YYYY-MM-DD-<task>.md
   handoffs/        # one file PER SESSION, append-only, NEVER overwritten:             YYYY-MM-DD-NN-slug.md
 ```
 
 - **plan.md** — the durable roadmap + checkboxes. Living.
 - **impl-plans/** — the approved implementation plan behind each PR (the as-built detail). One per task.
-- **reviews/** — the `/review` report for each PR (merge-gate results, verified findings, plan-compliance), named to **pair** with its impl-plan (`impl-plans/<date>-<task>.md` ↔ `reviews/<date>-<task>.md`). The `/review` skill writes these. Together the folder reads as the feature's whole lifecycle — **plan → impl-plan → review → handoff** — so a PR reviewer can see the thought process in one place.
+- **reviews/** — the `/usageos-review` report for each PR (merge-gate results, verified findings, plan-compliance), named to **pair** with its impl-plan (`impl-plans/<date>-<task>.md` ↔ `reviews/<date>-<task>.md`). The `/usageos-review` skill writes these. Together the folder reads as the feature's whole lifecycle — **plan → impl-plan → review → handoff** — so a PR reviewer can see the thought process in one place.
 - **handoffs/** — the session journal. The newest file is "where we are now." Immutable once written, so the chain is the project's narrative history. (The pre-2026-06-23 handoffs were reconstructed from git.)
 - The **why** lives separately in `context/decisions.md` (append-only ADRs, D1–…), cross-referenced from plans/handoffs.
 
