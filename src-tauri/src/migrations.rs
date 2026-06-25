@@ -1,8 +1,11 @@
-//! Forward-only SQL migration runner (see D35; contributor rules in migrations/README.md).
+//! Forward-only SQL migration runner (see D35/D54; contributor rules in migrations/README.md).
 //!
 //! Each numbered `.sql` under `src-tauri/migrations/` is embedded at compile time and applied
-//! once in a transaction. A checksum of every applied migration is re-verified on boot, so an
-//! edit to a shipped migration (or a downgrade) is a startup error, not silent drift.
+//! once in a transaction. A checksum of every applied migration is re-verified on boot to catch a
+//! real edit to a shipped migration (or a downgrade). The checksum is over the *normalized* SQL
+//! (comments + whitespace stripped), so reformatting or editing a migration's comments is not
+//! drift. In release builds drift is a hard startup error; in dev (`tauri dev`/tests) it self-heals
+//! (rebaseline + warn), so editing a migration never blocks the dev loop (D54).
 
 use rusqlite::{Connection, Result};
 
@@ -48,11 +51,24 @@ const MIGRATIONS: &[Migration] = &[
     },
 ];
 
-/// FNV-1a (64-bit): a stable, dependency-free hash — catches an accidental edit to an
-/// already-applied migration, not an adversary (not cryptographic).
+/// Normalize SQL for checksumming: drop blank lines and full-line `--` comments, and collapse
+/// each remaining line's internal whitespace. So editing a migration's comments or reindenting it
+/// is NOT drift — only a real statement change is. Only *full-line* comments are dropped, so a
+/// `--` inside a string literal on a statement line is preserved.
+fn normalize_sql(sql: &str) -> String {
+    sql.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with("--"))
+        .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// FNV-1a (64-bit) over the normalized SQL — a stable, dependency-free hash that catches a real
+/// edit to an already-applied migration, not a comment/whitespace tweak (not cryptographic).
 fn checksum(sql: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in sql.as_bytes() {
+    for byte in normalize_sql(sql).as_bytes() {
         hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
@@ -78,29 +94,44 @@ fn current_version(conn: &Connection) -> Result<i64> {
     )
 }
 
-/// Refuse to start if an already-applied migration's SQL has changed since it ran.
-fn verify_applied_checksums(conn: &Connection) -> Result<()> {
-    let mut stmt = conn.prepare("SELECT version, name, checksum FROM schema_migrations")?;
-    let rows = stmt.query_map([], |row| {
-        Ok((
-            row.get::<_, i64>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, String>(2)?,
-        ))
-    })?;
-    for row in rows {
-        let (version, name, stored) = row?;
+/// Verify already-applied migrations still match their files. A changed checksum on a shipped
+/// migration is drift: when `strict` (release builds) it's a hard startup error; in dev it
+/// self-heals — the local row is rebaselined to the current file with a warning, so editing a
+/// migration (comments, or the one-time switch to normalized checksums) never blocks the dev loop
+/// (D54; dev DBs are throwaway, D35). A *downgrade* (a recorded migration this build doesn't ship)
+/// is always an error — that's data from a newer binary, not an edit.
+fn verify_applied_checksums(conn: &Connection, strict: bool) -> Result<()> {
+    let applied: Vec<(i64, String, String)> = {
+        let mut stmt = conn.prepare("SELECT version, name, checksum FROM schema_migrations")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+        rows.collect::<Result<Vec<_>>>()?
+    };
+    let mut rebaseline: Vec<(i64, String)> = Vec::new();
+    for (version, name, stored) in applied {
         match MIGRATIONS.iter().find(|m| m.version == version) {
             Some(migration) => {
-                if checksum(migration.sql) != stored {
-                    return Err(drift_error(format!(
-                        "migration {version} ({name}) changed after it was applied — \
-                         migrations are immutable once shipped; add a new migration instead"
-                    )));
+                let expected = checksum(migration.sql);
+                if expected != stored {
+                    if strict {
+                        return Err(drift_error(format!(
+                            "migration {version} ({name}) changed after it was applied — \
+                             migrations are immutable once shipped; add a new migration instead"
+                        )));
+                    }
+                    eprintln!(
+                        "[Database] migration {version} ({name}) checksum changed — rebaselining \
+                         the local dev DB. If you edited its SQL (not just comments), delete the \
+                         dev DB to re-apply it."
+                    );
+                    rebaseline.push((version, expected));
                 }
             }
-            // Applied in the DB but absent from this binary's chain — a downgrade or a
-            // dropped migration. Forward-only (D35), so this binary is older than the data.
             None => {
                 return Err(drift_error(format!(
                     "migration {version} ({name}) is recorded as applied but missing from \
@@ -109,13 +140,20 @@ fn verify_applied_checksums(conn: &Connection) -> Result<()> {
             }
         }
     }
+    for (version, new) in rebaseline {
+        conn.execute(
+            "UPDATE schema_migrations SET checksum = ?1 WHERE version = ?2",
+            (new, version),
+        )?;
+    }
     Ok(())
 }
 
 /// Run all pending migrations, each atomically.
 pub fn run_migrations(conn: &mut Connection) -> Result<()> {
     ensure_migrations_table(conn)?;
-    verify_applied_checksums(conn)?;
+    // Strict (hard error) in release; self-heal in dev/tests so editing a migration never blocks.
+    verify_applied_checksums(conn, !cfg!(debug_assertions))?;
     let current = current_version(conn)?;
 
     for migration in MIGRATIONS.iter().filter(|m| m.version > current) {
@@ -241,16 +279,57 @@ mod tests {
     }
 
     #[test]
-    fn detects_drift_in_an_applied_migration() {
-        let mut conn = fresh();
-        // Simulate a shipped migration being edited after it was applied.
+    fn strict_verify_rejects_a_changed_applied_migration() {
+        let conn = fresh();
+        // A shipped migration edited after it was applied — release (strict) is a hard error.
         conn.execute(
             "UPDATE schema_migrations SET checksum = 'tampered' WHERE version = 1",
             [],
         )
         .unwrap();
-        let err = run_migrations(&mut conn).unwrap_err();
+        let err = verify_applied_checksums(&conn, true).unwrap_err();
         assert!(err.to_string().contains("changed after it was applied"));
+    }
+
+    #[test]
+    fn dev_rebaselines_a_changed_checksum_instead_of_blocking() {
+        let conn = fresh();
+        conn.execute(
+            "UPDATE schema_migrations SET checksum = 'stale' WHERE version = 1",
+            [],
+        )
+        .unwrap();
+        // Dev (not strict) self-heals: no error, and the stored checksum is rebaselined.
+        verify_applied_checksums(&conn, false).unwrap();
+        let healed: String = conn
+            .query_row(
+                "SELECT checksum FROM schema_migrations WHERE version = 1",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            healed,
+            checksum(MIGRATIONS[0].sql),
+            "rebaselined to the file"
+        );
+    }
+
+    #[test]
+    fn checksum_ignores_comment_and_whitespace_edits_but_not_real_changes() {
+        let original = "-- a header comment\nCREATE TABLE t (id INTEGER);\n";
+        let comment_edit = "-- a DIFFERENT header\n\n  CREATE TABLE t (id   INTEGER);  \n";
+        assert_eq!(
+            checksum(original),
+            checksum(comment_edit),
+            "comments + whitespace must not affect the checksum"
+        );
+        let ddl_change = "CREATE TABLE t (id TEXT);\n";
+        assert_ne!(
+            checksum(original),
+            checksum(ddl_change),
+            "a real statement change must"
+        );
     }
 
     #[test]

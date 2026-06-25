@@ -10,10 +10,15 @@ separate migration step for users.
 1. **Forward-only.** There are no down-migrations. This is a local-first desktop DB
    that only ever rolls forward; a bad migration is fixed by a new migration, never a
    rollback.
-2. **Append-only & immutable once shipped.** Never edit a migration that has been in a
-   release. The runner stores a checksum of each applied migration and re-verifies it
-   on every boot; editing a shipped migration is a loud startup error, not silent
-   schema drift. To change the schema, add the next `NNNN_*.sql` file.
+2. **Append-only & immutable once shipped** (D35/D54). Never change a shipped migration's
+   **SQL**. The runner stores a checksum of each applied migration and re-verifies it on every
+   boot. The checksum is over **normalized** SQL (comments + whitespace stripped, D54), so
+   editing a migration's *comments* or reformatting it is fine — only a real statement change is
+   drift. On real drift: a **release** build is a loud startup error (a shipped install must never
+   silently run divergent DDL); **dev** (`tauri dev`/tests) self-heals — it rebaselines the local
+   checksum with a one-line warning, so editing a migration never blocks the dev loop (dev DBs are
+   throwaway). A *downgrade* (the DB has a migration this build doesn't ship) errors in both. To
+   change the schema in a shipped migration, add the next `NNNN_*.sql` file instead.
 3. **One concern per file**, numbered with a zero-padded prefix (`0001_`, `0002_`, …).
    The numeric prefix is the apply order; register the file in the `MIGRATIONS` array
    in `src/migrations.rs` with its version + name.
