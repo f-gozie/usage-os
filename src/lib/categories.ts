@@ -1,14 +1,10 @@
 /**
- * The colour axis is category (D34): the five canonical category slugs each map to a
- * theme-aware token; anything else (user-created or uncategorized) gets a neutral
- * tone. Colour encodes category ONLY — never a project. Returns a CSS `var(...)` so it
- * resolves against the active theme.
- *
- * Slugs are the stable identity (D46); the display names below are the relatable
- * defaults (D47) — `deep`→Work, `research`→Browsing, `comms`→Messaging,
- * `breaks`→Entertainment, plus `personal`→Personal as the fifth.
+ * The colour axis is category (D34); colour encodes category only, never a project. The
+ * canonical list below is the source of truth for slug + legend order; the DB row's `name`
+ * is the source of truth for what's shown (a user can rename a canonical category — D47).
  */
-/** The five canonical categories, in the fixed display order used by the legend. */
+/** The five canonical categories, in the fixed legend order. `name` is the default label,
+ *  overridden by the DB name when one exists (see `categoryDisplayName`). */
 export const CANONICAL_CATEGORIES: ReadonlyArray<{ slug: string; name: string }> = [
   { slug: "deep", name: "Work" },
   { slug: "research", name: "Browsing" },
@@ -19,6 +15,23 @@ export const CANONICAL_CATEGORIES: ReadonlyArray<{ slug: string; name: string }>
 
 const CANONICAL_SLUGS = CANONICAL_CATEGORIES.map((c) => c.slug);
 
-export function categoryColorVar(slug: string): string {
-  return CANONICAL_SLUGS.includes(slug) ? `var(--c-${slug})` : "var(--muted)";
+/** The label to show for a canonical slug: the user's DB name if present, else the default.
+ *  `dbNames` maps slug → the current DB display name. */
+export function categoryDisplayName(
+  slug: string,
+  dbNames?: ReadonlyMap<string, string>,
+): string {
+  return (
+    dbNames?.get(slug) ?? CANONICAL_CATEGORIES.find((c) => c.slug === slug)?.name ?? slug
+  );
+}
+
+/**
+ * Resolve a category's render colour. Canonical slug → theme token; otherwise the category's
+ * own hex (`color`, set for user-created categories); else the neutral token for uncategorized.
+ */
+export function categoryColorVar(slug: string, color?: string | null): string {
+  if (CANONICAL_SLUGS.includes(slug)) return `var(--c-${slug})`;
+  if (color) return color;
+  return "var(--muted)";
 }

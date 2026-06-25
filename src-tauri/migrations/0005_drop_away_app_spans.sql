@@ -1,7 +1,5 @@
--- D41: remove already-recorded lock/away spans. `loginwindow` and `ScreenSaverEngine` are the
--- macOS lock-screen and screensaver surfaces — time on them is "away," not active. Before D41
--- the idle gate (blind while the screen is locked — input-idle reads ~0) let them accrue; one
--- overnight lock logged a single 46-minute span. Capture now drops these going forward; this
--- clears the historical phantom so the totals and the dial read true.
+-- Delete historical lock-screen / screensaver spans (`loginwindow`, `ScreenSaverEngine`) — time
+-- away, not active. The idle gate is blind while locked, so these accrued before capture started
+-- dropping them; this clears the historical phantom. See D41.
 DELETE FROM activity_logs
 WHERE process_name IN ('loginwindow', 'ScreenSaverEngine');

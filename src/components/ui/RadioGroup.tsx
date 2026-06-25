@@ -33,7 +33,7 @@ export function RadioGroup<T extends string>({
             className="flex items-center gap-[9px] text-left"
           >
             <span className="relative h-[18px] w-[18px] flex-shrink-0 border-2 border-edge">
-              {selected && <span className="absolute inset-[3px] bg-c-deep" />}
+              {selected && <span className="absolute inset-[3px] bg-edge" />}
             </span>
             <span>
               <span className="block text-sm font-semibold">{o.label}</span>

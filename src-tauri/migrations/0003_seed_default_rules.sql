@@ -1,7 +1,6 @@
--- Starter categorization rules so the dial is meaningful out-of-the-box. Conservative
--- process-name matches (the rules engine does case-insensitive substring matching);
--- the user refines them in Settings (M4). Browsers lean to Research as a safe default.
--- Joined by context slug so it doesn't depend on category id ordering.
+-- Starter categorization rules so the dial is meaningful out-of-the-box (the user refines
+-- them in Settings). Conservative process-name substring matches, joined by slug so it
+-- doesn't depend on category id ordering.
 WITH starter(slug, pattern) AS (VALUES
     ('deep', 'Cursor'),
     ('deep', 'Code'),

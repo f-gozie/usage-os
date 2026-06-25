@@ -1,8 +1,5 @@
-//! Enrichment: turn raw capture signals into stored facts (the architecture's
-//! `enrich/` layer). Cross-platform and CI-testable — it consumes the
-//! `url`/`cwd`/`title` signals the capture layer gathers and produces a `site`
-//! string and a project assignment (D30). Embedding-based context categorization
-//! is a later phase.
+//! Enrichment: turn raw capture signals (`url`/`cwd`/`title`) into stored facts — a `site`
+//! string and a project assignment (D30). Cross-platform and CI-testable.
 
 mod project;
 

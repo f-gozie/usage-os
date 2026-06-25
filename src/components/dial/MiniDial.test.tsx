@@ -10,6 +10,7 @@ const RUNS: CategoryRun[] = [
   {
     category_slug: "deep",
     category_name: "Deep work",
+    category_color: null,
     start: 0,
     end: 3600,
     secs: 3600,
@@ -19,6 +20,7 @@ const RUNS: CategoryRun[] = [
   {
     category_slug: "comms",
     category_name: "Comms",
+    category_color: null,
     start: 3600,
     end: 4200,
     secs: 600,

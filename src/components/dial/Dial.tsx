@@ -67,7 +67,7 @@ export function Dial({
       return {
         run,
         d: arcPath(DIAL_CENTER, DIAL_CENTER, TRACK_RADIUS, a, b),
-        color: categoryColorVar(run.category_slug),
+        color: categoryColorVar(run.category_slug, run.category_color),
       };
     });
   }, [runs, dayStartUnix]);

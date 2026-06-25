@@ -1,12 +1,8 @@
-//! Forward-only SQL migration runner.
+//! Forward-only SQL migration runner (see D35; contributor rules in migrations/README.md).
 //!
-//! Each migration is a numbered `.sql` file under `src-tauri/migrations/`, embedded at
-//! compile time and applied exactly once inside a transaction. A checksum of each
-//! applied migration is stored and re-verified on every boot: shipped migrations are
-//! immutable, so editing one after release is a startup error, not silent drift. There
-//! are no down-migrations by design — a local-first desktop DB only rolls forward.
-//!
-//! See `src-tauri/migrations/README.md` for the contributor rules.
+//! Each numbered `.sql` under `src-tauri/migrations/` is embedded at compile time and applied
+//! once in a transaction. A checksum of every applied migration is re-verified on boot, so an
+//! edit to a shipped migration (or a downgrade) is a startup error, not silent drift.
 
 use rusqlite::{Connection, Result};
 
@@ -52,8 +48,8 @@ const MIGRATIONS: &[Migration] = &[
     },
 ];
 
-/// FNV-1a (64-bit): a small, stable, dependency-free hash. Not cryptographic — its only
-/// job is to catch an accidental edit to an already-applied migration.
+/// FNV-1a (64-bit): a stable, dependency-free hash — catches an accidental edit to an
+/// already-applied migration, not an adversary (not cryptographic).
 fn checksum(sql: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in sql.as_bytes() {
@@ -94,11 +90,21 @@ fn verify_applied_checksums(conn: &Connection) -> Result<()> {
     })?;
     for row in rows {
         let (version, name, stored) = row?;
-        if let Some(migration) = MIGRATIONS.iter().find(|m| m.version == version) {
-            if checksum(migration.sql) != stored {
+        match MIGRATIONS.iter().find(|m| m.version == version) {
+            Some(migration) => {
+                if checksum(migration.sql) != stored {
+                    return Err(drift_error(format!(
+                        "migration {version} ({name}) changed after it was applied — \
+                         migrations are immutable once shipped; add a new migration instead"
+                    )));
+                }
+            }
+            // Applied in the DB but absent from this binary's chain — a downgrade or a
+            // dropped migration. Forward-only (D35), so this binary is older than the data.
+            None => {
                 return Err(drift_error(format!(
-                    "migration {version} ({name}) changed after it was applied — \
-                     migrations are immutable once shipped; add a new migration instead"
+                    "migration {version} ({name}) is recorded as applied but missing from \
+                     this build — the database was migrated by a newer version; do not downgrade"
                 )));
             }
         }
@@ -245,6 +251,21 @@ mod tests {
         .unwrap();
         let err = run_migrations(&mut conn).unwrap_err();
         assert!(err.to_string().contains("changed after it was applied"));
+    }
+
+    #[test]
+    fn detects_an_applied_migration_missing_from_this_build() {
+        let mut conn = fresh();
+        // Simulate a downgrade: the DB records a migration newer than anything this binary ships.
+        let future = MIGRATIONS.last().unwrap().version + 1;
+        conn.execute(
+            "INSERT INTO schema_migrations (version, name, checksum, applied_at)
+             VALUES (?1, 'future_migration', 'x', 0)",
+            [future],
+        )
+        .unwrap();
+        let err = run_migrations(&mut conn).unwrap_err();
+        assert!(err.to_string().contains("missing from"));
     }
 
     #[test]

@@ -1,15 +1,10 @@
-//! Read-time rollup: turn a day's raw events into the view the dial renders.
+//! Read-time rollup: turn a day's raw events into the view the dial renders. Pure (no DB/IO),
+//! so it's trivially testable and cheap to re-run; this is where "numbers are computed in Rust"
+//! lives for the dial (hard rule 6). See D34.
 //!
-//! Pure (no DB, no IO) so it's trivially unit-testable and cheap to re-run — the
-//! command layer does the repository reads and hands us events + lookups. This is
-//! where the "numbers are computed in Rust" rule (hard rule 6) lives for the dial.
-//!
-//! Two independent shapes come out (D34):
-//! - **Per-axis aggregates** (`categories`) — plain sums by category; robust to any
-//!   segmentation, they feed the ledger / legend / stats / dial centre.
-//! - **Category-runs** (`runs`) — continuous stretches of one category, with the
-//!   project split as inside-detail; they feed the dial arcs + (later) the timeline.
-//!   Project-hopping never fragments a run; off-project time counts to its category.
+//! Two shapes come out: **per-axis aggregates** (`categories`) — plain sums per category that
+//! feed the ledger/legend/stats/centre; and **category-runs** (`runs`) — continuous stretches of
+//! one category with the project split inside, feeding the dial arcs + timeline.
 
 use std::collections::HashMap;
 
@@ -17,20 +12,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::ActivityLog;
 
-/// D34a — an idle or untracked gap at least this long ends a category-run. Placeholder:
-/// the run-segmentation thresholds are tuned against real captured days (the session
-/// explorer, M3) and then locked; the run/expand shape holds regardless of the value.
+/// An idle/untracked gap at least this long ends a category-run. Dogfood-tunable; see D34a.
 const IDLE_GAP_ENDS_RUN_SECS: i64 = 5 * 60;
 
-/// D34a excursion-absorb: a brief detour into another category, sandwiched by the same category,
-/// folds into the surrounding run (the detour still shows as a segment in the Timeline expand).
-/// A detour whose **wall-clock span** exceeds this stays its own run. Raised 90→180s after
-/// dogfooding (D41): real switches cluster at 90–300s, so 90s left too many as separate blocks.
-/// Still a tunable knob; kept below `IDLE_GAP_ENDS_RUN_SECS` so the two stay distinct.
+/// Excursion-absorb: a brief detour into another category, sandwiched by the same category, folds
+/// into the surrounding run (still shown as a segment in the expand). A detour whose wall-clock
+/// span exceeds this stays its own run. Kept below `IDLE_GAP_ENDS_RUN_SECS`. Dogfood-tunable; see D34a.
 const ABSORB_SECS: i64 = 180;
-/// Backstop on accumulation: a run may absorb at most this percent of its wall-clock as detours;
-/// once it's more interrupted than this it splits, so the dial never draws a falsely-unbroken
-/// focus stretch. Paired with a local-dominance check (host active ≥ excursion). Dogfood-tunable.
+/// Backstop: a run may absorb at most this percent of its wall-clock as detours before it splits,
+/// so the dial never draws a falsely-unbroken focus stretch. Dogfood-tunable; see D34a.
 const MAX_ABSORB_FRACTION_PCT: i64 = 15;
 
 /// Slug + display name for a category, looked up by category id. The dial maps `slug`
@@ -38,6 +28,9 @@ const MAX_ABSORB_FRACTION_PCT: i64 = 15;
 pub struct CategoryMeta {
     pub slug: Option<String>,
     pub name: String,
+    /// Stored hex colour — rendered for user-created (slug-less) categories; canonical
+    /// categories colour by their slug token instead.
+    pub color: String,
 }
 
 /// Fallbacks for an event whose category has no slug (a user-created category) or no
@@ -56,6 +49,9 @@ pub struct CategorySlice {
     pub name: String,
     pub secs: i64,
     pub pct: f64,
+    /// Hex colour for a user-created category; `None` for canonical (coloured by slug) or
+    /// uncategorized.
+    pub color: Option<String>,
 }
 
 /// A project's share of time *inside* a category-run (shown as a text line, never a bar).
@@ -70,6 +66,8 @@ pub struct ProjectSlice {
 pub struct CategoryRun {
     pub category_slug: String,
     pub category_name: String,
+    /// Hex colour for a user-created category; `None` for canonical / uncategorized.
+    pub category_color: Option<String>,
     /// Span bounds (Unix secs); the arc is drawn start→end.
     pub start: i64,
     pub end: i64,
@@ -128,6 +126,8 @@ pub struct TimelineSegment {
     /// detour of a *different* category, so each segment carries its own — the expand stays honest.
     pub category_slug: String,
     pub category_name: String,
+    /// Hex colour for a user-created category segment; `None` for canonical / uncategorized.
+    pub category_color: Option<String>,
     /// Resolved project name, or `None` when none was inferred (the UI shows "—").
     pub project: Option<String>,
     pub secs: i64,
@@ -138,6 +138,8 @@ pub struct TimelineSegment {
 pub struct TimelineRun {
     pub category_slug: String,
     pub category_name: String,
+    /// Hex colour for a user-created category; `None` for canonical / uncategorized.
+    pub category_color: Option<String>,
     pub start: i64,
     pub end: i64,
     pub secs: i64,
@@ -157,14 +159,28 @@ fn duration(event: &ActivityLog) -> i64 {
     (event.end_time - event.start_time).max(0)
 }
 
-/// Resolve an event to its (slug, name), falling back to the neutral "other" category.
-fn category_of(event: &ActivityLog, categories: &HashMap<i64, CategoryMeta>) -> (String, String) {
-    match event.category_id.and_then(|id| categories.get(&id)) {
-        Some(meta) => (
-            meta.slug.clone().unwrap_or_else(|| OTHER_SLUG.to_string()),
-            meta.name.clone(),
-        ),
-        None => (OTHER_SLUG.to_string(), OTHER_NAME.to_string()),
+/// Resolve an event to its `(key, name, color)`. The key is the colour/identity used to
+/// coalesce runs and aggregate slices: a canonical category uses its `slug` (→ theme token);
+/// a user-created (slug-less) category uses a per-id key `cat-<id>` so distinct user categories
+/// never collide with each other or with truly-uncategorized time, and carries its hex `color`
+/// for the frontend to render. Only `category_id = None`/unknown is the neutral "other".
+fn category_of(
+    event: &ActivityLog,
+    categories: &HashMap<i64, CategoryMeta>,
+) -> (String, String, Option<String>) {
+    match event
+        .category_id
+        .and_then(|id| categories.get(&id).map(|m| (id, m)))
+    {
+        Some((id, meta)) => match &meta.slug {
+            Some(slug) => (slug.clone(), meta.name.clone(), None),
+            None => (
+                format!("cat-{id}"),
+                meta.name.clone(),
+                Some(meta.color.clone()),
+            ),
+        },
+        None => (OTHER_SLUG.to_string(), OTHER_NAME.to_string(), None),
     }
 }
 
@@ -179,8 +195,8 @@ pub fn build_day_view(
 ) -> DayView {
     let mut active_secs = 0;
     let mut idle_secs = 0;
-    // slug -> (name, secs); name kept for display, secs accumulated.
-    let mut totals: HashMap<String, (String, i64)> = HashMap::new();
+    // key -> (name, secs, color); name/color kept for display, secs accumulated.
+    let mut totals: HashMap<String, (String, i64, Option<String>)> = HashMap::new();
 
     for event in events {
         let secs = duration(event);
@@ -192,14 +208,14 @@ pub fn build_day_view(
             continue;
         }
         active_secs += secs;
-        let (slug, name) = category_of(event, categories);
-        let entry = totals.entry(slug).or_insert((name, 0));
+        let (slug, name, color) = category_of(event, categories);
+        let entry = totals.entry(slug).or_insert((name, 0, color));
         entry.1 += secs;
     }
 
     let mut category_slices: Vec<CategorySlice> = totals
         .into_iter()
-        .map(|(slug, (name, secs))| CategorySlice {
+        .map(|(slug, (name, secs, color))| CategorySlice {
             slug,
             name,
             secs,
@@ -208,6 +224,7 @@ pub fn build_day_view(
             } else {
                 0.0
             },
+            color,
         })
         .collect();
     // Deterministic order: longest first, slug as the tie-breaker.
@@ -280,16 +297,24 @@ pub fn build_week_view(days: Vec<DaySlice>) -> WeekView {
 struct RawRunBuilder {
     slug: String,
     name: String,
+    color: Option<String>,
     start: i64,
     end: i64,
     segments: Vec<TimelineSegment>,
 }
 
 impl RawRunBuilder {
-    fn new(event: &ActivityLog, slug: String, name: String, project: Option<String>) -> Self {
+    fn new(
+        event: &ActivityLog,
+        slug: String,
+        name: String,
+        color: Option<String>,
+        project: Option<String>,
+    ) -> Self {
         let mut builder = RawRunBuilder {
             slug,
             name,
+            color,
             start: event.start_time,
             end: event.end_time,
             segments: Vec::new(),
@@ -306,6 +331,7 @@ impl RawRunBuilder {
             app: event.process_name.clone(),
             category_slug: self.slug.clone(),
             category_name: self.name.clone(),
+            category_color: self.color.clone(),
             project,
             secs: duration(event),
         });
@@ -318,6 +344,7 @@ impl RawRunBuilder {
 struct SegRun {
     slug: String,
     name: String,
+    color: Option<String>,
     start: i64,
     end: i64,
     segments: Vec<TimelineSegment>,
@@ -328,6 +355,7 @@ impl SegRun {
         SegRun {
             slug: raw.slug,
             name: raw.name,
+            color: raw.color,
             start: raw.start,
             end: raw.end,
             segments: raw.segments,
@@ -358,9 +386,9 @@ impl SegRun {
     }
 
     fn finish(self) -> TimelineRun {
-        // Headline numbers are host-category only: a "Deep · 52m" run means 52m of Deep, and the
-        // off-category detour never injects a phantom project slice (D34a, debate). The detour's
-        // seconds live on its segment (the expand) and in the per-axis ledger.
+        // Headline numbers are host-category only: a "Deep · 52m" run means 52m of Deep; an
+        // off-category detour never injects a phantom project slice (D34a). The detour's seconds
+        // live on its segment (the expand) and in the per-axis ledger.
         let host = self.slug.clone();
         let secs = self.host_active();
         let mut totals: HashMap<String, i64> = HashMap::new();
@@ -383,6 +411,7 @@ impl SegRun {
         TimelineRun {
             category_slug: self.slug,
             category_name: self.name,
+            category_color: self.color,
             start: self.start,
             end: self.end,
             secs,
@@ -410,7 +439,7 @@ fn raw_runs(
     let mut current: Option<RawRunBuilder> = None;
 
     for event in active {
-        let (slug, name) = category_of(event, categories);
+        let (slug, name, color) = category_of(event, categories);
         let project = event.project_id.and_then(|id| projects.get(&id).cloned());
 
         match current.take() {
@@ -422,9 +451,9 @@ fn raw_runs(
             }
             Some(run) => {
                 runs.push(SegRun::from_raw(run));
-                current = Some(RawRunBuilder::new(event, slug, name, project));
+                current = Some(RawRunBuilder::new(event, slug, name, color, project));
             }
-            None => current = Some(RawRunBuilder::new(event, slug, name, project)),
+            None => current = Some(RawRunBuilder::new(event, slug, name, color, project)),
         }
     }
     if let Some(run) = current {
@@ -477,6 +506,7 @@ fn absorb_excursions(mut runs: Vec<SegRun>) -> Vec<SegRun> {
             Some((i, j)) => {
                 let name = runs[i].name.clone();
                 let host = runs[i].slug.clone();
+                let color = runs[i].color.clone();
                 let start = runs[i].start;
                 let end = runs[j].end;
                 let segments: Vec<TimelineSegment> =
@@ -486,6 +516,7 @@ fn absorb_excursions(mut runs: Vec<SegRun>) -> Vec<SegRun> {
                     SegRun {
                         slug: host,
                         name,
+                        color,
                         start,
                         end,
                         segments,
@@ -536,6 +567,7 @@ fn build_runs(
         .map(|run| CategoryRun {
             category_slug: run.category_slug,
             category_name: run.category_name,
+            category_color: run.category_color,
             start: run.start,
             end: run.end,
             secs: run.secs,
@@ -685,9 +717,8 @@ pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
     }
 }
 
-/// Spell a duration out in full words for the AI prompt ("4 hours 53 minutes", "47 minutes")
-/// — never the "47m" shorthand, which the spike found the model misreads as "47 million".
-/// Prompt-only; the UI and template recap keep the compact [`human_secs`].
+/// Spell a duration out in full words for the AI prompt ("4 hours 53 minutes") — never the "47m"
+/// shorthand, which the model misreads as "47 million". Prompt-only; the UI keeps [`human_secs`].
 fn human_secs_long(secs: i64) -> String {
     let hours = secs / 3600;
     let minutes = (secs % 3600) / 60;
@@ -700,10 +731,9 @@ fn human_secs_long(secs: i64) -> String {
     }
 }
 
-/// Format [`RecapFacts`] into the prompt the Foundation Models sidecar narrates (D9 / C9 / C10).
-/// Numbers are pre-formatted strings with units spelled out; fields are explicitly labeled
-/// ("category" vs "project") so the model can't conflate them. The model only phrases this —
-/// it never computes (hard rule 6).
+/// Format [`RecapFacts`] into the prompt the Foundation Models sidecar narrates. Numbers are
+/// pre-formatted, units spelled out, fields labeled ("category" vs "project") so the model can't
+/// conflate them — it only phrases this, never computes (hard rule 6).
 pub(crate) fn format_recap_prompt(facts: &RecapFacts) -> String {
     let mut lines =
         vec!["The day's facts, already computed — narrate only these, change nothing:".to_string()];
@@ -752,11 +782,17 @@ fn leading_project(runs: &[CategoryRun], active_secs: i64) -> Option<String> {
             }
         }
     }
-    totals
-        .into_iter()
-        .max_by_key(|(_, secs)| *secs)
-        .filter(|(_, secs)| *secs * 100 >= active_secs * 40)
-        .map(|(name, _)| name.to_string())
+    // Rank by time (name as a stable tie-break for determinism).
+    let mut ranked: Vec<(&str, i64)> = totals.into_iter().collect();
+    ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
+    let (name, secs) = *ranked.first()?;
+    // "Mostly on X" needs a CLEAR leader: ≥40% of active time AND strictly ahead of the
+    // runner-up — otherwise a 40/40 split would be narrated as if one project dominated.
+    let tied = ranked.get(1).is_some_and(|&(_, second)| second == secs);
+    if tied || secs * 100 < active_secs * 40 {
+        return None;
+    }
+    Some(name.to_string())
 }
 
 #[cfg(test)]
@@ -800,6 +836,7 @@ mod tests {
                 CategoryMeta {
                     slug: Some("deep".into()),
                     name: "Deep work".into(),
+                    color: "#1B45BE".into(),
                 },
             ),
             (
@@ -807,6 +844,7 @@ mod tests {
                 CategoryMeta {
                     slug: Some("comms".into()),
                     name: "Comms".into(),
+                    color: "#EAB308".into(),
                 },
             ),
             (
@@ -814,6 +852,7 @@ mod tests {
                 CategoryMeta {
                     slug: Some("research".into()),
                     name: "Research".into(),
+                    color: "#1D9E75".into(),
                 },
             ),
         ])
@@ -896,6 +935,58 @@ mod tests {
         assert_eq!(day.categories[0].slug, "other");
         assert_eq!(day.categories[0].name, "Uncategorized");
         assert_eq!(day.runs[0].category_slug, "other");
+        assert_eq!(day.categories[0].color, None);
+    }
+
+    #[test]
+    fn user_categories_keep_their_identity_and_colour() {
+        // Two distinct slug-less (user-created) categories + true uncategorized time. They must
+        // NOT collapse into one "Uncategorized" bucket; each keeps its name + hex colour, and
+        // only the truly-uncategorized event is "other". (Regression: slug=None used to map to
+        // OTHER_SLUG, merging every custom category together and into Uncategorized.)
+        let cats = HashMap::from([
+            (
+                10,
+                CategoryMeta {
+                    slug: None,
+                    name: "Design".into(),
+                    color: "#7A4FC2".into(),
+                },
+            ),
+            (
+                11,
+                CategoryMeta {
+                    slug: None,
+                    name: "Reading".into(),
+                    color: "#1D9E75".into(),
+                },
+            ),
+        ]);
+        let events = vec![
+            ev(0, 600, "Figma", Some(10), None),    // Design
+            ev(600, 1200, "Books", Some(11), None), // Reading
+            ev(1200, 1500, "Unknown", None, None),  // truly uncategorized
+        ];
+        let day = build_day_view(&events, &cats, &proj_map(), 0);
+        let by_name: HashMap<&str, &CategorySlice> = day
+            .categories
+            .iter()
+            .map(|c| (c.name.as_str(), c))
+            .collect();
+        assert_eq!(by_name.len(), 3, "three distinct buckets, none collapsed");
+        assert_eq!(by_name["Design"].color.as_deref(), Some("#7A4FC2"));
+        assert_eq!(by_name["Design"].secs, 600);
+        assert_eq!(by_name["Reading"].color.as_deref(), Some("#1D9E75"));
+        assert_eq!(by_name["Uncategorized"].slug, "other");
+        assert_eq!(by_name["Uncategorized"].color, None);
+        // Distinct runs too (a user category is its own arc, not a merged grey one).
+        assert_eq!(day.runs.len(), 3);
+        let design_run = day
+            .runs
+            .iter()
+            .find(|r| r.category_name == "Design")
+            .unwrap();
+        assert_eq!(design_run.category_color.as_deref(), Some("#7A4FC2"));
     }
 
     #[test]

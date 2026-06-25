@@ -1,13 +1,9 @@
-//! Installed-app catalog + icons — so the UI can show real app branding (the
-//! Timeline switch rows, the dial legend, Settings) instead of bare squares.
+//! Installed-app catalog + icons, so the UI can show real app branding instead of bare squares.
 //!
-//! **Offline, no new permission, not in the data path** (hard rule 1): it only reads
-//! public `.app` bundles under the standard app directories (incl. Chrome/Brave PWA
-//! folders) and extracts each icon's loose `.icns` to a cached 64px PNG via `sips`
-//! (the same subprocess posture as `enrich`'s `git`). Every failure degrades to
-//! `icon: None` — the UI falls back to a monogram — so there is no `unwrap`/`expect`/
-//! `panic` here (hard rule 3). On non-macOS (CI Linux) the app dirs are absent and
-//! `sips` is missing, so this simply returns an empty/iconless catalog.
+//! Offline, no new permission, not in the data path: reads public `.app` bundles under the
+//! standard app dirs (incl. Chrome/Brave PWA folders) and extracts each icon to a cached 64px
+//! PNG via `sips`. Every failure degrades to `icon: None` (a monogram fallback) — no
+//! `unwrap`/`expect`/`panic`. On non-macOS the dirs and `sips` are absent → an empty catalog.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -30,7 +26,7 @@ pub struct InstalledApp {
 
 /// `.icns` stems that conventionally name the *app* icon (vs document icons).
 const APP_ICON_HINTS: &[&str] = &["appicon", "app", "icon", "electron"];
-/// PNG target edge (px). Matches the dogfood-proven `sips -Z 64` (~5–15 KB).
+/// PNG target edge (px) for `sips -Z` — ~5–15 KB per icon.
 const ICON_PX: &str = "64";
 
 /// The standard places macOS apps live, including Chrome/Brave **PWA** folders
@@ -46,12 +42,9 @@ pub fn default_search_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-/// Map Apple's `LSApplicationCategoryType` (e.g. `public.app-category.developer-tools`)
-/// to one of our canonical category slugs, for a *suggested* default in the
-/// Uncategorized list (D47). Deliberately conservative: only high-confidence types map;
-/// ambiguous ones (`productivity`/`business`/`utilities` span several of our categories,
-/// browsers usually set none) return `None` so we never suggest the wrong bucket. The
-/// rules engine remains the only thing that actually assigns.
+/// Map Apple's `LSApplicationCategoryType` to a canonical slug for a *suggested* default in the
+/// Uncategorized list (D47). Conservative: only high-confidence types map; ambiguous ones
+/// (`productivity`/`business`/`utilities`) return `None` rather than suggest the wrong bucket.
 pub fn suggest_slug(category_type: &str) -> Option<&'static str> {
     let leaf = category_type.rsplit('.').next().unwrap_or(category_type);
     Some(match leaf {
@@ -185,11 +178,19 @@ fn best_icns(app: &Path, stem: &str) -> Option<PathBuf> {
     best.map(|(p, _, _)| p)
 }
 
-/// Cache filename stem: keep it filesystem-safe and stable per app name.
+/// Cache filename stem: filesystem-safe and UNIQUE per app name. The FNV-1a suffix disambiguates —
+/// sanitizing alone would collide "VS Code" / "VS-Code" / "VS.Code" and serve the wrong icon.
 fn cache_key(stem: &str) -> String {
-    stem.chars()
+    let sanitized: String = stem
+        .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect()
+        .collect();
+    let mut hash: u64 = 0xcbf29ce4_84222325;
+    for b in stem.bytes() {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{sanitized}_{hash:016x}")
 }
 
 /// A cached PNG is reusable iff it exists and is at least as new as its source `.icns`.
@@ -203,8 +204,7 @@ fn is_cached_fresh(png: &Path, icns: &Path) -> bool {
     }
 }
 
-/// Standard base64 (RFC 4648) — hand-rolled to avoid a dependency (the project keeps
-/// its supply chain auditable, hard rule 1). PNG bytes → ASCII; no panics.
+/// Standard base64 (RFC 4648), hand-rolled to avoid a dependency (auditable supply chain).
 fn b64(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
@@ -247,6 +247,21 @@ mod tests {
         assert_eq!(b64(b"foo"), "Zm9v");
         assert_eq!(b64(b"foob"), "Zm9vYg==");
         assert_eq!(b64(b"foobar"), "Zm9vYmFy");
+    }
+
+    #[test]
+    fn cache_key_is_unique_across_names_that_sanitize_alike() {
+        // Names differing only in separators must NOT share a cache file (else one app's icon
+        // is served for another). They still share the readable sanitized prefix.
+        let a = cache_key("VS Code");
+        let b = cache_key("VS-Code");
+        let c = cache_key("VS.Code");
+        assert_ne!(a, b);
+        assert_ne!(b, c);
+        assert_ne!(a, c);
+        assert!(a.starts_with("VS_Code_") && b.starts_with("VS_Code_"));
+        // Stable for a given name.
+        assert_eq!(a, cache_key("VS Code"));
     }
 
     #[test]

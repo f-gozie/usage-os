@@ -1,11 +1,7 @@
-//! Interim/fallback polling capture source.
+//! Cross-platform fallback capture source (`active-win-pos-rs` behind [`CaptureSource`]).
 //!
-//! Wraps the v0.1.0 `active-win-pos-rs` approach behind [`CaptureSource`].
-//! Cross-platform; yields the **app name** only — NOT window titles:
-//! `active-win-pos-rs` reads `kCGWindowName`, gated by Screen Recording (capture
-//! standard C1, the permission we refuse). Idle is the consumer's job (D39), not the
-//! source's. On macOS the event-driven AX impl supersedes it; this stays as the
-//! non-macOS fallback.
+//! Yields the app name only — not titles: that would need `kCGWindowName` (Screen Recording),
+//! the permission we refuse. On macOS the event-driven AX impl supersedes it.
 
 use std::sync::mpsc::Sender;
 use std::thread;
@@ -55,9 +51,7 @@ fn active_focus() -> Option<FocusEvent> {
     match active_win_pos_rs::get_active_window() {
         Ok(window) => Some(FocusEvent {
             app_name: window.app_name,
-            pid: window.process_id as i32,
-            // Intentionally NOT window.title — that's CGWindowName (Screen-Recording
-            // gated, capture standard C1). Titles come from AX on macOS.
+            // Not window.title — that's CGWindowName (Screen-Recording gated); titles come from AX.
             timestamp: now_unix(),
             ..FocusEvent::default()
         }),

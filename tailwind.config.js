@@ -18,11 +18,14 @@ export default {
         "c-research": "var(--c-research)",
         "c-comms": "var(--c-comms)",
         "c-breaks": "var(--c-breaks)",
+        "c-personal": "var(--c-personal)",
         now: "var(--now)",
         casing: "var(--casing)",
         "on-ink": "var(--on-ink)",
         "bar-bg": "var(--bar-bg)",
         "bar-fg": "var(--bar-fg)",
+        "bar-muted": "var(--bar-muted)",
+        scrim: "var(--scrim)",
       },
       fontFamily: {
         // Anton = poster display (all-caps); Jost = everything else.
