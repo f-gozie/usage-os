@@ -498,6 +498,24 @@ fn position_glance(window: &WebviewWindow, rect: &Rect) {
     let _ = window.set_position(PhysicalPosition::new(x as i32, y as i32));
 }
 
+/// Make the glance popover appear on every Space — including over another app's full-screen
+/// Space, like the system menubar popovers — so a left-click while full-screen still shows it.
+/// (Without `FullScreenAuxiliary` the window opens on the desktop Space and stays invisible.)
+#[cfg(target_os = "macos")]
+fn float_over_fullscreen(window: &WebviewWindow) {
+    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
+    if let Ok(ptr) = window.ns_window() {
+        // SAFETY: ns_window() returns this window's live NSWindow; the deref needs `unsafe`, and
+        // the setter (main thread — we're on the UI callback) rides in the same block.
+        unsafe {
+            let ns_window: &NSWindow = &*(ptr as *const NSWindow);
+            let behavior = NSWindowCollectionBehavior::CanJoinAllSpaces
+                | NSWindowCollectionBehavior::FullScreenAuxiliary;
+            ns_window.setCollectionBehavior(behavior);
+        }
+    }
+}
+
 /// Left-click the tray icon: toggle the glance popover (created lazily, hidden on focus loss).
 fn toggle_glance(app: &AppHandle, rect: Rect) {
     if let Some(window) = app.get_webview_window("glance") {
@@ -515,11 +533,17 @@ fn toggle_glance(app: &AppHandle, rect: Rect) {
         .resizable(false)
         .always_on_top(true)
         .skip_taskbar(true)
+        // Transparent + no OS shadow so the popover can render rounded corners + its own soft
+        // shadow (a hard rectangle floating on the desktop looks out of place — refined per owner).
+        .transparent(true)
+        .shadow(false)
         .visible(false)
-        .inner_size(320.0, 460.0)
+        .inner_size(336.0, 488.0)
         .build()
     {
         Ok(window) => {
+            #[cfg(target_os = "macos")]
+            float_over_fullscreen(&window);
             position_glance(&window, &rect);
             let _ = window.show();
             let _ = window.set_focus();

@@ -51,6 +51,19 @@ function GlancePanel() {
     };
   }, []);
 
+  // The glance window is transparent (rounded corners + soft shadow), so drop the opaque
+  // html/body background the main app sets. Scoped to this webview; restored on unmount.
+  useEffect(() => {
+    const { documentElement: html, body } = document;
+    const prev = [html.style.background, body.style.background];
+    html.style.background = "transparent";
+    body.style.background = "transparent";
+    return () => {
+      html.style.background = prev[0];
+      body.style.background = prev[1];
+    };
+  }, []);
+
   const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const active = data?.active_secs ?? 0;
   const cats = (data?.categories ?? []).filter((c) => c.secs > 0);
@@ -60,9 +73,10 @@ function GlancePanel() {
   const focusPct = active > 0 ? Math.round(((deep + research) / active) * 100) : 0;
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg text-fg">
-      {/* Head */}
-      <div className="flex items-center gap-2 bg-bar-bg px-[13px] py-2.5">
+    <div className="flex h-screen flex-col bg-transparent p-2.5 text-fg">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-[16px] border border-rule bg-bg shadow-[0_14px_44px_rgba(0,0,0,0.4)]">
+        {/* Head */}
+        <div className="flex items-center gap-2 bg-bar-bg px-[13px] py-2.5">
         <span className="font-display text-[13px] uppercase tracking-[0.05em] text-bar-fg">
           USAGE<span className="text-c-research">OS</span>
         </span>
@@ -95,11 +109,7 @@ function GlancePanel() {
             <div className="mt-3 flex border-t-2 border-edge">
               <Kpi label="Active" value={formatDuration(active)} />
               {top && (
-                <Kpi
-                  label="Top category"
-                  value={top.name}
-                  swatch={categoryColorVar(top.slug, top.color)}
-                />
+                <Kpi label="Top" value={top.name} swatch={categoryColorVar(top.slug, top.color)} />
               )}
               <Kpi label="Focus" value={`${focusPct}%`} valueClass="text-c-research" />
             </div>
@@ -134,25 +144,23 @@ function GlancePanel() {
         )}
       </div>
 
-      {/* Foot */}
-      <div className="flex items-center gap-[9px] border-t-2 border-edge bg-surface px-[15px] py-[11px]">
-        <button
-          type="button"
-          onClick={() => void showMainWindow().catch(() => undefined)}
-          className="flex-1 border-2 border-edge bg-edge px-3.5 py-[9px] text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-bg"
-        >
-          Open UsageOS →
-        </button>
-        <button
-          type="button"
-          onClick={() => void quitApp().catch(() => undefined)}
-          className="border-2 border-edge bg-bg px-[13px] py-[9px] text-[11px] font-semibold uppercase tracking-[0.06em] text-muted"
-        >
-          Quit
-        </button>
-      </div>
-      <div className="bg-surface pb-[9px] pt-[7px] text-center text-[8.5px] font-semibold uppercase tracking-[0.18em] text-muted">
-        On this Mac only
+        {/* Foot */}
+        <div className="flex items-center gap-[9px] border-t border-rule bg-surface px-[15px] py-[11px]">
+          <button
+            type="button"
+            onClick={() => void showMainWindow().catch(() => undefined)}
+            className="flex-1 rounded-[7px] bg-edge px-3.5 py-[9px] text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-bg"
+          >
+            Open UsageOS →
+          </button>
+          <button
+            type="button"
+            onClick={() => void quitApp().catch(() => undefined)}
+            className="rounded-[7px] border border-rule bg-bg px-[13px] py-[9px] text-[11px] font-semibold uppercase tracking-[0.06em] text-muted"
+          >
+            Quit
+          </button>
+        </div>
       </div>
     </div>
   );
