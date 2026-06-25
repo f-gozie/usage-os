@@ -1,15 +1,9 @@
--- UsageOS baseline schema.
---
--- A clean-slate squash of the pre-1.0 migration chain (the historical incremental
--- ALTERs only existed for installs that no longer exist). Treat as immutable once
--- shipped: never edit this file after a release — add a new NNNN_*.sql migration
--- instead. The runner verifies a checksum of each applied migration on boot and
--- refuses to start if a shipped migration was altered.
+-- UsageOS baseline schema. Immutable once shipped — see migrations/README.md.
 
--- Contexts. The internal table name stays `categories` (the →contexts rename is
--- deferred, D31). `slug` carries the canonical context identity that the UI maps to
--- a colour token (--c-<slug>): deep | research | comms | breaks. A NULL slug is a
--- user-created context (it supplies its own `color`).
+-- Contexts. The SQL table name `categories` (and `category_id` elsewhere) is the
+-- intentional legacy name; the IPC noun is "category" (see D46). `slug` carries the
+-- canonical context identity the UI maps to a colour token (--c-<slug>): deep |
+-- research | comms | breaks. A NULL slug is a user-created context (supplies its own `color`).
 CREATE TABLE categories (
     id    INTEGER PRIMARY KEY AUTOINCREMENT,
     slug  TEXT UNIQUE,
@@ -17,9 +11,8 @@ CREATE TABLE categories (
     color TEXT NOT NULL
 );
 
--- Canonical projects (D30): keyed on the git remote `owner/repo` (or folder name
--- when a repo has no remote); folder/title/url variants resolve to one project via
--- `project_aliases`. The unique keys are what stop one project fragmenting.
+-- Canonical projects (D30): keyed on the git remote `owner/repo` (or folder name when a repo
+-- has no remote); folder/title/url variants resolve to one project via `project_aliases`.
 CREATE TABLE projects (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     canonical_key TEXT NOT NULL UNIQUE,
@@ -47,11 +40,9 @@ CREATE TABLE sites (
     created_at   INTEGER NOT NULL
 );
 
--- Events (the table keeps its legacy name `activity_logs`, D31): one span of focus
--- on an app/window, enriched with site/project + sensitive-handling flags (D8).
--- project_id NULL = unassigned; project_abstain_reason records the abstain kind
--- ('no-signal' | 'ambiguous') so Phase 2 can correlate ambiguous spans (never
--- no-signal) to the active project.
+-- Events (legacy table name `activity_logs`): one span of focus on an app/window,
+-- enriched with site/project + sensitive-handling flags (D8). project_id NULL =
+-- unassigned; project_abstain_reason records the abstain kind ('no-signal' | 'ambiguous').
 CREATE TABLE activity_logs (
     id                     INTEGER PRIMARY KEY AUTOINCREMENT,
     process_name           TEXT NOT NULL,
@@ -78,8 +69,8 @@ CREATE TABLE rules (
     ignore_title INTEGER NOT NULL DEFAULT 0
 );
 
--- Sensitive handling (D8): mode='exclude' drops the event entirely; mode='private'
--- records time + app but omits title/url at write time (never store-then-filter).
+-- Sensitive handling (D8): mode='exclude' drops the event; mode='private' records
+-- time + app but omits title/url at write time (never store-then-filter).
 CREATE TABLE exclusions (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     match_type TEXT NOT NULL,               -- 'app' | 'site' | 'title'

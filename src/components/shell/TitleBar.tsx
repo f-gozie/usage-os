@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 
 import { getWatcherStatus } from "@/lib/tauri";
 
-const BAR_MUTED = "rgba(255,255,255,0.65)"; // muted-on-dark (the bar is dark in every theme)
-
 /** The window titlebar. With the Overlay title-bar style the macOS traffic lights sit
  *  at the left (so we leave room and don't draw fake ones); the bar is the drag region.
  *  Centre wordmark, live capture status on the right. */
@@ -44,10 +42,7 @@ function TrackingStatus() {
   }, []);
 
   return (
-    <span
-      className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.12em]"
-      style={{ color: BAR_MUTED }}
-    >
+    <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-bar-muted">
       <span
         className={healthy ? "h-2 w-2 animate-pulse rounded-full" : "h-2 w-2 rounded-full"}
         style={{ background: healthy ? "var(--c-comms)" : "var(--c-research)" }}

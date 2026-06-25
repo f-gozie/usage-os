@@ -3,29 +3,22 @@
     deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)
 )]
 
-// `db` is the typed repository layer (the lib's data boundary). It's `pub` so the
-// repository API built ahead of its command/capture consumers (Phase 1.2+) is
-// reachable — otherwise not-yet-wired fns would trip `dead_code` under `-D warnings`.
+// The typed repository layer (the lib's data boundary). `pub` so its API is reachable ahead of
+// its consumers (otherwise not-yet-wired fns trip `dead_code` under `-D warnings`).
 pub mod db;
-// `capture` is the observation boundary (hard rule 5): all native/objc2 code lives
-// behind the `CaptureSource` trait; tests use a fake. `pub` for the same reason as `db`.
+// The observation boundary (hard rule 5): all native/objc2 code behind the `CaptureSource` trait.
 pub mod capture;
-// `enrich` turns raw capture signals into stored facts (site, project — D30).
-// Cross-platform and CI-testable; consumed by `capture::process_focus_event`.
+// Turns raw capture signals into stored facts (site, project — D30).
 mod enrich;
-// `migrations` is the forward-only SQL migration runner (per-file `.sql`, applied in
-// a transaction, checksum-guarded). Paired with the crate-root `migrations/` dir.
+// The forward-only SQL migration runner; paired with the crate-root `migrations/` dir.
 mod migrations;
-// `rollup` is the pure read-time layer that turns a day's events into the view the
-// dial renders (per-axis aggregates + category-runs + template recap — D34, hard rule 6).
+// The pure read-time layer that turns a day's events into the view the dial renders (hard rule 6).
 mod rollup;
-// `apps` is the installed-app catalog + offline icon extraction (sips, cached) —
-// isolated like the other native surfaces (hard rule 5). Powers the UI's app icons.
+// Installed-app catalog + offline icon extraction, isolated like the other native surfaces.
 mod apps;
 
-// `ai` is the recap-narration seam (hard rule 5): a mockable `Narrator` trait + `build_recap`
-// with the deterministic template (D48) as the always-on fallback. `pub` so its not-yet-wired
-// API isn't dead-code (the get_recap command + sidecar narrator land in later chunks).
+// The recap-narration seam (hard rule 5): a mockable `Narrator` + `build_recap` with a
+// deterministic template fallback (D48). `pub` so its not-yet-wired API isn't dead-code.
 pub mod ai;
 
 use rusqlite::Connection;
@@ -80,6 +73,23 @@ fn get_activity_stats(
     db::get_activity_logs(&conn, start_time, end_time).map_err(AppError::from)
 }
 
+/// The category + project lookup maps the rollup reads off: `category_id -> meta` and
+/// `project_id -> display name`.
+type LookupMaps = (HashMap<i64, rollup::CategoryMeta>, HashMap<i64, String>);
+
+/// The category + project lookup maps the three rollup commands share — one query each.
+fn load_lookup_maps(conn: &Connection) -> Result<LookupMaps, AppError> {
+    let categories = db::get_category_metas(conn)?
+        .into_iter()
+        .map(|(id, slug, name, color)| (id, rollup::CategoryMeta { slug, name, color }))
+        .collect();
+    let projects = db::get_projects(conn)?
+        .into_iter()
+        .map(|p| (p.id, p.display_name))
+        .collect();
+    Ok((categories, projects))
+}
+
 /// Build the Day view — per-axis category aggregates, category-runs, and the template
 /// recap (D34) — for a `[start_time, end_time]` Unix-second range. Numbers are computed
 /// in Rust (hard rule 6); the frontend only renders this.
@@ -92,14 +102,7 @@ fn get_day(
 ) -> Result<rollup::DayView, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     let events = db::get_activity_logs(&conn, start_time, end_time)?;
-    let categories: HashMap<i64, rollup::CategoryMeta> = db::get_category_metas(&conn)?
-        .into_iter()
-        .map(|(id, slug, name)| (id, rollup::CategoryMeta { slug, name }))
-        .collect();
-    let projects: HashMap<i64, String> = db::get_projects(&conn)?
-        .into_iter()
-        .map(|p| (p.id, p.display_name))
-        .collect();
+    let (categories, projects) = load_lookup_maps(&conn)?;
     Ok(rollup::build_day_view(
         &events,
         &categories,
@@ -133,14 +136,7 @@ async fn get_recap(
     let (facts, fingerprint, cached) = {
         let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
         let events = db::get_activity_logs(&conn, start_time, end_time)?;
-        let categories: HashMap<i64, rollup::CategoryMeta> = db::get_category_metas(&conn)?
-            .into_iter()
-            .map(|(id, slug, name)| (id, rollup::CategoryMeta { slug, name }))
-            .collect();
-        let projects: HashMap<i64, String> = db::get_projects(&conn)?
-            .into_iter()
-            .map(|p| (p.id, p.display_name))
-            .collect();
+        let (categories, projects) = load_lookup_maps(&conn)?;
         let facts = rollup::build_recap_facts(&events, &categories, &projects, start_time);
         let fingerprint = rollup::recap_fingerprint(&facts);
         let cached = db::get_cached_recap(&conn, start_time, &fingerprint)?;
@@ -180,14 +176,7 @@ fn get_week(
     week_end: i64,
 ) -> Result<rollup::WeekView, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    let categories: HashMap<i64, rollup::CategoryMeta> = db::get_category_metas(&conn)?
-        .into_iter()
-        .map(|(id, slug, name)| (id, rollup::CategoryMeta { slug, name }))
-        .collect();
-    let projects: HashMap<i64, String> = db::get_projects(&conn)?
-        .into_iter()
-        .map(|p| (p.id, p.display_name))
-        .collect();
+    let (categories, projects) = load_lookup_maps(&conn)?;
     let mut days = Vec::with_capacity(day_starts.len());
     for (i, &start) in day_starts.iter().enumerate() {
         let end = day_starts.get(i + 1).copied().unwrap_or(week_end);
@@ -214,14 +203,7 @@ fn get_timeline(
 ) -> Result<rollup::TimelineView, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     let events = db::get_activity_logs(&conn, start_time, end_time)?;
-    let categories: HashMap<i64, rollup::CategoryMeta> = db::get_category_metas(&conn)?
-        .into_iter()
-        .map(|(id, slug, name)| (id, rollup::CategoryMeta { slug, name }))
-        .collect();
-    let projects: HashMap<i64, String> = db::get_projects(&conn)?
-        .into_iter()
-        .map(|p| (p.id, p.display_name))
-        .collect();
+    let (categories, projects) = load_lookup_maps(&conn)?;
     Ok(rollup::build_timeline(&events, &categories, &projects))
 }
 
@@ -495,24 +477,20 @@ pub fn run() {
 
             app.manage(db_conn.clone());
 
-            // Recap narrator (chunk C): the Foundation Models sidecar behind the `ai::Narrator`
-            // trait, managed so the lazy `get_recap` command can reach it. Prewarm runs off the
-            // main thread — the cold model load is ~5s and must never block launch; it's
-            // best-effort (the D48 template always covers a missing/cold model — C5).
+            // Recap narrator: the FM sidecar behind `ai::Narrator`, managed for the lazy
+            // `get_recap` command. Prewarm off the main thread — best-effort; the template
+            // recap always covers a cold/missing model (D49/C5).
             app.manage(ai::sidecar::SidecarNarrator::new(app.handle().clone()));
             let warm_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 ai::sidecar::prewarm(&warm_handle).await;
             });
 
-            // Capture: the source registers on THIS (main) thread — the macOS impl
-            // attaches its observers to the main CFRunLoop (D29) — while the
-            // consumer drains on a dedicated thread (SQLite + git-shell enrichment
-            // block, so they must stay off the async executor; R57).
+            // The source registers on this (main) thread — the macOS impl attaches to the main
+            // CFRunLoop (D29) — while the consumer (the sole DB writer) drains on a dedicated
+            // thread, since SQLite + git-shell enrichment block and must stay off the executor.
             let (tx, rx) = std::sync::mpsc::channel();
             capture::default_source().start(tx);
-            // The consumer is the sole DB writer: it owns the open span, self-ticks to
-            // extend it during sustained single-window work, and gates on idle.
             std::thread::spawn(move || capture::consume(db_conn, rx));
             Ok(())
         })
@@ -524,9 +502,8 @@ pub fn run() {
     }
 }
 
-/// Codegen for the IPC bindings. Lives in a test (debug-only) path, so the
-/// `expect()` here does NOT violate hard rule 3 (Pattern 8). The freshness gate
-/// (CI) regenerates this and fails if the committed `src/bindings.ts` drifts.
+/// Codegen for the IPC bindings. Test-only, so the `expect()` doesn't violate hard rule 3.
+/// The CI freshness gate regenerates this and fails if the committed `src/bindings.ts` drifts.
 #[cfg(test)]
 mod export_bindings {
     use specta_typescript::{BigIntExportBehavior, Typescript};
@@ -537,9 +514,8 @@ mod export_bindings {
             .export(
                 Typescript::new()
                     .bigint(BigIntExportBehavior::Number)
-                    // @ts-nocheck: the generated file emits events/channel boilerplate
-                    // that trips the app's strict `noUnusedLocals`; it's generated, not
-                    // authored, so we don't lint it (the freshness gate is its check).
+                    // @ts-nocheck: generated boilerplate trips strict `noUnusedLocals`; it's
+                    // generated, not authored, so the freshness gate is its check, not the linter.
                     .header(
                         "// @ts-nocheck\n// @generated by tauri-specta — DO NOT EDIT. Run `cargo test export_bindings`.\n",
                     ),

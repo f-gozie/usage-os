@@ -31,7 +31,7 @@ export function TimelineRow({ run, defaultOpen = false }: TimelineRowProps) {
         <div className="flex min-w-0 gap-3.5">
           <span
             className="min-h-[40px] w-[5px] shrink-0 self-stretch"
-            style={{ background: categoryColorVar(run.category_slug) }}
+            style={{ background: categoryColorVar(run.category_slug, run.category_color) }}
           />
           <div className="min-w-0 flex-1">
             <div className="text-[15px] font-semibold">{run.category_name}</div>
@@ -80,8 +80,10 @@ export function TimelineRow({ run, defaultOpen = false }: TimelineRowProps) {
 
       {open && (
         <div className="pb-3.5 pl-[66px] pr-2.5">
+          {/* One row per segment (a continuous stretch in one app) — so the count is
+              segments, not the switch count the collapsed summary shows. */}
           <div className="py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-            {run.segments.length} app {run.segments.length === 1 ? "switch" : "switches"}
+            {run.segments.length} app {run.segments.length === 1 ? "stretch" : "stretches"}
           </div>
           {run.segments.map((seg, i) => {
             // An absorbed detour (D34a) carries a different category than the run — mark it with
@@ -99,7 +101,7 @@ export function TimelineRow({ run, defaultOpen = false }: TimelineRowProps) {
                   {isDetour && (
                     <span
                       className="inline-block h-2 w-2 shrink-0 rounded-[2px]"
-                      style={{ background: categoryColorVar(seg.category_slug) }}
+                      style={{ background: categoryColorVar(seg.category_slug, seg.category_color) }}
                       title={seg.category_name}
                     />
                   )}

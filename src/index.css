@@ -35,20 +35,21 @@
   }
 }
 
-/* Loading shimmer (used by the Skeleton component). Paused under reduced-motion via
+/* Loading placeholder (used by the Skeleton component). A flat track fill that pulses
+   opacity — no gradient, to keep the flat-fill contract. Paused under reduced-motion via
    the global media query above. */
-@keyframes shimmer {
-  from {
-    background-position: 200% 0;
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
   }
-  to {
-    background-position: -200% 0;
+  50% {
+    opacity: 0.45;
   }
 }
 .skeleton {
-  background: linear-gradient(90deg, var(--track), var(--surface), var(--track));
-  background-size: 200% 100%;
-  animation: shimmer 1.3s linear infinite;
+  background: var(--track);
+  animation: skeleton-pulse 1.3s ease-in-out infinite;
 }
 
 /* Recap upgrade: when the on-device prose replaces the template, fade it in with a small

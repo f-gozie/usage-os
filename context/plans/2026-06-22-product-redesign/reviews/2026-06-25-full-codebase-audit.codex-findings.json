@@ -1,0 +1,956 @@
+[
+  {
+    "file": "src-tauri/src/ai/mod.rs",
+    "line": 57,
+    "severity": "critical",
+    "category": "narrate-not-count",
+    "title": "Model prose is accepted without a numeric guard",
+    "body": "`build_recap` returns any non-empty narrator output as model prose. A `Narrator` can return text that invents or alters numbers, and this path will publish it instead of falling back, which violates the narrate-never-count rule. Add a guard before accepting model text, for example rejecting numeric tokens not present in the precomputed prompt/facts, and add a fake-narrator regression test.",
+    "_lane": "ai_apps"
+  },
+  {
+    "file": "spikes/foundation-models/Sources/usageos-ai/main.swift",
+    "line": 97,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Serve mode claims JSON input but passes raw lines to the model",
+    "body": "The comments and README describe `--serve` as one JSON-facts line in, but the loop reads a line and passes it directly as the prompt. If Rust implements the documented JSON protocol, the model will narrate JSON syntax rather than decoded facts. Decode a request object here, or change the protocol/docs to a newline-delimited prompt string.",
+    "_lane": "ai_apps"
+  },
+  {
+    "file": "spikes/foundation-models/Sources/usageos-ai/main.swift",
+    "line": 85,
+    "severity": "warning",
+    "category": "narrate-not-count",
+    "title": "Spike sample still uses compact duration shorthand",
+    "body": "The sample prompt says it is formatted exactly as Rust would, but it uses `4h 53m`, `3h 10m`, and similar shorthand. The spike README and Rust tests say units must be spelled out to avoid the known `m` equals million failure. Update the sample to mirror `format_recap_prompt` with full units and current field labels.",
+    "_lane": "ai_apps"
+  },
+  {
+    "file": "src-tauri/src/apps.rs",
+    "line": 189,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Icon cache keys collide for different app names",
+    "body": "`cache_key` maps every non-ASCII-alphanumeric character to `_`, so names like `Foo-Bar`, `Foo Bar`, and many Unicode names share the same PNG path. `is_cached_fresh` can then reuse the first app's cached icon for a different app. Include a stable hash of the app path or bundle identifier in the cache filename.",
+    "_lane": "ai_apps"
+  },
+  {
+    "file": "spikes/foundation-models/Sources/usageos-ai/main.swift",
+    "line": 44,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Unavailable status tag is not actually stable",
+    "body": "The comment says Rust can branch on a stable tag, but `String(describing: reason)` exposes the framework's debug spelling. Map each known unavailable reason to an explicit string tag and use an unknown fallback, so the sidecar protocol remains machine-readable.",
+    "_lane": "ai_apps"
+  },
+  {
+    "file": "src-tauri/src/ai/mod.rs",
+    "line": 17,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "AiError carries distinctions that are not used",
+    "body": "`AiError` has two variants with payloads, but `build_recap` treats every failure identically and there is no logging path that reads the detail. Until a caller needs those distinctions, collapse this to a unit error or a single message-bearing type to remove speculative API shape.",
+    "_lane": "ai_apps"
+  },
+  {
+    "file": "src-tauri/src/ai/mod.rs",
+    "line": 1,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Module docs duplicate decision history",
+    "body": "The opening comment block restates hard rules, decision IDs, fallback policy, future wiring, and CI rationale. Keep a short module summary here and move the decision archaeology to the existing context docs.",
+    "_lane": "ai_apps"
+  },
+  {
+    "file": "src-tauri/src/apps.rs",
+    "line": 1,
+    "severity": "info",
+    "category": "simplify",
+    "title": "App catalog header over-explains settled constraints",
+    "body": "The file header spends ten lines re-arguing privacy, subprocess posture, failure behavior, and CI behavior. The code only needs a compact description of the catalog and cache; the rationale belongs in decisions or architecture docs.",
+    "_lane": "ai_apps"
+  },
+  {
+    "file": "spikes/foundation-models/Sources/usageos-ai/main.swift",
+    "line": 1,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Spike file repeats README-level rationale",
+    "body": "The top block lists the whole spike plan and decision IDs even though `spikes/foundation-models/README.md` already records the experiment. Keep only the run commands or a one-line purpose statement in code.",
+    "_lane": "ai_apps"
+  },
+  {
+    "file": "spikes/foundation-models/Package.swift",
+    "line": 3,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Package manifest comment is mostly decision archaeology",
+    "body": "The manifest is 17 lines, with half of it explaining why the spike exists and that it is not wired yet. Replace the paragraph with a short package note and leave the experiment rationale in the spike README.",
+    "_lane": "ai_apps"
+  },
+  {
+    "file": "src-tauri/src/capture/mod.rs",
+    "line": 22,
+    "severity": "critical",
+    "category": "sql-leak",
+    "title": "Capture owns rusqlite handles outside the repository layer",
+    "body": "This production module imports `rusqlite::Connection`, accepts `&Connection` through the span state machine, and locks `DbConnection` directly in `consume`. That violates the hard rule that SQL handles live only in `db.rs`/`migrations.rs`. Move the persistence operations behind a repository API or trait owned by `db.rs`, so capture passes typed focus/tick inputs and never sees the connection.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/macos/browser.rs",
+    "line": 64,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Unreadable Chromium privacy state keeps the AX title",
+    "body": "When `run_osa` returns `None` for `-1743`/spawn failure, `inspect` returns `Normal(None)`, and the caller keeps the AX title. If the front Chromium window is private while Automation is denied or unavailable, this records a title despite the D8 contract. Fail closed for scriptable browsers whose mode cannot be read: blank title/url or decline to emit browser titles until privacy state is known.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/macos/mod.rs",
+    "line": 191,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Title-only dedupe drops URL, cwd, and private-state changes",
+    "body": "`emit` returns before `browser::inspect` and `terminal::front_cwd`, so an unchanged AX title suppresses changes in URL, cwd, or incognito state. The consumer then keeps extending the previous row with stale project/site/private fields. Build the full capture identity first and dedupe on all persisted signals, or remove producer dedupe and let the consumer coalesce.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/mod.rs",
+    "line": 147,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Coalescing ignores stored project fields",
+    "body": "`same_window` compares app/title/url/private, but `Focus` also persists `site`, `project_id`, and `project_abstain_reason`. If terminal cwd or another project signal changes while app/title/url stay the same, capture extends the old span and never writes the new project. Include all persisted enrichment fields in the coalescing key.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/mod.rs",
+    "line": 284,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Focus events can move span end times backwards",
+    "body": "The tick path guards `now > open.end`, but focus handling writes `ev.timestamp` directly when extending or closing spans. A delayed event or wall-clock skew can shrink `end_time`. Clamp focus close/extend timestamps with the current `open.end` and add a focused regression test mirroring the tick skew test.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/mod.rs",
+    "line": 238,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Category lookup failures are silently downgraded to uncategorized",
+    "body": "`open_span` logs `find_category` errors and still inserts the event with `category_id = None`. Since this function already returns `rusqlite::Result`, propagate the error with `?` so DB failures do not silently corrupt categorization.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/macos/mod.rs",
+    "line": 261,
+    "severity": "warning",
+    "category": "bug",
+    "title": "AX notification registration errors are ignored",
+    "body": "`install_observer` discards every `add_notification` result, then can return `Some` and reset capture health even if no usable notifications were registered. Track successful core registrations and return `None` or log a degraded state when registration fails; keep unsupported optional notifications nonfatal.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/macos/browser.rs",
+    "line": 32,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Chrome Canary maps to the stable Chrome AppleScript name",
+    "body": "`com.google.Chrome.canary` is mapped to `Google Chrome`, so AppleScript can query the wrong app or fail while Canary is frontmost. That breaks URL and private-mode detection for the bundle this branch claims to support. Map Canary to its actual application name or remove it until verified.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/mod.rs",
+    "line": 35,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "FocusEvent carries unused native identity fields",
+    "body": "`bundle_id` and `pid` are filled by sources but are never read by the consumer; the macOS implementation already keeps those values in `FrontApp`/`CallbackContext`. Remove them from `FocusEvent` unless they are persisted or used in capture logic.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/polling.rs",
+    "line": 20,
+    "severity": "info",
+    "category": "simplify",
+    "title": "PollingCapture has an unused configuration field",
+    "body": "`interval` is private and only ever set by `Default`, so the struct looks configurable without actually being configurable. Make `PollingCapture` a unit struct and use `POLL_INTERVAL` directly, or add a real constructor if tests need injection.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/macos/mod.rs",
+    "line": 169,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Keepalive field is hidden behind a ceremonial read",
+    "body": "`let _ = &self.observer` exists only to mark the field as used. Rename the field to `_observer` or wrap the native keepalives in a small struct with a direct comment, then remove this dead-looking line.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/mod.rs",
+    "line": 125,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Patient app matching allocates per pattern per tick",
+    "body": "`p.to_lowercase()` allocates for every pattern check. Store the patient patterns lowercase and compare against the already-lowercased app string.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/mod.rs",
+    "line": 108,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Patient-gate comments repeat decision history",
+    "body": "The comment block re-narrates the dogfood rationale and debate outcome already captured in decisions. Keep the operational invariant near the constant and move the decision archaeology out of code.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/macos/browser.rs",
+    "line": 1,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Browser module header is a decision digest",
+    "body": "The opening comment restates D8/C5/R18/C6 policy in prose instead of just documenting the local invariant. Shorten it to the behavior this module must enforce and leave the rationale in `context/standards`/`context/decisions`.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/src/capture/macos/terminal.rs",
+    "line": 44,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Terminal fallback comment still carries verification-process notes",
+    "body": "The `[on-device verify]` marker and multi-line fallback rationale read like plan residue rather than a code invariant. Verify or track that in the plan, then leave a short comment explaining the current heuristic and its failure mode.",
+    "_lane": "capture"
+  },
+  {
+    "file": "src-tauri/capabilities/default.json",
+    "line": 9,
+    "severity": "critical",
+    "category": "privacy",
+    "title": "Default opener permission allows arbitrary web URLs",
+    "body": "`opener:default` expands to URL-opening permissions for `http://`, `https://`, `mailto:`, and `tel:`, but the app only uses `revealItemInDir`. This gives the webview a network-capable command outside the explicit update-check exception. Remove `opener:default` and keep only `opener:allow-reveal-item-in-dir` or a custom reveal-only permission.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/src/lib.rs",
+    "line": 31,
+    "severity": "critical",
+    "category": "sql-leak",
+    "title": "Command layer owns the rusqlite handle",
+    "body": "`lib.rs` imports `rusqlite::Connection`, aliases it as command state, and each command locks/passes `&Connection`. That violates rule 4. The shared `Arc<Mutex<Connection>>` can stay, but the alias and locking should live in `db.rs` behind repository methods or a repository state type so handlers never see the handle.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/tauri.conf.json",
+    "line": 25,
+    "severity": "warning",
+    "category": "privacy",
+    "title": "Webview CSP is disabled in a local-only app",
+    "body": "`csp: null` leaves no runtime block on remote connections, scripts, images, or fonts. Set an explicit restrictive CSP for self, Tauri IPC/local assets, and `data:` icons so the local-only promise is enforced by config as well as code review.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/src/lib.rs",
+    "line": 72,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "Legacy raw-log IPC command is still exported",
+    "body": "`get_activity_stats` is registered and generated, but no authored frontend code calls `getActivityStats`; the UI uses `getDay`, `getWeek`, and `getTimeline`. It keeps raw `ActivityLog` fields in the IPC surface. Remove the command, wrapper, and regenerated binding output unless there is a current caller.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/src/lib.rs",
+    "line": 265,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Generic settings command bypasses retention cleanup",
+    "body": "`update_setting` can set any key, including `data_retention_days`, without running the prune side effect that `set_retention_days` exists to guarantee. Restrict this command to safe keys, or replace it with dedicated commands such as `set_theme`.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/src/lib.rs",
+    "line": 329,
+    "severity": "warning",
+    "category": "bug",
+    "title": "CSV export can overwrite a same-second export",
+    "body": "The export filename only uses `now_unix()` seconds and `File::create` truncates existing files. A double-click or retry within one second overwrites the first export. Use `create_new` with a suffix retry, or include a higher-resolution timestamp.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/src/lib.rs",
+    "line": 9,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "Internal modules are public to suppress dead_code",
+    "body": "The comments say `db`, `capture`, and `ai` are public mainly because not-yet-wired APIs would warn. That widens the crate API and hides dormant code. Keep modules private and put targeted `#[allow(dead_code)]` only on the specific intentionally dormant seam/items.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/src/lib.rs",
+    "line": 248,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "Watcher health threshold is duplicated",
+    "body": "`healthy: errors < 6` duplicates the capture module's threshold. Expose `capture::is_healthy()` or a threshold accessor and have the command use it, so status cannot drift from the capture warning threshold.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/Cargo.toml",
+    "line": 19,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "serde_json is no longer a direct dependency",
+    "body": "The only direct reference is a comment saying the old `serde_json::Value` was replaced. Remove the direct dependency; transitive users will keep it in the lockfile if they still need it.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/tauri.conf.json",
+    "line": 30,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "Bundle targets still say all for a macOS-only product",
+    "body": "`targets: \"all\"` is Tauri-template flexibility that can produce platform-specific bundles when built on other OSes, despite the contract saying macOS-only. Set explicit macOS bundle target(s) and drop irrelevant icon entries such as the Windows `.ico` if no cross-platform release is planned.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/src/lib.rs",
+    "line": 45,
+    "severity": "info",
+    "category": "style",
+    "title": "IPC error messages expose implementation jargon",
+    "body": "`database error: {0}` and `database lock was poisoned` cross the typed IPC boundary and are displayed by the frontend error wrapper. Keep the typed `kind`, but map failures to human copy and log technical details locally.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/Cargo.toml",
+    "line": 21,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Dependency comments contain decision archaeology",
+    "body": "The specta pin is deliberate, but the manifest carries a multi-line postmortem with time-sensitive claims like \"latest 2.x\". Replace it with a short \"pinned per D17/D27\" note and leave the rationale in `context/decisions.md`.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/Cargo.toml",
+    "line": 5,
+    "severity": "info",
+    "category": "style",
+    "title": "Package metadata still has placeholder author",
+    "body": "`authors = [\"you\"]` is starter metadata, and the manifest also omits the MIT license called out in the project contract. Replace the author or remove the field, and add `license = \"MIT\"`.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "package.json",
+    "line": 2,
+    "severity": "info",
+    "category": "style",
+    "title": "NPM package still uses the Tauri starter name",
+    "body": "`\"name\": \"tauri-app\"` shows up in npm tooling and build/test metadata. Rename it to the project package name, for example `usage-os`, and let the lockfile update with it.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/src/main.rs",
+    "line": 1,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Windows template attribute remains in a macOS-only app",
+    "body": "The release-only `windows_subsystem` attribute is dead platform baggage for this product. Remove it to keep the entrypoint aligned with the macOS-only contract.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": ".githooks/pre-push",
+    "line": 2,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Hook preamble repeats the process contract",
+    "body": "The hook opens with a seven-line rationale that restates `CLAUDE.md`. Keep a one-line purpose and the enable command; the detailed Definition-of-Done explanation belongs in the project contract.",
+    "_lane": "commands_cfg"
+  },
+  {
+    "file": "src-tauri/src/db.rs",
+    "line": 264,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Range reads miss and overcount spans crossing boundaries",
+    "body": "`get_activity_logs` filters only on `start_time >= start` and `start_time <= end`. A span from 23:50 to 00:10 is counted wholly in the first day and missing from the next; a span starting exactly at `end_time` can also appear in adjacent half-open day/week slices. Use overlap semantics (`end_time > start AND start_time < end`) and clip returned bounds for rollup reads, or add a dedicated clipped range query.",
+    "_lane": "data"
+  },
+  {
+    "file": "src-tauri/src/db.rs",
+    "line": 429,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Reprocess treats rule patterns as SQL wildcards",
+    "body": "Live categorization uses Rust substring matching, but `reprocess_logs` wraps the user pattern in `%...%` and feeds it to `LIKE`, so `%` and `_` in a rule become wildcards during history reprocessing. That can recategorize old events differently from new capture. Use `instr(lower(column), lower(?)) > 0` with the raw pattern, or escape LIKE metacharacters with an `ESCAPE` clause.",
+    "_lane": "data"
+  },
+  {
+    "file": "src-tauri/src/db.rs",
+    "line": 420,
+    "severity": "critical",
+    "category": "bug",
+    "title": "History reprocessing is not atomic",
+    "body": "`reprocess_logs` clears every `category_id` before applying rules one by one. If any later update fails, the database is left partially uncategorized or partially reprocessed. Make this function take `&mut Connection` and run the reset plus all rule updates inside one transaction.",
+    "_lane": "data"
+  },
+  {
+    "file": "src-tauri/src/db.rs",
+    "line": 374,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Empty rules can match every event",
+    "body": "`create_rule` accepts an empty or whitespace-only pattern, and both matchers then treat it as match-all (`contains(\"\")` and `LIKE '%%'`). A malformed advanced rule can sort all history into one category. Trim and reject empty patterns at the repository boundary, and add a focused test.",
+    "_lane": "data"
+  },
+  {
+    "file": "src-tauri/src/db.rs",
+    "line": 753,
+    "severity": "critical",
+    "category": "privacy",
+    "title": "Empty exclusions can drop or privatize every capture",
+    "body": "`create_exclusion` has the same empty-pattern hole: `match_exclusion` will match `target.contains(\"\")`, so an empty `exclude` rule drops all events and an empty `private` rule blanks all titles/URLs. Reject empty patterns before insert and consider a schema/check constraint for defense in depth.",
+    "_lane": "data"
+  },
+  {
+    "file": "src-tauri/src/db.rs",
+    "line": 601,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Alias collisions silently misassign weak project signals",
+    "body": "`add_project_alias` uses `INSERT OR IGNORE` on globally-unique `(alias_kind, alias_value)`. If two projects share a weak alias like `app` or `server`, the second alias is silently ignored and later weak signals resolve to the first project instead of abstaining as ambiguous. Detect an existing alias for a different `project_id` and mark/skip that alias so weak lookups cannot confidently return the wrong project.",
+    "_lane": "data"
+  },
+  {
+    "file": "src-tauri/migrations/0006_relatable_default_categories.sql",
+    "line": 12,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Fresh-install gate also rewrites configured empty databases",
+    "body": "This migration equates `COUNT(activity_logs) = 0` with a fresh install. An existing user who configured categories/rules before any capture landed still has an empty activity table, so the migration renames defaults, inserts Personal, and adds rules despite the comment promising existing configuration is never modified. Gate on the exact untouched seed state instead of activity count alone.",
+    "_lane": "data"
+  },
+  {
+    "file": "src-tauri/migrations/0001_initial_schema.sql",
+    "line": 76,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Enum-like columns are documented but not enforced",
+    "body": "Columns such as `rules.match_field`, `exclusions.match_type`, `exclusions.mode`, `sites.kind`, and `activity_logs.project_abstain_reason` are comments-only enums. The repository accepts strings, and invalid values are stored then silently ignored or treated as title rules. Add repository validation now, and add CHECK constraints in the next migration where practical.",
+    "_lane": "data"
+  },
+  {
+    "file": "src-tauri/src/db.rs",
+    "line": 143,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "`ignore_title` is a dead rule field",
+    "body": "`ignore_title` is stored, returned over IPC, accepted by `create_rule`, and tested only for persistence, but neither `find_category` nor `reprocess_logs` reads it. Remove the column/field/parameter and the storage-only test, or wire real semantics; as-is it is a stale knob that does nothing.",
+    "_lane": "data"
+  },
+  {
+    "file": "src-tauri/src/db.rs",
+    "line": 196,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "Legacy insert helper bypasses the real event path",
+    "body": "`insert_activity_log` is public production API but is only used by tests, and it bypasses the enriched/private-event write shape in `insert_event`. Move it behind `#[cfg(test)]` or update tests to use `insert_event` directly so there is one write path to maintain.",
+    "_lane": "data"
+  },
+  {
+    "file": "src-tauri/src/db.rs",
+    "line": 120,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Category comments are stale decision archaeology",
+    "body": "The `Category` doc still says only four canonical slugs exist and re-explains the Category/SQL naming decision. It is now stale after the Personal category and duplicates ADR context. Replace it with a short current invariant: `slug` is optional canonical identity used for UI color tokens; user categories have `None`.",
+    "_lane": "data"
+  },
+  {
+    "file": "src-tauri/migrations/0004_recategorize_claude_as_deep.sql",
+    "line": 1,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Migration comments re-narrate the ADR",
+    "body": "The long comment block explains the product debate and historical rationale already recorded in decisions. Keep migration comments to the invariant and data operation, e.g. `Move the seeded Claude process rule from research to deep and relabel matching research rows`; leave the why in the decision log.",
+    "_lane": "data"
+  },
+  {
+    "file": "src/components/settings/CategoryEditorModal.tsx",
+    "line": 54,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Advanced title rules are saved as process rules",
+    "body": "The drawer is labelled as window-title matching and the copy says the prefix is assumed, but unprefixed tokens return `match_field: \"process\"`. A user typing `invoice` creates a process-name rule, while `title:   ` can create an empty title rule that matches everything; default this parser to `title` in this flow and reject empty trimmed patterns.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/settings/CategoryEditorModal.tsx",
+    "line": 142,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Cancelling a moved app still deletes its old rule",
+    "body": "After resolving a conflict with \u201cMove it here\u201d, toggling that pending app off only removes it from `added`; the old owner rule remains in `movedIds` and is deleted on save. Track the moved rule with the pending app and remove its id when the pending add is removed.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/timeline/TimelineRow.tsx",
+    "line": 84,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Timeline reports segment count as app switches",
+    "body": "The expanded header renders `run.segments.length` as \u201capp switches\u201d, so one segment is shown as one switch and four segments as four switches. Use `countSwitches(run.segments)` consistently, and also show the `1 switch` case in the collapsed row.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/ui/Modal.tsx",
+    "line": 28,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Modal steals focus from autofocus fields",
+    "body": "The modal focuses the dialog container after mount, overriding child inputs that set `autoFocus` in the delete/category/exclusion flows. Only focus the dialog if focus is not already inside it.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/ui/Modal.tsx",
+    "line": 47,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Tall modals can overflow off-screen",
+    "body": "The dialog has a max width but no max height or internal scroll. Category editing can exceed a short window and make the footer unreachable; add viewport-bounded height and scrolling to the dialog/body.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/ui/LedgerRow.tsx",
+    "line": 27,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Clickable ledger rows are not keyboard reachable",
+    "body": "`LedgerRow` attaches `onClick` to a `div` and always shows `cursor-pointer`, so keyboard and assistive-tech users cannot activate category isolation. Render a button when interactive, or add role, tabIndex, and Enter/Space handling.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/ui/Select.tsx",
+    "line": 18,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "Custom select is overbuilt and incomplete",
+    "body": "This one-off retention picker implements listbox roles but only supports mouse click and Escape, with no option focus, arrows, or typeahead. A token-styled native `select` would be shorter and more accessible unless full custom keyboard behavior is added.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/ui/AppIcon.tsx",
+    "line": 30,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "AppIcon refetches data callers already have",
+    "body": "`AppPicker` receives `InstalledApp` objects with `icon`, then each `AppIcon` separately loads the installed-app catalog through `loadIconMap()`. Pass the icon through or share one catalog source to remove the duplicate IPC/cache path.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/settings/CategoryEditorModal.tsx",
+    "line": 24,
+    "severity": "warning",
+    "category": "design-system",
+    "title": "Custom category palette bypasses the fixed tokens",
+    "body": "The palette hard-codes off-token hex colors, including colors outside the five category vocabulary. If custom categories remain, move the allowed palette into design tokens; if D47\u2019s fixed vocabulary is the product contract, remove the custom color/category path.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/shell/ThemeSwitcher.tsx",
+    "line": 7,
+    "severity": "warning",
+    "category": "design-system",
+    "title": "Theme swatches duplicate token hex values",
+    "body": "The switcher mirrors `tokens.css` with hard-coded hex colors, so token changes can drift. Put `data-theme={t}` on the swatch and use `background: var(--bg)` instead.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/shell/TitleBar.tsx",
+    "line": 5,
+    "severity": "warning",
+    "category": "design-system",
+    "title": "Titlebar muted color is off-token",
+    "body": "`rgba(255,255,255,0.65)` bypasses the theme tokens and is not tied to `--bar-fg`. Add a `--bar-muted` token or derive it with `color-mix` from `--bar-fg`.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/ui/Modal.tsx",
+    "line": 36,
+    "severity": "warning",
+    "category": "design-system",
+    "title": "Modal overlay uses raw black",
+    "body": "`bg-black/50` is an ad-hoc color outside the token system. Add an overlay token or use a token-derived color so all themes remain controlled by `tokens.css`.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/index.css",
+    "line": 49,
+    "severity": "warning",
+    "category": "design-system",
+    "title": "Skeleton shimmer violates the flat-fill contract",
+    "body": "The global skeleton uses a linear gradient, while the design contract bans gradients. Use a flat token fill plus opacity/pulse, or document a specific skeleton exception in the design system.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/shell/AppShell.tsx",
+    "line": 25,
+    "severity": "warning",
+    "category": "design-system",
+    "title": "App frame spacing is hard-coded in px",
+    "body": "The app shell sets core layout with arbitrary pixel utilities such as `max-w-[1040px]` and `px-[22px]`. Promote these frame and spacing values to Tailwind/CSS tokens so the visual system is not scattered through component classes.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/shell/TitleBar.tsx",
+    "line": 55,
+    "severity": "info",
+    "category": "style",
+    "title": "Status copy uses internal capture jargon",
+    "body": "\u201cCapture issue\u201d exposes implementation language to the user. Use plainer product copy such as \u201cTracking needs attention\u201d or \u201cTracking paused.\u201d",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/settings/DeleteAllModal.tsx",
+    "line": 62,
+    "severity": "info",
+    "category": "style",
+    "title": "Delete copy exposes the database filename",
+    "body": "`usage.db` is implementation detail in destructive user-facing copy. Say it deletes the recorded history while keeping categories, rules, and exclusions.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/settings/CategoryEditorModal.tsx",
+    "line": 188,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Impossible category id guard leaks ceremony",
+    "body": "`createCategory` returns a `number`, and the edit branch already has `category.id`, so `Missing category id` is unreachable UI ceremony. Split the create/edit branch so `id` is always a number without throwing this synthetic error.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/ui/Toggle.tsx",
+    "line": 12,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Toggle is production-dead",
+    "body": "`Toggle` is only imported by its story and has no production caller. Remove it until a real setting needs it, or keep it only in the design gallery rather than shipping unused UI code.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/components/dial/Dial.tsx",
+    "line": 43,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Dial comment restates design archaeology",
+    "body": "The block comment re-lists visual features and decision IDs already captured in the design contract. Keep only non-obvious invariants in code and leave the rationale in `context/design-system.md` / decisions.",
+    "_lane": "fe_components"
+  },
+  {
+    "file": "src/views/SettingsView.tsx",
+    "line": 33,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Canonical category order is stale and sorts Personal first",
+    "body": "CANON_ORDER still has only the four pre-D47 slugs. For the new `personal` slug, `indexOf` returns -1, so Personal sorts before Work; any future slug with a value would do the same. Derive this order from the canonical slug list and treat missing entries as the fallback bucket.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/lib/categories.ts",
+    "line": 12,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Hard-coded category labels can disagree with the database",
+    "body": "CANONICAL_CATEGORIES bakes in display names, but D47 only renames fresh installs and Settings still allows built-in category names to be edited. Day/Timeline legends can therefore show Work while the backend slices say Deep work or a user-edited name. Keep only slug/order here, and render labels from backend category data, or make canonical names immutable.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/SettingsView.tsx",
+    "line": 150,
+    "severity": "warning",
+    "category": "bug",
+    "title": "New-category flow drops the uncategorized app being sorted",
+    "body": "UncategorizedApps calls `onNewCategory(appName)`, but SettingsView ignores the argument and opens a blank CategoryEditorModal. The user action loses the app they selected. Store the pending app name and pre-seed the new category/rule, or remove the New category option until that path is wired.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/lib/runs.ts",
+    "line": 14,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Dial inspector hides mixed no-project time",
+    "body": "summarizeRun filters out `No project` and never adds it back, so a run split between a real project and no-project time shows only the real project in the Day inspector. Mirror the Timeline project-line behavior and include `no project <duration>` when it is one of multiple buckets.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/hooks/useDayData.ts",
+    "line": 22,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Range changes can be overwritten by stale IPC responses",
+    "body": "fetchDay has no request id or cancellation guard. If the user changes days while an older getDay call is still in flight, the old response can set data/error/loading for the new range. Add an alive/request-token guard; the same copied pattern exists in useTimelineData and useWeekData.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/providers/ThemeProvider.tsx",
+    "line": 57,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Initial settings load can overwrite a user-selected theme",
+    "body": "The async getSettings result always applies if it returns a valid saved theme. If the user changes theme before that load resolves, the old persisted value can flip the UI back. Track whether the user has changed the theme, or apply the loaded value only if state is still at the initial default.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/DayView.tsx",
+    "line": 76,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Retry does not retry the capture health check",
+    "body": "The degraded banner's Retry action only refreshes day data; `captureHealthy` is only queried in the effect keyed by `start`, so the banner cannot clear after capture recovers unless the view remounts or the date changes. Make the retry path refresh watcher status too, and apply the same fix to Timeline and Week.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/DayView.tsx",
+    "line": 54,
+    "severity": "warning",
+    "category": "style",
+    "title": "Focus stat is stale after the category rename",
+    "body": "`focusPct` still treats `deep + research` as Focus, but D47 renamed those buckets to Work and Browsing. That makes Browsing count as focus and keeps evaluative copy in a calm mirror UI. Rename this to a factual label or move the metric to Rust with a precise definition.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/WeekView.tsx",
+    "line": 83,
+    "severity": "info",
+    "category": "style",
+    "title": "Deepest day copy is legacy jargon",
+    "body": "The user-facing label still says `Deepest day` even though the category is now Work and the voice avoids productivity-coach wording. Use a factual label such as `Most work` or the actual category name.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/hooks/useInstalledApps.ts",
+    "line": 7,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "Installed-app catalog is cached in two separate places",
+    "body": "useInstalledApps keeps its own cache while appIcons.loadIconMap keeps another cache and both call listInstalledApps. A transient failure can leave icons/suggestions and the picker in different states, and the app does duplicate IPC work. Share one catalog loader and derive icons, suggestions, and picker data from it.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/hooks/useWeekData.ts",
+    "line": 21,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Week hook serializes day starts just to deserialize them",
+    "body": "The hook turns `dayStarts` into a comma string for dependencies and then splits it back into numbers before calling getWeek. This is patchwork indirection; memoize/copy the array at the caller boundary or derive a key only for dependency comparison while passing the original numbers through.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/DayView.tsx",
+    "line": 146,
+    "severity": "warning",
+    "category": "simplify",
+    "title": "Date navigation is duplicated across views",
+    "body": "DayNav, TimelineNav, and WeekNav duplicate the same refresh/previous/next button structure and styling, with only labels and step size changing. Extract a small shared nav component so copy, accessibility, disabled behavior, and design-token fixes land once.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/SettingsView.tsx",
+    "line": 157,
+    "severity": "info",
+    "category": "style",
+    "title": "Stale ctx naming survived the Category rename",
+    "body": "The Settings view still uses `ctx` for categories after the D46 Context to Category rename. Rename these locals and props to `category` / `categoryRules` so this file stops carrying the old vocabulary.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/SettingsView.test.tsx",
+    "line": 58,
+    "severity": "warning",
+    "category": "test",
+    "title": "Settings test fixture is stale after Uncategorized and D47",
+    "body": "The test says there are four buildable groups and does not assert the Uncategorized group; its fixture also still uses `Deep work` and omits the Personal category. Update the fixture/assertions so the test catches the current five-category model and the Uncategorized-first settings surface.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/TimelineView.tsx",
+    "line": 82,
+    "severity": "info",
+    "category": "style",
+    "title": "Timeline shows instructional product copy in the app chrome",
+    "body": "`Each block is... Click one...` is visible how-to text, which the UI guidance explicitly avoids. Make the row affordance obvious through the component itself and remove this explanatory sentence.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/WeekView.tsx",
+    "line": 135,
+    "severity": "info",
+    "category": "style",
+    "title": "Week view uses visible how-to copy",
+    "body": "`Click a day to open it \u2191` describes interaction mechanics in the app surface. Remove it and rely on button affordance, hover/focus state, and accessible labels.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/SettingsView.tsx",
+    "line": 196,
+    "severity": "info",
+    "category": "design-system",
+    "title": "Settings uses an emoji as UI iconography",
+    "body": "The lock emoji is not part of the Bauhaus token/icon system and will render differently across platforms. Use text only or a proper local icon primitive for the Always on state.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/DayView.tsx",
+    "line": 91,
+    "severity": "warning",
+    "category": "design-system",
+    "title": "Day view uses raw pixel Tailwind values",
+    "body": "Classes such as `gap-[30px]` and `md:grid-cols-[330px_1fr]` bypass the design-token scale. Replace arbitrary px utilities with named Tailwind/theme tokens or reusable layout primitives.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/SettingsView.tsx",
+    "line": 137,
+    "severity": "warning",
+    "category": "design-system",
+    "title": "Settings view uses raw pixel Tailwind values",
+    "body": "The view contains many arbitrary px utilities (`min-h-[18px]`, `text-[11px]`, `py-[13px]`, etc.). Hard rule 7 says UI spacing/type should come from tokens, so move these values into the design scale or shared primitives.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/TimelineView.tsx",
+    "line": 98,
+    "severity": "warning",
+    "category": "design-system",
+    "title": "Timeline view uses raw pixel Tailwind values",
+    "body": "The legend and timeline rows use arbitrary px utilities like `gap-[7px]`, `px-[9px]`, and fixed grid columns. Replace them with tokenized Tailwind utilities or component-level design tokens.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/WeekView.tsx",
+    "line": 75,
+    "severity": "warning",
+    "category": "design-system",
+    "title": "Week view uses raw pixel Tailwind values",
+    "body": "The weekly summary and grid cells use arbitrary px utilities such as `px-[18px]` and `px-[5px]`. Move these measurements to the token scale instead of hard-coding pixel values in view code.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/views/SettingsView.tsx",
+    "line": 288,
+    "severity": "warning",
+    "category": "design-system",
+    "title": "Custom category colors bypass theme tokens",
+    "body": "For non-canonical categories the swatch uses `ctx.color` directly, which can be an arbitrary hex value from the database and will not adapt across themes. Use a tokenized neutral/custom-category color, or constrain saved colors to theme-aware tokens.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/lib/tauri.ts",
+    "line": 80,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Week wrapper comment says exclusive end, but callers pass inclusive bounds",
+    "body": "The comment says `weekEnd` is exclusive, while dayBounds returns 23:59:59 and the Rust range docs/query are inclusive. Fix the comment or the range convention so future changes do not introduce an off-by-one bug.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/lib/tauri.ts",
+    "line": 56,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Thin IPC wrappers are over-commented",
+    "body": "The wrapper JSDoc mostly restates function names, parameters, and decisions already documented in CLAUDE/context docs. Keep only comments that explain a non-obvious invariant; the command names and generated types already carry the rest.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src/lib/appIcons.ts",
+    "line": 1,
+    "severity": "info",
+    "category": "simplify",
+    "title": "App icon resolver opens with decision archaeology",
+    "body": "The nine-line header re-narrates backend behavior, caching, fallback rationale, and memory assumptions before the code starts. Trim it to the invariant the module owns and leave the historical rationale in decisions/docs.",
+    "_lane": "fe_logic"
+  },
+  {
+    "file": "src-tauri/src/enrich/project.rs",
+    "line": 57,
+    "severity": "critical",
+    "category": "sql-leak",
+    "title": "Project inference owns a SQLite handle",
+    "body": "`infer_project` takes `&rusqlite::Connection` and `resolve` performs repository lookups/creates from the `enrich` layer. That leaks the DB handle into business logic, violating hard rule 4. Keep `enrich` pure (return a project candidate or abstain), and move alias lookup plus resolve-or-create behind a `db.rs` repository function or a repository trait that does not expose `rusqlite`.",
+    "_lane": "rollup_enrich"
+  },
+  {
+    "file": "src-tauri/src/rollup.rs",
+    "line": 164,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Slugless categories collapse into Other",
+    "body": "`category_of` maps every user-created category with `slug == None` to the same `other` slug, the same slug used for uncategorized events. Since totals and run coalescing key by slug, distinct custom categories merge, adjacent runs coalesce, and later segments can inherit the first category name. Use a stable distinct identity for slugless categories (for example carry the category id and emit `category-<id>`) and reserve `other` for no matched category.",
+    "_lane": "rollup_enrich"
+  },
+  {
+    "file": "src-tauri/src/rollup.rs",
+    "line": 156,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Rollups count full spans across day boundaries",
+    "body": "`duration` always returns `end_time - start_time`, and the builders do not clip spans to the requested day/week range. A span from 23:50 to 00:10 is counted entirely on the day it started and absent from the next day. Clamp or split spans at range boundaries before aggregation/run building, and add a midnight-crossing regression test.",
+    "_lane": "rollup_enrich"
+  },
+  {
+    "file": "src-tauri/src/enrich/project.rs",
+    "line": 73,
+    "severity": "critical",
+    "category": "bug",
+    "title": "Browser titles can create fake projects",
+    "body": "After a URL is classified as `NoSignal` or `Ambiguous`, inference still falls through to `classify_title` for any title. Real browser events include both URL and title, so pages like `youtube.com` with `Video - YouTube` or `github.com/notifications` with `Notifications - GitHub` can persist fake projects. Gate title inference to known editor sources, or skip title fallback whenever a URL was present but not a project.",
+    "_lane": "rollup_enrich"
+  },
+  {
+    "file": "src-tauri/src/enrich/project.rs",
+    "line": 159,
+    "severity": "warning",
+    "category": "bug",
+    "title": "GitHub host matching is too broad",
+    "body": "`host.ends_with(\"github.com\")` treats `gist.github.com/user/id` and `evilgithub.com/owner/repo` as repo URLs, then writes bogus `owner/repo` projects. Normalize the host and require an exact vetted repo host such as `github.com` or `www.github.com` before owner/repo parsing.",
+    "_lane": "rollup_enrich"
+  },
+  {
+    "file": "src-tauri/src/enrich/project.rs",
+    "line": 176,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Loopback URLs with ports miss ambiguity handling",
+    "body": "`parse_url` leaves the port in `host`. The local-dev branch handles `localhost:3000` but not `127.0.0.1:3000` or IPv6 loopback, so common local dev URLs become `no-signal` instead of `ambiguous`. Strip ports and normalize loopback hosts once before classification.",
+    "_lane": "rollup_enrich"
+  },
+  {
+    "file": "src-tauri/src/rollup.rs",
+    "line": 757,
+    "severity": "warning",
+    "category": "bug",
+    "title": "Tied projects can be narrated as the clear leader",
+    "body": "`max_by_key` over a `HashMap` picks one tied project from unspecified iteration order, then the 40% threshold can render `Mostly on X` even when X tied another project. Since this fact is documented as a single clear leader, compute the top two totals and return `None` on ties or require top > runner-up.",
+    "_lane": "rollup_enrich"
+  },
+  {
+    "file": "src-tauri/src/rollup.rs",
+    "line": 25,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Constant comments carry decision history",
+    "body": "The `ABSORB_SECS` and absorb-cap comments embed D34a/D41 history, old 90 to 180 tuning, and debate rationale. Keep only the threshold semantics and invariant in code; move the historical rationale to `context/decisions.md`.",
+    "_lane": "rollup_enrich"
+  },
+  {
+    "file": "src-tauri/src/enrich/project.rs",
+    "line": 1,
+    "severity": "info",
+    "category": "simplify",
+    "title": "Module docs duplicate ADR rationale",
+    "body": "The module comment restates D30 spike rationale such as the headline finding and trust tradeoff before the code starts. That decision archaeology already belongs in `context/decisions.md`; reduce this to the layer contract: signals in, candidate or abstain out.",
+    "_lane": "rollup_enrich"
+  }
+]

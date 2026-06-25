@@ -20,7 +20,8 @@ import {
 } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 
-/** Default palette for user categories (canonical four take their theme token instead). */
+// The colour-picker choices for a user category — intentional literals (the user picks an
+// actual stored hex), not theme tokens. Canonical categories take their theme token instead.
 const PALETTE = ["#1B45BE", "#E0241B", "#EAB308", "#7A4FC2", "#1D9E75", "#161616"] as const;
 
 interface PendingRule {
@@ -38,6 +39,8 @@ export interface CategoryEditorModalProps {
   open: boolean;
   /** `null` = add a new category; otherwise edit this one. */
   category: Category | null;
+  /** A process name to pre-add as a rule (from "New category…" in the Uncategorized list). */
+  seedApp?: string | null;
   /** All rules (to detect cross-category conflicts) and all categories (to name them). */
   rules: Rule[];
   categories: Category[];
@@ -45,18 +48,17 @@ export interface CategoryEditorModalProps {
   onSaved: () => void | Promise<void>;
 }
 
-/** Parse an advanced free-text token: a leading `title:` targets the window title, else
- *  the process name. Returns `null` for an empty token. */
-function parseRule(token: string): PendingRule | null {
-  const t = token.trim();
-  if (!t) return null;
-  const m = /^title:\s*(.+)$/i.exec(t);
-  return m ? { match_field: "title", pattern: m[1].trim() } : { match_field: "process", pattern: t };
+/** Parse a token from the "match by window title" drawer into a title rule. A leading
+ *  `title:` prefix is stripped (the drawer already implies it). Returns `null` when empty. */
+function parseTitleRule(token: string): PendingRule | null {
+  const t = token.trim().replace(/^title:\s*/i, "").trim();
+  return t ? { match_field: "title", pattern: t } : null;
 }
 
 export function CategoryEditorModal({
   open,
   category,
+  seedApp,
   rules,
   categories,
   onClose,
@@ -76,19 +78,21 @@ export function CategoryEditorModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // (Re)initialize whenever the target category changes / the modal opens.
+  // (Re)initialize whenever the target category changes / the modal opens. A `seedApp`
+  // (from "New category…" in the Uncategorized list) pre-adds that app so the one you
+  // were sorting lands in the new category.
   useEffect(() => {
     if (!open) return;
     setName(category?.name ?? "");
     setColor(category?.slug ? categoryColorVar(category.slug) : (category?.color ?? PALETTE[3]));
     setRemovedIds(new Set());
     setMovedIds(new Set());
-    setAdded([]);
+    setAdded(seedApp ? [{ match_field: "process", pattern: seedApp }] : []);
     setConflict(null);
     setShowAdvanced(false);
     setRuleInput("");
     setError(null);
-  }, [open, category]);
+  }, [open, category, seedApp]);
 
   const appNames = new Set(apps.map((a) => a.name.toLowerCase()));
   const existingThis = category ? rules.filter((r) => r.category_id === category.id) : [];
@@ -140,6 +144,24 @@ export function CategoryEditorModal({
     );
     if (idx >= 0) {
       setAdded((a) => a.filter((_, j) => j !== idx));
+      // If this app was a "move" (we queued the other category's rule for deletion),
+      // un-queue that delete too — undoing the toggle must fully undo the move. Match the owner
+      // rule by the same substring relationship `processOwner` used to find it (its pattern may
+      // be a seeded substring like "Code" for "Visual Studio Code", not the full app name).
+      const moved = rules.find(
+        (r) =>
+          movedIds.has(r.id) &&
+          r.match_field === "process" &&
+          r.pattern !== "" &&
+          key.includes(r.pattern.toLowerCase()),
+      );
+      if (moved) {
+        setMovedIds((s) => {
+          const next = new Set(s);
+          next.delete(moved.id);
+          return next;
+        });
+      }
       return;
     }
     const owner = ownerElsewhere(appName);
@@ -161,7 +183,7 @@ export function CategoryEditorModal({
   const addAdvanced = () => {
     const parsed = ruleInput
       .split(",")
-      .map(parseRule)
+      .map(parseTitleRule)
       .filter((r): r is PendingRule => r !== null);
     if (parsed.length) setAdded((a) => [...a, ...parsed]);
     setRuleInput("");

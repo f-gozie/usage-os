@@ -1,12 +1,9 @@
-//! Terminal front-tab cwd — the project signal for terminals (port of
-//! `spikes/proc-cwd` + front-tab pid selection).
+//! Terminal front-tab cwd — the project signal for terminals (see D30).
 //!
-//! cwd is read with `proc_pidinfo(PROC_PIDVNODEPATHINFO)` (proven non-root,
-//! unsandboxed, no TCC grant — R22). The hard part the spike left open is *which*
-//! pid: a terminal has one shell per tab/pane and the front tab isn't exposed by a
-//! clean API. iTerm2 gives the cwd directly via AppleScript (reliable); other
-//! terminals fall back to a best-effort proc heuristic. `None` → the span abstains
-//! (D30), which degrades cleanly. **The fallback accuracy is on-device-verify.**
+//! cwd is read with `proc_pidinfo(PROC_PIDVNODEPATHINFO)` (no TCC grant needed). The open problem
+//! is *which* pid: a terminal has one shell per tab/pane and the front tab has no clean API.
+//! iTerm2 exposes the cwd directly via AppleScript; others fall back to a best-effort proc
+//! heuristic. `None` → the span abstains. (Fallback accuracy is verified on-device.)
 
 use std::ffi::c_void;
 use std::process::Command;
@@ -41,10 +38,9 @@ fn iterm2_cwd() -> Option<String> {
     }
 }
 
-/// Best-effort fallback: among the terminal's direct child processes (≈ one shell
-/// per tab/pane, found via `pgrep -P`), return the highest-pid one with a readable
-/// cwd — a rough proxy for the most recently opened tab. Front-tab selection has no
-/// clean public API; a wrong/None result just abstains (D30). [on-device verify]
+/// Best-effort fallback: among the terminal's direct child shells (`pgrep -P`), return the
+/// highest-pid one with a readable cwd — a rough proxy for the most recently opened tab. No
+/// clean front-tab API exists; a wrong/None result just abstains (D30). Verified on-device.
 fn newest_child_cwd(terminal_pid: i32) -> Option<String> {
     let mut children = child_pids(terminal_pid);
     children.sort_unstable();
@@ -67,7 +63,7 @@ fn child_pids(parent: i32) -> Vec<i32> {
         .collect()
 }
 
-/// cwd of `pid` via `proc_pidinfo(PROC_PIDVNODEPATHINFO)` (ported from the spike).
+/// cwd of `pid` via `proc_pidinfo(PROC_PIDVNODEPATHINFO)`.
 fn read_cwd(pid: i32) -> Option<String> {
     // SAFETY: a C struct valid all-zero; we hand the kernel a correctly sized
     // buffer and read back the cwd path it fills in.

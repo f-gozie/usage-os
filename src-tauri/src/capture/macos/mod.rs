@@ -1,16 +1,11 @@
-//! Event-driven macOS capture (port of `spikes/ax-observer`, D29).
+//! Event-driven macOS capture (Accessibility only; no Screen Recording). See D29.
 //!
-//! NSWorkspace `didActivateApplication` (a `block2::RcBlock`) fires on every app
-//! switch; a per-PID `AXObserver` watches `AXFocusedWindowChanged` on the app
-//! element and `AXTitleChanged` on the focused window (re-pointed when the window
-//! changes). Everything runs on the **main run loop** — `start` is called from
-//! Tauri's `setup` (main thread) and attaches the observer source + activation
-//! block to `CFRunLoop::current()`, then leaks the keep-alives (capture runs for
-//! the whole process; these objc2 types are `!Send`). On each event it reads the
-//! AX title and, for browsers/terminals, the url/cwd, and sends a [`FocusEvent`].
-//!
-//! Accessibility only — no `CGWindowList` / Screen Recording (C1). Hard rule 3: no
-//! `unwrap`/`expect`/`panic` — every AX outcome is a value we classify.
+//! NSWorkspace `didActivateApplication` fires on app switches; a per-PID `AXObserver` watches
+//! `AXFocusedWindowChanged` + `AXTitleChanged`. All native state lives on the **main run loop**
+//! (`start` runs in Tauri's `setup`, attaches to `CFRunLoop::current()`, then leaks the `!Send`
+//! keep-alives for the process lifetime). Each event reads the AX title (+ url/cwd for
+//! browsers/terminals) and sends a [`FocusEvent`]. Every AX outcome is a classified value — no
+//! `unwrap`/`expect`/`panic` (hard rule 3).
 
 mod browser;
 mod terminal;
@@ -101,9 +96,8 @@ impl CaptureSource for MacosCapture {
 
         println!("[Capture] macOS event-driven capture registered on the main run loop");
 
-        // Capture runs for the whole process. These objc2 values are !Send (can't
-        // live in Tauri state) and must outlive `start`, so leak them — the block
-        // holds the only path to `state` and its live AXObserver.
+        // These objc2 values are !Send and must outlive `start` for the process lifetime, so
+        // leak them — the block holds the only path to `state` and its live AXObserver (D33).
         std::mem::forget(activation_block);
         std::mem::forget(token);
         std::mem::forget(state);
@@ -196,9 +190,8 @@ impl CallbackContext {
         self.emit_with_title(title);
     }
 
-    /// Build and send a [`FocusEvent`] for the current app + the given title,
-    /// enriching browsers with the front-tab url and terminals with the cwd. An
-    /// incognito/private browser window drops BOTH the title and the url (D8).
+    /// Build and send a [`FocusEvent`] for the current app + title, adding the front-tab url
+    /// (browsers) and cwd (terminals). An incognito/private window drops BOTH title and url (D8).
     fn emit_with_title(&self, title: Option<String>) {
         let mut title = title;
         let mut url = None;
@@ -214,8 +207,6 @@ impl CallbackContext {
         let cwd = terminal::front_cwd(&self.bundle_id, self.pid);
         let _ = self.tx.send(FocusEvent {
             app_name: self.app_name.clone(),
-            bundle_id: Some(self.bundle_id.clone()),
-            pid: self.pid,
             window_title: title,
             url,
             cwd,
@@ -347,7 +338,7 @@ fn frontmost() -> Option<FrontApp> {
     })
 }
 
-// ── AX title read (ported from Spike #1) ─────────────────────────────────────
+// ── AX title read ────────────────────────────────────────────────────────────
 
 /// The focused-window title, or `None` (no window / empty / AX error).
 fn focused_window_title(app_el: &AXUIElement) -> Option<String> {
@@ -375,7 +366,7 @@ fn copy_focused_window(app_el: &AXUIElement) -> Option<CFRetained<AXUIElement>> 
     Some(unsafe { CFRetained::retain(ptr) })
 }
 
-/// Strip control/bidi/zero-width marks, then trim (Spike #1 finding).
+/// Strip control/bidi/zero-width marks, then trim.
 fn sanitize(s: &str) -> String {
     s.chars()
         .filter(|c| {
@@ -408,8 +399,8 @@ fn copy_attr(element: &AXUIElement, attr: &str) -> Option<CFRetained<CFType>> {
 
 // ── Trust ────────────────────────────────────────────────────────────────────
 
-/// If Accessibility isn't granted yet, prompt once (non-blocking) and continue —
-/// capture degrades to no-titles until granted (full priming is Phase 4 / D21).
+/// If Accessibility isn't granted, prompt once (non-blocking) and continue — capture
+/// degrades to no-titles until granted (full priming is Phase 4, see D21).
 fn prompt_trust_if_needed() {
     // SAFETY: argless C call.
     if unsafe { objc2_application_services::AXIsProcessTrusted() } {

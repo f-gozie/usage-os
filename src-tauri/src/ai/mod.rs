@@ -1,10 +1,9 @@
 //! The AI seam (hard rule 5): recap narration behind a mockable trait, with the deterministic
-//! template (D48) as the always-available fallback (D9 / hard rule 6).
+//! template (D48) as the always-available fallback.
 //!
 //! [`build_recap`] is the one entry point — it formats the day's [`RecapFacts`] into a prompt,
 //! asks a [`Narrator`] to phrase it, and falls back to the template on ANY failure or empty
-//! output (C5). The real narrator (a Foundation Models sidecar) lands in a later chunk; the
-//! [`FakeNarrator`] keeps this testable with no model, so cross-platform CI stays green (C19).
+//! output. The [`FakeNarrator`] keeps this testable with no model, so cross-platform CI stays green.
 
 use crate::rollup::{format_recap_prompt, render_template_recap, Recap, RecapFacts};
 
@@ -36,7 +35,7 @@ pub trait Narrator {
     async fn narrate(&self, prompt: &str) -> Result<String, AiError>;
 }
 
-/// A no-model narrator for tests and CI (hard rule 5 / C19): canned prose or a forced error.
+/// A no-model narrator for tests and CI: canned prose or a forced error.
 pub enum FakeNarrator {
     Prose(String),
     Fails(AiError),
@@ -118,7 +117,7 @@ mod tests {
             "{p}"
         );
         assert!(p.contains("Main project: usageos"), "{p}");
-        // The "47m → 47 million" guard the spike found: never emit the compact shorthand.
+        // Units spelled out — never the "47m" shorthand the model misreads as "47 million".
         assert!(!p.contains("53m"), "units must be spelled out: {p}");
     }
 

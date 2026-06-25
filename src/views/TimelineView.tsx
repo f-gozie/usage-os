@@ -1,13 +1,15 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo } from "react";
 
+import { DateStepper } from "@/components/common/DateStepper";
+import { ErrorState } from "@/components/common/ErrorState";
 import { TimelineRow } from "@/components/timeline/TimelineRow";
 import { DegradedBanner } from "@/components/ui/DegradedBanner";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useCaptureHealth } from "@/hooks/useCaptureHealth";
 import { useTimelineData } from "@/hooks/useTimelineData";
-import { CANONICAL_CATEGORIES, categoryColorVar } from "@/lib/categories";
+import { CANONICAL_CATEGORIES, categoryColorVar, categoryDisplayName } from "@/lib/categories";
 import { addDays, dayBounds, isSameDay } from "@/lib/dates";
 import { formatClock, formatDuration } from "@/lib/format";
-import { getWatcherStatus } from "@/lib/tauri";
 
 // A gap between runs at least this long shows an "Away" marker. Matches the backend's
 // run-split threshold (rollup IDLE_GAP_ENDS_RUN_SECS) — D34a dogfood-tunable.
@@ -22,21 +24,34 @@ export function TimelineView({ date, onDateChange }: TimelineViewProps) {
   const { start, end } = useMemo(() => dayBounds(date), [date]);
   const isToday = isSameDay(date, new Date());
   const { data, loading, error, refresh } = useTimelineData(start, end, isToday);
-  const [captureHealthy, setCaptureHealthy] = useState(true);
+  const { healthy: captureHealthy, refetch: recheckHealth } = useCaptureHealth([start]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void getWatcherStatus()
-      .then((s) => !cancelled && setCaptureHealthy(s.healthy))
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [start]);
+  const retry = () => {
+    refresh();
+    recheckHealth();
+  };
+
+  // Slug → current DB display name, so the legend reflects a renamed canonical category.
+  const dbNames = useMemo(
+    () => new Map((data?.runs ?? []).map((r) => [r.category_slug, r.category_name])),
+    [data?.runs],
+  );
 
   return (
     <div>
-      <TimelineNav date={date} isToday={isToday} onDateChange={onDateChange} onRefresh={refresh} />
+      <DateStepper
+        title={
+          isToday
+            ? "Today"
+            : date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })
+        }
+        atLatest={isToday}
+        onPrev={() => onDateChange(addDays(date, -1))}
+        onNext={() => onDateChange(addDays(date, 1))}
+        onRefresh={refresh}
+        prevLabel="Previous day"
+        nextLabel="Next day"
+      />
 
       {!captureHealthy && (
         <div className="mb-5">
@@ -44,7 +59,7 @@ export function TimelineView({ date, onDateChange }: TimelineViewProps) {
             title="Tracking hit a snag"
             description="UsageOS ran into repeated errors while recording. Your existing data is safe."
             actionLabel="Retry"
-            onAction={refresh}
+            onAction={retry}
           />
         </div>
       )}
@@ -55,7 +70,7 @@ export function TimelineView({ date, onDateChange }: TimelineViewProps) {
         <LoadingState />
       ) : data ? (
         <>
-          <Legend />
+          <Legend dbNames={dbNames} />
           {data.runs.length === 0 ? (
             <EmptyState />
           ) : (
@@ -89,7 +104,7 @@ export function TimelineView({ date, onDateChange }: TimelineViewProps) {
   );
 }
 
-function Legend() {
+function Legend({ dbNames }: { dbNames: ReadonlyMap<string, string> }) {
   return (
     <div className="mb-3.5 flex flex-wrap gap-2">
       {CANONICAL_CATEGORIES.map((c) => (
@@ -101,7 +116,7 @@ function Legend() {
             className="h-[11px] w-[11px] border border-edge"
             style={{ background: categoryColorVar(c.slug) }}
           />
-          {c.name}
+          {categoryDisplayName(c.slug, dbNames)}
         </span>
       ))}
     </div>
@@ -138,55 +153,6 @@ function NowRow() {
   );
 }
 
-function TimelineNav({
-  date,
-  isToday,
-  onDateChange,
-  onRefresh,
-}: {
-  date: Date;
-  isToday: boolean;
-  onDateChange: (date: Date) => void;
-  onRefresh: () => void;
-}) {
-  const label = isToday
-    ? "Today"
-    : date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-  return (
-    <div className="mb-[18px] flex items-center justify-between">
-      <div className="font-display text-[22px] uppercase tracking-[0.02em]">{label}</div>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          aria-label="Refresh"
-          title="Refresh (updates automatically every 30s)"
-          onClick={onRefresh}
-          className="mr-1 flex h-[34px] w-9 items-center justify-center border-2 border-edge bg-bg text-sm font-bold text-fg"
-        >
-          ↻
-        </button>
-        <button
-          type="button"
-          aria-label="Previous day"
-          onClick={() => onDateChange(addDays(date, -1))}
-          className="flex h-[34px] w-9 items-center justify-center border-2 border-edge bg-bg text-base font-bold text-fg"
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          aria-label="Next day"
-          disabled={isToday}
-          onClick={() => onDateChange(addDays(date, 1))}
-          className="flex h-[34px] w-9 items-center justify-center border-2 border-edge bg-bg text-base font-bold text-fg disabled:opacity-30"
-        >
-          ›
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function EmptyState() {
   return (
     <div className="flex flex-col items-center gap-2 border-2 border-dashed border-edge px-6 py-16 text-center">
@@ -204,21 +170,6 @@ function LoadingState() {
           <Skeleton key={i} className="h-[72px] w-full" />
         ))}
       </div>
-    </div>
-  );
-}
-
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="flex flex-col items-center gap-4 border-2 border-dashed border-edge px-6 py-16 text-center">
-      <p className="text-sm font-medium text-muted">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="border-2 border-edge bg-edge px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-bg"
-      >
-        Try again
-      </button>
     </div>
   );
 }

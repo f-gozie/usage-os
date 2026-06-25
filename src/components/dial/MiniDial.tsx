@@ -29,7 +29,11 @@ export function MiniDial({ runs, dayStartUnix, nowMinutes = null, label }: MiniD
     const trim = endMin - startMin > TRIM_MIN * 2;
     const a = trim ? startMin + TRIM_MIN : startMin;
     const b = trim ? endMin - TRIM_MIN : endMin;
-    return { key: `${run.start}-${run.end}`, d: arcPath(C, C, R, a, b), color: categoryColorVar(run.category_slug) };
+    return {
+      key: `${run.start}-${run.end}`,
+      d: arcPath(C, C, R, a, b),
+      color: categoryColorVar(run.category_slug, run.category_color),
+    };
   });
   const triangle = nowMinutes == null ? null : trianglePoints(nowMinutes);
 

@@ -1,10 +1,29 @@
-use rusqlite::{Connection, OptionalExtension, Result};
+//! The typed SQLite repository layer.
+//!
+//! This module is split into domain submodules (`events`, `projects`, `categories`,
+//! `exclusions`, `settings`) that are flattened back out via `pub use` below — so every
+//! existing `crate::db::X` path (functions AND types) resolves unchanged. All SQL lives
+//! here in the repository layer (hard rule 4); the rest of the app calls typed functions.
+
+use rusqlite::{Connection, Result};
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
-use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
+
+mod categories;
+mod events;
+mod exclusions;
+mod projects;
+mod recap;
+mod settings;
+
+pub use categories::*;
+pub use events::*;
+pub use exclusions::*;
+pub use projects::*;
+pub use recap::*;
+pub use settings::*;
 
 pub type DbConnection = Arc<Mutex<Connection>>;
 
@@ -134,9 +153,6 @@ pub struct Category {
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Rule {
     pub id: i64,
-    // The owning category. The SQL column stays `category_id` (D31); the IPC field is
-    // `category_id`. (`ActivityLog.category_id` keeps the legacy name — it's read in the
-    // hot rollup/capture paths and renaming it buys no IPC-naming win.)
     pub category_id: i64,
     pub match_field: String, // "process" or "title"
     pub pattern: String,
@@ -172,11 +188,12 @@ pub fn init_database(db_path: &PathBuf) -> Result<DbConnection> {
 }
 
 /// The columns that map to an [`ActivityLog`], in struct field order.
-const ACTIVITY_LOG_COLUMNS: &str = "id, process_name, window_title, start_time, end_time, \
+pub(crate) const ACTIVITY_LOG_COLUMNS: &str =
+    "id, process_name, window_title, start_time, end_time, \
      is_idle, category_id, url, site, project_id, project_abstain_reason, is_private";
 
 /// Build an [`ActivityLog`] from a row selected with [`ACTIVITY_LOG_COLUMNS`].
-fn row_to_activity_log(row: &rusqlite::Row) -> Result<ActivityLog> {
+pub(crate) fn row_to_activity_log(row: &rusqlite::Row) -> Result<ActivityLog> {
     Ok(ActivityLog {
         id: row.get(0)?,
         process_name: row.get(1)?,
@@ -191,676 +208,6 @@ fn row_to_activity_log(row: &rusqlite::Row) -> Result<ActivityLog> {
         project_abstain_reason: row.get(10)?,
         is_private: row.get::<_, i64>(11)? != 0,
     })
-}
-
-pub fn insert_activity_log(
-    conn: &Connection,
-    process_name: &str,
-    window_title: &str,
-    is_idle: bool,
-    timestamp: i64,
-    category_id: Option<i64>,
-) -> Result<()> {
-    conn.execute(
-        "INSERT INTO activity_logs (process_name, window_title, start_time, end_time, is_idle, category_id)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        (process_name, window_title, timestamp, timestamp, is_idle as i64, category_id),
-    )?;
-    Ok(())
-}
-
-/// Insert a fresh open span. `start_time` and `end_time` both start at `timestamp`;
-/// the capture state machine later extends `end_time` via [`set_span_end`]. For private
-/// events (D8) the caller omits `window_title`/`url`/`site` — this function does not filter.
-pub fn insert_event(conn: &Connection, event: &NewEvent) -> Result<i64> {
-    conn.execute(
-        "INSERT INTO activity_logs
-            (process_name, window_title, start_time, end_time, is_idle, category_id,
-             url, site, project_id, project_abstain_reason, is_private)
-         VALUES (?1, ?2, ?3, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        rusqlite::params![
-            event.process_name,
-            event.window_title,
-            event.timestamp,
-            event.is_idle as i64,
-            event.category_id,
-            event.url,
-            event.site,
-            event.project_id,
-            event.project_abstain_reason,
-            event.is_private as i64,
-        ],
-    )?;
-    Ok(conn.last_insert_rowid())
-}
-
-/// Set a span's `end_time` by id — the only mutation the capture write path needs.
-/// The consumer state machine owns the open span, so there's no "find the last row"
-/// guesswork here (see `capture::consume`).
-pub fn set_span_end(conn: &Connection, id: i64, end_time: i64) -> Result<()> {
-    conn.execute(
-        "UPDATE activity_logs SET end_time = ?1 WHERE id = ?2",
-        (end_time, id),
-    )?;
-    Ok(())
-}
-
-/// Query activity logs within a time range.
-///
-/// # Arguments
-/// * `conn` - Database connection
-/// * `start_time` - Unix timestamp for range start
-/// * `end_time` - Unix timestamp for range end
-///
-/// # Returns
-/// * Vector of activity logs sorted by start_time
-pub fn get_activity_logs(
-    conn: &Connection,
-    start_time: i64,
-    end_time: i64,
-) -> Result<Vec<ActivityLog>> {
-    let sql = format!(
-        "SELECT {ACTIVITY_LOG_COLUMNS} FROM activity_logs
-         WHERE start_time >= ?1 AND start_time <= ?2
-         ORDER BY start_time ASC"
-    );
-    let mut stmt = conn.prepare(&sql)?;
-
-    let logs = stmt.query_map([start_time, end_time], row_to_activity_log)?;
-
-    logs.collect()
-}
-
-/// Trivial uncategorized spans below this (active seconds, all-time) are hidden from the
-/// Settings list to keep it calm — a sub-minute glance isn't worth sorting.
-const UNCATEGORIZED_FLOOR_SECS: i64 = 60;
-
-/// Apps with tracked time but no matching rule (`category_id IS NULL`), grouped by app
-/// with their all-time active total and last-seen time. Excludes idle and trivial
-/// (<`UNCATEGORIZED_FLOOR_SECS`) spans; ranked by total desc. Powers the Settings
-/// "Uncategorized" list — sorting one writes a rule + reprocess fixes every past day.
-pub fn get_uncategorized_apps(conn: &Connection) -> Result<Vec<UncategorizedApp>> {
-    let mut stmt = conn.prepare(
-        "SELECT process_name,
-                SUM(end_time - start_time) AS total_secs,
-                MAX(end_time) AS last_seen
-         FROM activity_logs
-         WHERE category_id IS NULL AND is_idle = 0
-         GROUP BY process_name
-         HAVING total_secs >= ?1
-         ORDER BY total_secs DESC",
-    )?;
-    let rows = stmt.query_map([UNCATEGORIZED_FLOOR_SECS], |row| {
-        Ok(UncategorizedApp {
-            process_name: row.get(0)?,
-            total_secs: row.get(1)?,
-            last_seen: row.get(2)?,
-        })
-    })?;
-    rows.collect()
-}
-
-// --- Category CRUD (the `categories` table; IPC noun is "category", D31) ---
-
-pub fn get_categories(conn: &Connection) -> Result<Vec<Category>> {
-    let mut stmt =
-        conn.prepare("SELECT id, slug, name, color FROM categories ORDER BY name ASC")?;
-    let rows = stmt.query_map([], |row| {
-        Ok(Category {
-            id: row.get(0)?,
-            slug: row.get(1)?,
-            name: row.get(2)?,
-            color: row.get(3)?,
-        })
-    })?;
-    rows.collect()
-}
-
-/// Category identity for the rollup: `(id, slug, name)`. `slug` (e.g. "deep") maps to a
-/// colour token in the UI; `None` for a user-created category. Kept separate from
-/// [`get_categories`] so the slug stays out of the legacy IPC `Category` shape.
-pub fn get_category_metas(conn: &Connection) -> Result<Vec<(i64, Option<String>, String)>> {
-    let mut stmt = conn.prepare("SELECT id, slug, name FROM categories")?;
-    let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
-    rows.collect()
-}
-
-pub fn create_category(conn: &Connection, name: &str, color: &str) -> Result<i64> {
-    conn.execute(
-        "INSERT INTO categories (name, color) VALUES (?1, ?2)",
-        (name, color),
-    )?;
-    Ok(conn.last_insert_rowid())
-}
-
-/// Rename / recolour a category (name + colour only — `slug` is immutable canonical
-/// identity, never edited). The Settings editor uses this for both canonical and
-/// user-created categories.
-pub fn update_category(conn: &Connection, id: i64, name: &str, color: &str) -> Result<()> {
-    conn.execute(
-        "UPDATE categories SET name = ?1, color = ?2 WHERE id = ?3",
-        (name, color, id),
-    )?;
-    Ok(())
-}
-
-pub fn delete_category(conn: &Connection, id: i64) -> Result<()> {
-    conn.execute(
-        "UPDATE activity_logs SET category_id = NULL WHERE category_id = ?1",
-        [id],
-    )?;
-    conn.execute("DELETE FROM categories WHERE id = ?1", [id])?;
-    Ok(())
-}
-
-// --- Rule CRUD ---
-
-pub fn get_rules(conn: &Connection) -> Result<Vec<Rule>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, category_id, match_field, pattern, ignore_title FROM rules ORDER BY id ASC",
-    )?;
-    let rows = stmt.query_map([], |row| {
-        Ok(Rule {
-            id: row.get(0)?,
-            category_id: row.get(1)?,
-            match_field: row.get(2)?,
-            pattern: row.get(3)?,
-            ignore_title: row.get::<_, i64>(4)? != 0,
-        })
-    })?;
-    rows.collect()
-}
-
-pub fn create_rule(
-    conn: &Connection,
-    category_id: i64,
-    match_field: &str,
-    pattern: &str,
-    ignore_title: bool,
-) -> Result<i64> {
-    conn.execute(
-        "INSERT INTO rules (category_id, match_field, pattern, ignore_title) VALUES (?1, ?2, ?3, ?4)",
-        (category_id, match_field, pattern, ignore_title as i64),
-    )?;
-    Ok(conn.last_insert_rowid())
-}
-
-pub fn delete_rule(conn: &Connection, id: i64) -> Result<()> {
-    conn.execute("DELETE FROM rules WHERE id = ?1", [id])?;
-    Ok(())
-}
-
-// --- Categorization Logic ---
-
-pub fn find_category(
-    conn: &Connection,
-    process_name: &str,
-    window_title: &str,
-) -> Result<Option<i64>> {
-    let rules = get_rules(conn)?;
-    for rule in rules {
-        let match_target = if rule.match_field == "process" {
-            process_name
-        } else {
-            window_title
-        };
-
-        if match_target
-            .to_lowercase()
-            .contains(&rule.pattern.to_lowercase())
-        {
-            return Ok(Some(rule.category_id));
-        }
-    }
-    Ok(None)
-}
-
-pub fn reprocess_logs(conn: &Connection) -> Result<()> {
-    // 1. Reset all categories
-    conn.execute("UPDATE activity_logs SET category_id = NULL", [])?;
-
-    // 2. Get all rules (ordered by ID, so first rule created = higher priority if we assume ID order)
-    // To support re-ordering, we'd need a 'priority' column, but for now ID order is fine.
-    // Logic: First rule that matches wins.
-    let rules = get_rules(conn)?;
-
-    // 3. Apply rules
-    for rule in rules {
-        let pattern = format!("%{}%", rule.pattern);
-        if rule.match_field == "process" {
-            conn.execute(
-                "UPDATE activity_logs SET category_id = ?1 WHERE category_id IS NULL AND lower(process_name) LIKE lower(?2)",
-                (rule.category_id, pattern),
-            )?;
-        } else {
-            conn.execute(
-                "UPDATE activity_logs SET category_id = ?1 WHERE category_id IS NULL AND lower(window_title) LIKE lower(?2)",
-                (rule.category_id, pattern),
-            )?;
-        }
-    }
-
-    Ok(())
-}
-
-/// Delete activity logs older than the given number of days.
-///
-/// Returns the number of rows deleted.
-pub fn cleanup_old_data(conn: &Connection, retention_days: i64) -> Result<usize> {
-    if retention_days <= 0 {
-        return Ok(0);
-    }
-    let cutoff = now_unix() - (retention_days * 86400);
-    let deleted = conn.execute("DELETE FROM activity_logs WHERE end_time < ?1", [cutoff])?;
-    // Cached recaps are derived from the events — prune any whose whole day is past retention.
-    conn.execute("DELETE FROM recap_cache WHERE day_start < ?1", [cutoff])?;
-    if deleted > 0 {
-        println!(
-            "[Database] Cleaned up {} old activity logs (retention: {} days)",
-            deleted, retention_days
-        );
-    }
-    Ok(deleted)
-}
-
-// --- Recap cache (D52): on-device AI recaps keyed by (day_start, facts fingerprint) ---
-
-/// Look up a cached AI recap by its facts fingerprint. A hit means the exact same facts were
-/// already narrated — return the stored `(text, generated_by)` with no model call. A miss
-/// (new day, or the day's facts changed via a rule reprocess → new fingerprint) returns `None`
-/// so the caller regenerates.
-pub fn get_cached_recap(
-    conn: &Connection,
-    day_start: i64,
-    fingerprint: &str,
-) -> Result<Option<(String, String)>> {
-    let mut stmt = conn.prepare(
-        "SELECT text, generated_by FROM recap_cache WHERE day_start = ?1 AND fingerprint = ?2",
-    )?;
-    let mut rows = stmt.query((day_start, fingerprint))?;
-    if let Some(row) = rows.next()? {
-        Ok(Some((row.get(0)?, row.get(1)?)))
-    } else {
-        Ok(None)
-    }
-}
-
-/// Store a freshly-narrated AI recap under its facts fingerprint (upsert). Callers cache ONLY
-/// model recaps, never the template fallback — so a cold/unavailable model retries on the next
-/// open instead of caching a placeholder.
-pub fn put_cached_recap(
-    conn: &Connection,
-    day_start: i64,
-    fingerprint: &str,
-    text: &str,
-    generated_by: &str,
-) -> Result<()> {
-    conn.execute(
-        "INSERT INTO recap_cache (day_start, fingerprint, text, generated_by, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT(day_start, fingerprint) DO UPDATE SET
-            text = excluded.text,
-            generated_by = excluded.generated_by,
-            created_at = excluded.created_at",
-        (day_start, fingerprint, text, generated_by, now_unix()),
-    )?;
-    Ok(())
-}
-
-// --- Data ownership: export / wipe ---
-
-/// Map an `io::Error` (from writing the CSV) into a `rusqlite::Error` so the export
-/// can share the repository's `Result` type; the underlying message is preserved.
-fn io_to_db_err(e: std::io::Error) -> rusqlite::Error {
-    rusqlite::Error::ToSqlConversionFailure(Box::new(e))
-}
-
-/// Escape one CSV field per RFC 4180: wrap in double-quotes and double any internal
-/// quote when the field contains `"`, `,`, CR or LF. Borrows when no escaping is needed.
-fn csv_field(s: &str) -> Cow<'_, str> {
-    if s.contains(['"', ',', '\n', '\r']) {
-        Cow::Owned(format!("\"{}\"", s.replace('"', "\"\"")))
-    } else {
-        Cow::Borrowed(s)
-    }
-}
-
-/// An optional text column: escaped when present, an empty field when absent.
-fn csv_opt(v: Option<&str>) -> Cow<'_, str> {
-    v.map(csv_field).unwrap_or(Cow::Borrowed(""))
-}
-
-/// Stream every event to `w` as RFC-4180 CSV: a header row then one row per event,
-/// oldest first. Reuses [`ACTIVITY_LOG_COLUMNS`] + [`row_to_activity_log`] so the export
-/// shape can never drift from [`ActivityLog`]. Rows are written as they're read (flat
-/// memory). Returns the number of data rows written.
-pub fn export_events_csv<W: Write>(conn: &Connection, w: &mut W) -> Result<usize> {
-    writeln!(
-        w,
-        "id,process_name,window_title,start_time,end_time,is_idle,category_id,url,site,project_id,project_abstain_reason,is_private"
-    )
-    .map_err(io_to_db_err)?;
-
-    let sql = format!("SELECT {ACTIVITY_LOG_COLUMNS} FROM activity_logs ORDER BY start_time ASC");
-    let mut stmt = conn.prepare(&sql)?;
-    let mut rows = stmt.query([])?;
-    let mut count = 0usize;
-    while let Some(row) = rows.next()? {
-        let e = row_to_activity_log(row)?;
-        let num = |v: Option<i64>| v.map(|n| n.to_string()).unwrap_or_default();
-        writeln!(
-            w,
-            "{},{},{},{},{},{},{},{},{},{},{},{}",
-            e.id,
-            csv_field(&e.process_name),
-            csv_field(&e.window_title),
-            e.start_time,
-            e.end_time,
-            e.is_idle as i64,
-            num(e.category_id),
-            csv_opt(e.url.as_deref()),
-            csv_opt(e.site.as_deref()),
-            num(e.project_id),
-            csv_opt(e.project_abstain_reason.as_deref()),
-            e.is_private as i64,
-        )
-        .map_err(io_to_db_err)?;
-        count += 1;
-    }
-    Ok(count)
-}
-
-/// Wipe the captured record — events plus the registries derived purely from them
-/// (projects + their aliases via cascade, sites) — in a single transaction. **Preserves**
-/// user configuration: categories (`categories`), rules, exclusions, settings, and the
-/// migration ledger. The capture writer shares this connection's `Mutex`, so it can't
-/// interleave; its in-memory open-span id simply becomes a no-op `UPDATE` after the wipe
-/// (the next focus change opens a fresh span). No `VACUUM` — freed pages are reclaimed
-/// lazily; immediate reclaim isn't worth rewriting the whole file here.
-pub fn delete_all_data(conn: &mut Connection) -> Result<()> {
-    let tx = conn.transaction()?;
-    tx.execute("DELETE FROM activity_logs", [])?;
-    tx.execute("DELETE FROM project_aliases", [])?;
-    tx.execute("DELETE FROM projects", [])?;
-    tx.execute("DELETE FROM sites", [])?;
-    // Recaps are derived from the events — they must die with them (the privacy promise).
-    tx.execute("DELETE FROM recap_cache", [])?;
-    tx.commit()?;
-    Ok(())
-}
-
-// --- Settings ---
-
-pub fn get_setting(conn: &Connection, key: &str) -> Result<Option<String>> {
-    let mut stmt = conn.prepare("SELECT value FROM settings WHERE key = ?1")?;
-    let mut rows = stmt.query([key])?;
-    if let Some(row) = rows.next()? {
-        Ok(Some(row.get(0)?))
-    } else {
-        Ok(None)
-    }
-}
-
-pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
-    conn.execute(
-        "INSERT INTO settings (key, value) VALUES (?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        (key, value),
-    )?;
-    Ok(())
-}
-
-pub fn get_all_settings(conn: &Connection) -> Result<Vec<(String, String)>> {
-    let mut stmt = conn.prepare("SELECT key, value FROM settings ORDER BY key ASC")?;
-    let rows = stmt.query_map([], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-    })?;
-    rows.collect()
-}
-
-// --- Projects (D30) ---
-
-/// Look up a project id by one of its aliases (folder / title / github-url).
-pub fn find_project_by_alias(
-    conn: &Connection,
-    alias_kind: &str,
-    alias_value: &str,
-) -> Result<Option<i64>> {
-    let mut stmt = conn.prepare(
-        "SELECT project_id FROM project_aliases WHERE alias_kind = ?1 AND alias_value = ?2",
-    )?;
-    let mut rows = stmt.query((alias_kind, alias_value))?;
-    if let Some(row) = rows.next()? {
-        Ok(Some(row.get(0)?))
-    } else {
-        Ok(None)
-    }
-}
-
-/// Attach an alias to a project. Idempotent: a `(kind, value)` already present (for
-/// this or any project) is left untouched, so canonicalization never fragments.
-pub fn add_project_alias(
-    conn: &Connection,
-    project_id: i64,
-    alias_kind: &str,
-    alias_value: &str,
-) -> Result<()> {
-    conn.execute(
-        "INSERT OR IGNORE INTO project_aliases (project_id, alias_kind, alias_value)
-         VALUES (?1, ?2, ?3)",
-        (project_id, alias_kind, alias_value),
-    )?;
-    Ok(())
-}
-
-/// Resolve a project by its canonical key (git remote `owner/repo`, or folder-name
-/// fallback), creating it if absent, and attach any `aliases` either way. This is the
-/// single entry point the inference layer (Phase 1.2) calls so the same project never
-/// fragments into several (D30). Returns the project id.
-pub fn resolve_or_create_project(
-    conn: &Connection,
-    canonical_key: &str,
-    display_name: &str,
-    remote_url: Option<&str>,
-    aliases: &[(&str, &str)],
-) -> Result<i64> {
-    let existing: Option<i64> = conn
-        .query_row(
-            "SELECT id FROM projects WHERE canonical_key = ?1",
-            [canonical_key],
-            |row| row.get(0),
-        )
-        .optional()?;
-
-    let project_id = match existing {
-        Some(id) => id,
-        None => {
-            conn.execute(
-                "INSERT INTO projects (canonical_key, display_name, remote_url, created_at)
-                 VALUES (?1, ?2, ?3, ?4)",
-                (canonical_key, display_name, remote_url, now_unix()),
-            )?;
-            conn.last_insert_rowid()
-        }
-    };
-
-    for (kind, value) in aliases {
-        add_project_alias(conn, project_id, kind, value)?;
-    }
-
-    Ok(project_id)
-}
-
-pub fn get_project(conn: &Connection, id: i64) -> Result<Option<Project>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, canonical_key, display_name, remote_url, created_at FROM projects WHERE id = ?1",
-    )?;
-    let mut rows = stmt.query([id])?;
-    if let Some(row) = rows.next()? {
-        Ok(Some(Project {
-            id: row.get(0)?,
-            canonical_key: row.get(1)?,
-            display_name: row.get(2)?,
-            remote_url: row.get(3)?,
-            created_at: row.get(4)?,
-        }))
-    } else {
-        Ok(None)
-    }
-}
-
-pub fn get_projects(conn: &Connection) -> Result<Vec<Project>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, canonical_key, display_name, remote_url, created_at
-         FROM projects ORDER BY display_name ASC",
-    )?;
-    let rows = stmt.query_map([], |row| {
-        Ok(Project {
-            id: row.get(0)?,
-            canonical_key: row.get(1)?,
-            display_name: row.get(2)?,
-            remote_url: row.get(3)?,
-            created_at: row.get(4)?,
-        })
-    })?;
-    rows.collect()
-}
-
-/// Delete a project. Activity logs that referenced it become `unassigned`
-/// (`project_id = NULL`); aliases cascade. Mirrors [`delete_category`].
-pub fn delete_project(conn: &Connection, id: i64) -> Result<()> {
-    conn.execute(
-        "UPDATE activity_logs SET project_id = NULL WHERE project_id = ?1",
-        [id],
-    )?;
-    conn.execute("DELETE FROM projects WHERE id = ?1", [id])?;
-    Ok(())
-}
-
-// --- Sites ---
-
-/// Insert a site by host, or update its metadata if the host already exists.
-/// Returns the site id.
-pub fn resolve_or_create_site(
-    conn: &Connection,
-    host: &str,
-    display_name: Option<&str>,
-    kind: &str,
-) -> Result<i64> {
-    conn.execute(
-        "INSERT INTO sites (host, display_name, kind, created_at) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT(host) DO UPDATE SET
-            display_name = COALESCE(excluded.display_name, sites.display_name),
-            kind = excluded.kind",
-        (host, display_name, kind, now_unix()),
-    )?;
-    let id: i64 = conn.query_row("SELECT id FROM sites WHERE host = ?1", [host], |row| {
-        row.get(0)
-    })?;
-    Ok(id)
-}
-
-pub fn set_site_kind(conn: &Connection, host: &str, kind: &str) -> Result<()> {
-    conn.execute("UPDATE sites SET kind = ?1 WHERE host = ?2", (kind, host))?;
-    Ok(())
-}
-
-pub fn get_sites(conn: &Connection) -> Result<Vec<Site>> {
-    let mut stmt = conn
-        .prepare("SELECT id, host, display_name, kind, created_at FROM sites ORDER BY host ASC")?;
-    let rows = stmt.query_map([], |row| {
-        Ok(Site {
-            id: row.get(0)?,
-            host: row.get(1)?,
-            display_name: row.get(2)?,
-            kind: row.get(3)?,
-            created_at: row.get(4)?,
-        })
-    })?;
-    rows.collect()
-}
-
-// --- Exclusions (D8) ---
-
-pub fn get_exclusions(conn: &Connection) -> Result<Vec<Exclusion>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, match_type, pattern, mode, created_at FROM exclusions ORDER BY id ASC",
-    )?;
-    let rows = stmt.query_map([], |row| {
-        Ok(Exclusion {
-            id: row.get(0)?,
-            match_type: row.get(1)?,
-            pattern: row.get(2)?,
-            mode: row.get(3)?,
-            created_at: row.get(4)?,
-        })
-    })?;
-    rows.collect()
-}
-
-pub fn create_exclusion(
-    conn: &Connection,
-    match_type: &str,
-    pattern: &str,
-    mode: &str,
-) -> Result<i64> {
-    conn.execute(
-        "INSERT OR IGNORE INTO exclusions (match_type, pattern, mode, created_at)
-         VALUES (?1, ?2, ?3, ?4)",
-        (match_type, pattern, mode, now_unix()),
-    )?;
-    // INSERT OR IGNORE yields rowid 0 on a duplicate; resolve the real id by key.
-    let id: i64 = conn.query_row(
-        "SELECT id FROM exclusions WHERE match_type = ?1 AND pattern = ?2 AND mode = ?3",
-        (match_type, pattern, mode),
-        |row| row.get(0),
-    )?;
-    Ok(id)
-}
-
-pub fn delete_exclusion(conn: &Connection, id: i64) -> Result<()> {
-    conn.execute("DELETE FROM exclusions WHERE id = ?1", [id])?;
-    Ok(())
-}
-
-/// Decide how a captured event should be handled (D8). Checks every exclusion rule
-/// against the app name, window title, and (optional) site, returning the strongest
-/// match: `Exclude` (drop) wins over `Private` (time only). Matching is
-/// case-insensitive substring, consistent with [`find_category`].
-pub fn match_exclusion(
-    conn: &Connection,
-    app: &str,
-    title: &str,
-    site: Option<&str>,
-) -> Result<Option<ExclusionMode>> {
-    let app = app.to_lowercase();
-    let title = title.to_lowercase();
-    let site = site.map(|s| s.to_lowercase());
-
-    let mut result: Option<ExclusionMode> = None;
-    for ex in get_exclusions(conn)? {
-        let target = match ex.match_type.as_str() {
-            "app" => Some(app.as_str()),
-            "title" => Some(title.as_str()),
-            "site" => site.as_deref(),
-            _ => None,
-        };
-        let Some(target) = target else { continue };
-        if !target.contains(&ex.pattern.to_lowercase()) {
-            continue;
-        }
-        let mode = match ex.mode.as_str() {
-            "exclude" => ExclusionMode::Exclude,
-            "private" => ExclusionMode::Private,
-            _ => continue,
-        };
-        // Exclude is strictly stronger than Private; short-circuit on it.
-        if mode == ExclusionMode::Exclude {
-            return Ok(Some(ExclusionMode::Exclude));
-        }
-        result = Some(ExclusionMode::Private);
-    }
-    Ok(result)
 }
 
 #[cfg(test)]
@@ -949,6 +296,24 @@ mod tests {
         assert_eq!(logs[1].process_name, "code");
     }
 
+    #[test]
+    fn get_activity_logs_clips_spans_crossing_the_window_boundary() {
+        let conn = setup_test_db();
+        // A 1200s span [99_400, 100_600] that crosses a day boundary at 100_000.
+        span(&conn, "Cursor", 99_400, 1200, Some(1), false);
+        // Day 1 = [90_000, 100_000): sees only the pre-boundary 600s, clipped at the end.
+        let day1 = get_activity_logs(&conn, 90_000, 100_000).unwrap();
+        assert_eq!(day1.len(), 1);
+        assert_eq!(day1[0].start_time, 99_400);
+        assert_eq!(day1[0].end_time, 100_000, "clipped at the window end");
+        // Day 2 = [100_000, 110_000): sees the post-boundary 600s, clipped at the start —
+        // so the span is counted once per day, not whole on day 1 and absent from day 2.
+        let day2 = get_activity_logs(&conn, 100_000, 110_000).unwrap();
+        assert_eq!(day2.len(), 1);
+        assert_eq!(day2[0].start_time, 100_000, "clipped at the window start");
+        assert_eq!(day2[0].end_time, 100_600);
+    }
+
     // (Span coalescing / close-on-switch / idle behaviour now lives in the capture
     // state machine — see `crate::capture` tests.)
 
@@ -962,6 +327,57 @@ mod tests {
 
         let result = find_category(&conn, "firefox", "Some Page").unwrap();
         assert_eq!(result, Some(cat_id));
+    }
+
+    #[test]
+    fn empty_pattern_rule_does_not_match_everything() {
+        // A stray empty-pattern rule must NOT swallow every event (`.contains("")` is always
+        // true). Both find_category and reprocess_logs must skip it.
+        let conn = setup_test_db();
+        let cat_id = create_category(&conn, "Junk", "#000000").unwrap();
+        create_rule(&conn, cat_id, "process", "   ", false).unwrap(); // whitespace pattern
+        assert_eq!(find_category(&conn, "firefox", "anything").unwrap(), None);
+        span(&conn, "firefox", 1000, 60, None, false);
+        reprocess_logs(&conn).unwrap();
+        let logs = get_activity_logs(&conn, 0, 100_000).unwrap();
+        assert_eq!(
+            logs[0].category_id, None,
+            "empty pattern matched nothing on reprocess"
+        );
+    }
+
+    #[test]
+    fn reprocess_treats_like_wildcards_as_literal_text() {
+        // A pattern containing `%`/`_` must match literally (like find_category's `.contains`),
+        // not as a SQL LIKE wildcard. "50%" should match "50% off" but not "5000 off".
+        let conn = setup_test_db();
+        let cat_id = create_category(&conn, "Deals", "#ff0000").unwrap();
+        create_rule(&conn, cat_id, "title", "50%", false).unwrap();
+        span(&conn, "browser", 1000, 60, None, false); // title '' — set below
+        conn.execute(
+            "UPDATE activity_logs SET window_title = '50% off' WHERE start_time = 1000",
+            [],
+        )
+        .unwrap();
+        span(&conn, "browser", 2000, 60, None, false);
+        conn.execute(
+            "UPDATE activity_logs SET window_title = '5000 off' WHERE start_time = 2000",
+            [],
+        )
+        .unwrap();
+        reprocess_logs(&conn).unwrap();
+        let logs = get_activity_logs(&conn, 0, 100_000).unwrap();
+        let by_start: std::collections::HashMap<i64, Option<i64>> =
+            logs.iter().map(|l| (l.start_time, l.category_id)).collect();
+        assert_eq!(
+            by_start[&1000],
+            Some(cat_id),
+            "literal '50%' matches '50% off'"
+        );
+        assert_eq!(
+            by_start[&2000], None,
+            "'%' is not a wildcard — '5000 off' must not match"
+        );
     }
 
     #[test]
@@ -1620,60 +1036,5 @@ mod tests {
             get_setting(&conn, "theme").unwrap(),
             Some("warm".to_string())
         );
-    }
-
-    #[test]
-    fn recap_cache_roundtrips_and_misses_on_a_different_fingerprint() {
-        let conn = setup_test_db();
-        put_cached_recap(
-            &conn,
-            1000,
-            "abc123",
-            "You spent the day on usage_os.",
-            "foundation-models",
-        )
-        .unwrap();
-
-        // Hit: same day + fingerprint returns the stored prose + tag.
-        assert_eq!(
-            get_cached_recap(&conn, 1000, "abc123").unwrap(),
-            Some((
-                "You spent the day on usage_os.".into(),
-                "foundation-models".into()
-            ))
-        );
-        // Miss: a changed fingerprint (the day's facts changed) is never matched.
-        assert_eq!(get_cached_recap(&conn, 1000, "different").unwrap(), None);
-        // Miss: a different day.
-        assert_eq!(get_cached_recap(&conn, 2000, "abc123").unwrap(), None);
-
-        // Upsert: re-narrating the same key replaces the prose.
-        put_cached_recap(&conn, 1000, "abc123", "A quieter day.", "foundation-models").unwrap();
-        assert_eq!(
-            get_cached_recap(&conn, 1000, "abc123").unwrap().unwrap().0,
-            "A quieter day."
-        );
-    }
-
-    #[test]
-    fn recap_cache_is_wiped_by_delete_all_data() {
-        let mut conn = setup_test_db();
-        put_cached_recap(&conn, 1000, "fp", "prose", "foundation-models").unwrap();
-        delete_all_data(&mut conn).unwrap();
-        assert_eq!(get_cached_recap(&conn, 1000, "fp").unwrap(), None);
-    }
-
-    #[test]
-    fn recap_cache_is_pruned_by_retention() {
-        let conn = setup_test_db();
-        let recent_day = now_unix() - 86_400; // yesterday — within a 30-day window
-        let old_day = now_unix() - (60 * 86_400); // 60 days ago — past it
-        put_cached_recap(&conn, recent_day, "fp", "recent", "foundation-models").unwrap();
-        put_cached_recap(&conn, old_day, "fp", "old", "foundation-models").unwrap();
-
-        cleanup_old_data(&conn, 30).unwrap();
-
-        assert!(get_cached_recap(&conn, recent_day, "fp").unwrap().is_some());
-        assert_eq!(get_cached_recap(&conn, old_day, "fp").unwrap(), None);
     }
 }

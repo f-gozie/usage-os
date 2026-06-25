@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { DateStepper } from "@/components/common/DateStepper";
+import { ErrorState } from "@/components/common/ErrorState";
 import { Chip } from "@/components/ui/Chip";
 import { DegradedBanner } from "@/components/ui/DegradedBanner";
 import { DetailInspector, type InspectorDetail } from "@/components/ui/DetailInspector";
@@ -8,13 +10,14 @@ import { RecapCard } from "@/components/ui/RecapCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StatTile } from "@/components/ui/StatTile";
 import { Dial } from "@/components/dial/Dial";
+import { useCaptureHealth } from "@/hooks/useCaptureHealth";
 import { useDayData } from "@/hooks/useDayData";
 import { useRecap } from "@/hooks/useRecap";
-import { CANONICAL_CATEGORIES, categoryColorVar } from "@/lib/categories";
+import { CANONICAL_CATEGORIES, categoryColorVar, categoryDisplayName } from "@/lib/categories";
 import { addDays, dayBounds, isSameDay } from "@/lib/dates";
 import { formatClock, formatDuration } from "@/lib/format";
 import { summarizeRun } from "@/lib/runs";
-import { getWatcherStatus, type CategoryRun } from "@/lib/tauri";
+import { type CategoryRun } from "@/lib/tauri";
 
 export interface DayViewProps {
   date: Date;
@@ -27,19 +30,13 @@ export function DayView({ date, onDateChange }: DayViewProps) {
   const nowMinutes = isToday ? (Date.now() / 1000 - start) / 60 : null;
 
   const { data, loading, error, refresh } = useDayData(start, end, isToday);
+  const { healthy: captureHealthy, refetch: recheckHealth } = useCaptureHealth([start]);
   // The AI recap is fetched lazily, off the day-load path (D11); the card shows the instant
   // template recap from `getDay` until this resolves, then upgrades in place.
   const { recap: aiRecap, refetch: refetchRecap } = useRecap(start, end);
 
-  // Manual refresh re-runs both the day data and the (un-polled) AI narration.
-  const handleRefresh = useCallback(() => {
-    refresh();
-    refetchRecap();
-  }, [refresh, refetchRecap]);
-
   const [selectedRun, setSelectedRun] = useState<CategoryRun | null>(null);
   const [isolated, setIsolated] = useState<string | null>(null);
-  const [captureHealthy, setCaptureHealthy] = useState(true);
 
   // Reset transient selection when the day changes.
   useEffect(() => {
@@ -47,16 +44,14 @@ export function DayView({ date, onDateChange }: DayViewProps) {
     setIsolated(null);
   }, [start]);
 
-  // Surface a degraded banner if capture is erroring (real signal from the watcher).
-  useEffect(() => {
-    let cancelled = false;
-    void getWatcherStatus()
-      .then((s) => !cancelled && setCaptureHealthy(s.healthy))
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [start]);
+  // One refresh path — re-run the day data, re-check capture health (so the degraded banner
+  // clears once the watcher recovers — A9fe), and re-narrate the recap (un-polled). Used by the
+  // ↻ button, the degraded-banner Retry, and the error retry.
+  const refreshAll = useCallback(() => {
+    refresh();
+    recheckHealth();
+    refetchRecap();
+  }, [refresh, recheckHealth, refetchRecap]);
 
   const deepSecs = data?.categories.find((c) => c.slug === "deep")?.secs ?? 0;
   const researchSecs = data?.categories.find((c) => c.slug === "research")?.secs ?? 0;
@@ -71,11 +66,29 @@ export function DayView({ date, onDateChange }: DayViewProps) {
     ? buildInspector(selectedRun)
     : null;
 
+  // Slug → current DB display name, so the legend reflects a renamed canonical category.
+  const dbNames = useMemo(
+    () => new Map((data?.categories ?? []).map((c) => [c.slug, c.name])),
+    [data?.categories],
+  );
+
   const toggleIsolate = (slug: string) => setIsolated((cur) => (cur === slug ? null : slug));
 
   return (
     <div>
-      <DayNav date={date} isToday={isToday} onDateChange={onDateChange} onRefresh={handleRefresh} />
+      <DateStepper
+        title={
+          isToday
+            ? "Today"
+            : date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })
+        }
+        atLatest={isToday}
+        onPrev={() => onDateChange(addDays(date, -1))}
+        onNext={() => onDateChange(addDays(date, 1))}
+        onRefresh={refreshAll}
+        prevLabel="Previous day"
+        nextLabel="Next day"
+      />
 
       {!captureHealthy && (
         <div className="mb-5">
@@ -83,13 +96,13 @@ export function DayView({ date, onDateChange }: DayViewProps) {
             title="Tracking hit a snag"
             description="UsageOS ran into repeated errors while recording. Your existing data is safe."
             actionLabel="Retry"
-            onAction={handleRefresh}
+            onAction={refreshAll}
           />
         </div>
       )}
 
       {error ? (
-        <ErrorState message={error} onRetry={handleRefresh} />
+        <ErrorState message={error} onRetry={refreshAll} />
       ) : loading && !data ? (
         <LoadingState />
       ) : data ? (
@@ -119,7 +132,7 @@ export function DayView({ date, onDateChange }: DayViewProps) {
                 <StatTile
                   value={topCategory ? formatDuration(topCategory.secs) : "—"}
                   label={topCategory ? topCategory.name : "Top category"}
-                  colorVar={topCategory ? categoryColorVar(topCategory.slug) : undefined}
+                  colorVar={topCategory ? categoryColorVar(topCategory.slug, topCategory.color) : undefined}
                   className="border-l-2 border-edge pl-3.5"
                 />
                 <StatTile
@@ -134,7 +147,7 @@ export function DayView({ date, onDateChange }: DayViewProps) {
                 {CANONICAL_CATEGORIES.map((c) => (
                   <Chip
                     key={c.slug}
-                    label={c.name}
+                    label={categoryDisplayName(c.slug, dbNames)}
                     colorVar={categoryColorVar(c.slug)}
                     active={isolated === c.slug}
                     onClick={() => toggleIsolate(c.slug)}
@@ -158,62 +171,13 @@ export function DayView({ date, onDateChange }: DayViewProps) {
   );
 }
 
-function DayNav({
-  date,
-  isToday,
-  onDateChange,
-  onRefresh,
-}: {
-  date: Date;
-  isToday: boolean;
-  onDateChange: (date: Date) => void;
-  onRefresh: () => void;
-}) {
-  const label = isToday
-    ? "Today"
-    : date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-  return (
-    <div className="mb-[18px] flex items-center justify-between">
-      <div className="font-display text-[22px] uppercase tracking-[0.02em]">{label}</div>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          aria-label="Refresh"
-          title="Refresh — updates the day (auto every 30s) and re-writes the summary"
-          onClick={onRefresh}
-          className="mr-1 flex h-[34px] w-9 items-center justify-center border-2 border-edge bg-bg text-sm font-bold text-fg"
-        >
-          ↻
-        </button>
-        <button
-          type="button"
-          aria-label="Previous day"
-          onClick={() => onDateChange(addDays(date, -1))}
-          className="flex h-[34px] w-9 items-center justify-center border-2 border-edge bg-bg text-base font-bold text-fg"
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          aria-label="Next day"
-          disabled={isToday}
-          onClick={() => onDateChange(addDays(date, 1))}
-          className="flex h-[34px] w-9 items-center justify-center border-2 border-edge bg-bg text-base font-bold text-fg disabled:opacity-30"
-        >
-          ›
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function Ledger({
   categories,
   isolated,
   onHover,
   onToggle,
 }: {
-  categories: { slug: string; name: string; secs: number; pct: number }[];
+  categories: { slug: string; name: string; secs: number; pct: number; color: string | null }[];
   isolated: string | null;
   onHover: (slug: string | null) => void;
   onToggle: (slug: string) => void;
@@ -231,7 +195,7 @@ function Ledger({
           <LedgerRow
             key={row.slug}
             name={row.name}
-            colorVar={categoryColorVar(row.slug)}
+            colorVar={categoryColorVar(row.slug, row.color)}
             durationLabel={formatDuration(row.secs)}
             pct={Math.round(row.pct)}
             dimmed={isolated !== null && isolated !== row.slug}
@@ -249,7 +213,7 @@ function buildInspector(run: CategoryRun): InspectorDetail {
   const sm = summarizeRun(run);
   const subtitle = sm.projectLabel ? `${sm.projectLabel} · ${sm.apps}` : sm.apps;
   return {
-    colorVar: categoryColorVar(run.category_slug),
+    colorVar: categoryColorVar(run.category_slug, run.category_color),
     title: run.category_name,
     subtitle,
     durationLabel: formatDuration(run.secs),
@@ -273,17 +237,3 @@ function LoadingState() {
   );
 }
 
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="flex flex-col items-center gap-4 border-2 border-dashed border-edge px-6 py-16 text-center">
-      <p className="text-sm font-medium text-muted">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="border-2 border-edge bg-edge px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-bg"
-      >
-        Try again
-      </button>
-    </div>
-  );
-}
