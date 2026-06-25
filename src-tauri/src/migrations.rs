@@ -49,6 +49,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "relatable_default_categories",
         sql: include_str!("../migrations/0006_relatable_default_categories.sql"),
     },
+    Migration {
+        version: 7,
+        name: "recap_cache",
+        sql: include_str!("../migrations/0007_recap_cache.sql"),
+    },
 ];
 
 /// Normalize SQL for checksumming: drop blank lines and full-line `--` comments, and collapse

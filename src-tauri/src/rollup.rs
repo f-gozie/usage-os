@@ -193,6 +193,27 @@ pub fn build_day_view(
     projects: &HashMap<i64, String>,
     day_start: i64,
 ) -> DayView {
+    let (active_secs, idle_secs, category_slices) = aggregate_categories(events, categories);
+    let runs = build_runs(events, categories, projects);
+    let facts = compute_recap_facts(active_secs, day_start, &category_slices, &runs);
+    let recap = render_template_recap(&facts);
+
+    DayView {
+        active_secs,
+        idle_secs,
+        categories: category_slices,
+        runs,
+        recap,
+    }
+}
+
+/// Aggregate a day's events into `(active_secs, idle_secs, category_slices)` — the slices
+/// sorted longest-first (slug as tie-breaker). Shared by the Day view and the recap-facts
+/// builder so both see identical totals.
+fn aggregate_categories(
+    events: &[ActivityLog],
+    categories: &HashMap<i64, CategoryMeta>,
+) -> (i64, i64, Vec<CategorySlice>) {
     let mut active_secs = 0;
     let mut idle_secs = 0;
     // key -> (name, secs, color); name/color kept for display, secs accumulated.
@@ -230,17 +251,22 @@ pub fn build_day_view(
     // Deterministic order: longest first, slug as the tie-breaker.
     category_slices.sort_by(|a, b| b.secs.cmp(&a.secs).then_with(|| a.slug.cmp(&b.slug)));
 
-    let runs = build_runs(events, categories, projects);
-    let facts = compute_recap_facts(active_secs, day_start, &category_slices, &runs);
-    let recap = render_template_recap(&facts);
+    (active_secs, idle_secs, category_slices)
+}
 
-    DayView {
-        active_secs,
-        idle_secs,
-        categories: category_slices,
-        runs,
-        recap,
-    }
+/// Compute just the day's [`RecapFacts`] from its events — the same aggregation
+/// [`build_day_view`] runs, minus the template recap. The lazy `get_recap` command feeds
+/// these to the Foundation Models narrator ([`crate::ai::build_recap`]), which falls back to
+/// the template (D48) on any failure (hard rule 6 / C5).
+pub(crate) fn build_recap_facts(
+    events: &[ActivityLog],
+    categories: &HashMap<i64, CategoryMeta>,
+    projects: &HashMap<i64, String>,
+    day_start: i64,
+) -> RecapFacts {
+    let (active_secs, _idle_secs, category_slices) = aggregate_categories(events, categories);
+    let runs = build_runs(events, categories, projects);
+    compute_recap_facts(active_secs, day_start, &category_slices, &runs)
 }
 
 /// One day's slice for the Week grid: per-day active + deep totals and the dial arcs. Reuses
@@ -768,6 +794,32 @@ pub(crate) fn format_recap_prompt(facts: &RecapFacts) -> String {
     lines.join("\n")
 }
 
+/// Bumped whenever the model's *input or behavior* changes in a way that should re-narrate
+/// every day — the prompt format here, OR the Swift sidecar's instructions/temperature. The
+/// recap fingerprint folds this in, so a bump invalidates every cached recap (D52): they
+/// regenerate once, under the new version.
+/// - 1: the initial shipped recap (D51).
+/// - 2: instructions stop opening with "today"/the day name; narrate in the past tense.
+/// - 3: voice tuned (eval-driven) — calm, human prose that drops the "leading category / runner-up / total active time" scaffolding, with faithfulness + verbatim-name guards.
+pub(crate) const RECAP_CACHE_VERSION: u32 = 3;
+
+/// A stable content fingerprint of a day's recap facts, the key for the recap cache (D52). It
+/// hashes the EXACT prompt the model narrates (identical facts → identical key) plus the cache
+/// version. Because the key *is* the content, invalidation is free: a rule reprocess that
+/// changes a day's facts yields a new fingerprint and the old cached row is never matched.
+/// The fingerprint must cover everything that determines the prose — if the narrator ever
+/// takes input beyond this prompt, fold it in here too.
+pub(crate) fn recap_fingerprint(facts: &RecapFacts) -> String {
+    // FNV-1a (64-bit): small, stable, dependency-free — the same hash the migration runner uses.
+    let input = format!("v{RECAP_CACHE_VERSION}\n{}", format_recap_prompt(facts));
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in input.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{hash:016x}")
+}
+
 /// The single real project that clearly led the day (≥ 40% of active time), if any.
 /// "No project" never qualifies — we don't narrate the absence of a project.
 fn leading_project(runs: &[CategoryRun], active_secs: i64) -> Option<String> {
@@ -1272,5 +1324,40 @@ mod tests {
             assert_eq!(cr.category_slug, tr.category_slug);
             assert_eq!((cr.start, cr.end, cr.secs), (tr.start, tr.end, tr.secs));
         }
+    }
+
+    #[test]
+    fn recap_fingerprint_is_stable_and_sensitive() {
+        let base = RecapFacts {
+            active_secs: 17580,
+            leading: Some(CategoryFact {
+                name: "Work".into(),
+                secs: 11400,
+            }),
+            second: Some(CategoryFact {
+                name: "Browsing".into(),
+                secs: 5400,
+            }),
+            leading_project: Some("usageos".into()),
+            longest_focus: Some(FocusFact {
+                secs: 4320,
+                when: "in the morning",
+            }),
+        };
+        // Deterministic: identical facts → identical key (the cache-hit guarantee).
+        assert_eq!(recap_fingerprint(&base), recap_fingerprint(&base));
+
+        // Sensitive: a changed number → a new key, so a rule reprocess re-narrates the day.
+        let mut changed = base.clone();
+        changed.active_secs = 9999;
+        assert_ne!(recap_fingerprint(&base), recap_fingerprint(&changed));
+
+        // Sensitive: a renamed category → a new key (the prose would differ).
+        let mut renamed = base.clone();
+        renamed.leading = Some(CategoryFact {
+            name: "Deep".into(),
+            secs: 11400,
+        });
+        assert_ne!(recap_fingerprint(&base), recap_fingerprint(&renamed));
     }
 }

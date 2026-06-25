@@ -15,6 +15,14 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
+# The AI recap sidecar is spawned via the shell plugin (D49 chunk C). The capability is
+# scoped to exactly the one named sidecar (`sidecar: true`), never a general shell:allow-
+# execute — see capabilities/default.json + context/standards/foundation-models.md (C8).
+# Pinned to 2.2.x: tauri-plugin-shell 2.3.5 hard-requires tauri >= 2.10, whose
+# tauri-runtime-wry 2.10.1 + wry 0.54.2 are a broken pair (a Send/Sync mismatch that fails
+# to compile). 2.2.1 keeps us on the proven tauri 2.9.3 stack; the sidecar API
+# (sidecar/spawn/write/CommandEvent) is unchanged. Revisit when the wry break is fixed.
+tauri-plugin-shell = "=2.2.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

@@ -19,7 +19,7 @@ export const Template: Story = {
 
 export const OnDevice: Story = {
   args: {
-    generatedBy: "fm",
+    generatedBy: "foundation-models",
     text: "A focused day. You gave usageos a clean 90-minute deep-work block before 9:30, then split the afternoon with nudge.",
   },
 };

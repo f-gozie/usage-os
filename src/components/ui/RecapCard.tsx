@@ -2,13 +2,16 @@ import { cn } from "@/lib/utils";
 
 export interface RecapCardProps {
   text: string;
-  /** "fm" = on-device Foundation Models prose; "template" = the deterministic fallback. */
+  /**
+   * Who wrote the prose — matches the Rust `Recap.generated_by`: "foundation-models" = the
+   * on-device model, "template" = the deterministic fallback (D48). Drives the badge.
+   */
   generatedBy: string;
 }
 
 /** The daily recap card. The badge distinguishes on-device prose from the template. */
 export function RecapCard({ text, generatedBy }: RecapCardProps) {
-  const isFm = generatedBy === "fm";
+  const isFm = generatedBy === "foundation-models";
   return (
     <div className="border-[3px] border-edge bg-surface px-[18px] py-4">
       <div className="mb-2.5 flex items-center justify-between">
@@ -24,7 +27,14 @@ export function RecapCard({ text, generatedBy }: RecapCardProps) {
           {isFm ? "⌁ Summarized on-device" : "≡ Template"}
         </span>
       </div>
-      <p className="text-[17px] font-medium leading-[1.45]">{text}</p>
+      {/* Keyed on the source so remounting (template → on-device) replays the subtle
+          fade-up once when the AI prose arrives; the instant template doesn't animate. */}
+      <p
+        key={isFm ? "fm" : "template"}
+        className={cn("text-[17px] font-medium leading-[1.45]", isFm && "recap-in")}
+      >
+        {text}
+      </p>
     </div>
   );
 }

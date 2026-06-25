@@ -48,6 +48,7 @@ pub fn delete_all_data(conn: &mut Connection) -> Result<()> {
     tx.execute("DELETE FROM project_aliases", [])?;
     tx.execute("DELETE FROM projects", [])?;
     tx.execute("DELETE FROM sites", [])?;
+    tx.execute("DELETE FROM recap_cache", [])?; // captured-derived (D52)
     tx.commit()?;
     Ok(())
 }

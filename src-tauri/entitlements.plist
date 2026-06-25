@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  UsageOS app entitlements (hard rule 1 — "nothing leaves the machine").
+
+  Deliberately EMPTY: no com.apple.security.network.client, so the no-network guarantee is
+  ENFORCED at signing and auditable in the open source, not merely observed. The app's data
+  path (capture, SQLite, on-device recap) needs no network capability. The only permitted
+  network — an explicit, user-initiated update check — is out of this signed data path.
+
+  (The bundled usageos-ai sidecar carries its own empty entitlements at
+  sidecar/usageos-ai/entitlements.plist; nested-binary pre-signing is a Phase-5
+  distribution task — see foundation-models.md open-question 10 / Tauri bug #11992.)
+-->
+<plist version="1.0">
+<dict/>
+</plist>

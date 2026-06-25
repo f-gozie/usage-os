@@ -9,6 +9,7 @@ import type {
   DayView,
   Exclusion,
   InstalledApp,
+  Recap,
   Result,
   Rule,
   Setting,
@@ -60,6 +61,13 @@ export async function getActivityStats(
 /** The computed Day view (category aggregates + runs + recap) for a `[start, end)` range. */
 export async function getDay(startTime: number, endTime: number): Promise<DayView> {
   return unwrap(await commands.getDay(startTime, endTime));
+}
+
+/** Narrate the day's recap with the on-device sidecar, falling back to the template on any
+ *  failure. Async + lazy: call AFTER the day loads and upgrade the card in place when it
+ *  resolves (`getDay` already returns the instant template recap). */
+export async function getRecap(startTime: number, endTime: number): Promise<Recap> {
+  return unwrap(await commands.getRecap(startTime, endTime));
 }
 
 /** The computed Week view: 7 day-slices + week aggregates. `dayStarts` are the 7 local

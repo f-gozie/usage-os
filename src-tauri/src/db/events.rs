@@ -168,6 +168,8 @@ pub fn cleanup_old_data(conn: &Connection, retention_days: i64) -> Result<usize>
     }
     let cutoff = now_unix() - (retention_days * 86400);
     let deleted = conn.execute("DELETE FROM activity_logs WHERE end_time < ?1", [cutoff])?;
+    // Cached recaps (D52) are derived from the events — prune any whose whole day is past retention.
+    conn.execute("DELETE FROM recap_cache WHERE day_start < ?1", [cutoff])?;
     if deleted > 0 {
         println!(
             "[Database] Cleaned up {} old activity logs (retention: {} days)",

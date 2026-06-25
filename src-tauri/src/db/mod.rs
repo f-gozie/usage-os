@@ -15,12 +15,14 @@ mod categories;
 mod events;
 mod exclusions;
 mod projects;
+mod recap;
 mod settings;
 
 pub use categories::*;
 pub use events::*;
 pub use exclusions::*;
 pub use projects::*;
+pub use recap::*;
 pub use settings::*;
 
 pub type DbConnection = Arc<Mutex<Connection>>;
