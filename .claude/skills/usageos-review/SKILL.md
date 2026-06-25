@@ -1,5 +1,5 @@
 ---
-name: review
+name: usageos-review
 description: >-
   The standard pre-PR review for UsageOS. Reviews the current diff against the
   project's 8 hard rules, runs the real merge gates, gets an independent Codex
@@ -7,11 +7,11 @@ description: >-
   only safe fixes, and writes the report into the active plan folder so a
   feature's plan → impl-plan → review live in one place. Use before opening or
   updating any PR, or when the user says "review", "review this", "review the
-  branch / PR / diff", or "/review".
+  branch / PR / diff", or "/usageos-review".
 argument-hint: "[branch|staged|uncommitted|rust|ui|sidecar|<path>] [--no-codex]"
 ---
 
-# `/review` — UsageOS pre-PR review
+# `/usageos-review` — UsageOS pre-PR review
 
 A parallel review **panel** for UsageOS, then a mandatory **verify-against-real-code**
 pass, then **consolidate + safe auto-fix**, then a report written **into the active
@@ -149,7 +149,7 @@ git diff main...HEAD > /tmp/review-diff.patch     # or --cached / plain diff per
   echo
   cat /tmp/review-diff.patch
 } | codex exec --ephemeral -C "$(pwd)" -s read-only \
-      --output-schema .claude/skills/review/codex-schema.json \
+      --output-schema .claude/skills/usageos-review/codex-schema.json \
       -o /tmp/review-codex.json -
 ```
 
@@ -161,7 +161,7 @@ no parseable JSON, add "Codex skipped: <reason>" to the report and continue with
 **Never fail the whole review because Codex was unavailable.**
 
 > Validated against `codex 0.130.0` (`--ephemeral`, `-s read-only`, `--output-schema`, `-o`).
-> Schema: `.claude/skills/review/codex-schema.json`.
+> Schema: `.claude/skills/usageos-review/codex-schema.json`.
 
 ---
 
