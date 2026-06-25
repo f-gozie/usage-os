@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UsageOSReviewCodexFindings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["overall_correctness", "findings"],
+  "properties": {
+    "overall_correctness": {
+      "type": "string",
+      "enum": ["patch is correct", "patch is incorrect"],
+      "description": "Overall verdict on the reviewed diff."
+    },
+    "findings": {
+      "type": "array",
+      "description": "Concrete, actionable findings tied to a changed file and line. Empty if the patch is clean.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "line", "severity", "category", "title", "body"],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Repo-relative path of a file present in the reviewed diff."
+          },
+          "line": {
+            "type": "integer",
+            "description": "1-based line number in the changed file the finding refers to."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "warning", "info"],
+            "description": "critical = bug/security/privacy/correctness; warning = should fix; info = minor."
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "bug",
+              "privacy",
+              "ipc-contract",
+              "unsafe",
+              "sql-leak",
+              "panic-path",
+              "narrate-not-count",
+              "simplify",
+              "style",
+              "test",
+              "design-system"
+            ],
+            "description": "bug = logic/correctness; privacy = network in the data path (hard rule 1); ipc-contract = hand-edited bindings or unregistered command (rule 2); unsafe = unjustified unsafe / unparameterized SQL; sql-leak = SQL or DB handle outside the repository layer (rule 4); panic-path = unwrap/expect/panic in a production path (rule 3); narrate-not-count = the AI layer computing or fabricating a number (rule 6); simplify = dead code / over-abstraction / AI-tell; style = naming/formatting/microcopy voice; test = missing or wrong test; design-system = ad-hoc color/font/spacing instead of a token (rule 7)."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 140,
+            "description": "One-line summary of the finding."
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "What is wrong, why it matters, and the concrete fix. No speculative risks or large rewrites."
+          }
+        }
+      }
+    }
+  }
+}
