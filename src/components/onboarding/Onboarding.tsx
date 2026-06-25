@@ -1,7 +1,10 @@
 import { useState } from "react";
 
+import { GrantedPill } from "@/components/ui/GrantedPill";
 import { usePermissions } from "@/hooks/usePermissions";
 import { requestAccessibility, requestAutomation } from "@/lib/tauri";
+
+const STEPS = ["Welcome", "Your privacy", "Accessibility", "Automation", "Ready"];
 
 /**
  * First-run onboarding: Welcome → Privacy → Accessibility → Automation → Ready. Ported from
@@ -15,7 +18,6 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   const accessibility = permissions?.accessibility ?? false;
   const automation = permissions?.automation === "granted";
-  const STEPS = ["Welcome", "Your privacy", "Accessibility", "Automation", "Ready"];
 
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
@@ -254,9 +256,7 @@ function GrantBox({
         <div className="text-xs text-muted">{sub}</div>
       </div>
       {granted ? (
-        <span className="border-2 border-edge bg-bar-bg px-[11px] py-[5px] text-[11px] font-semibold uppercase tracking-[0.06em] text-bar-fg">
-          Granted ✓
-        </span>
+        <GrantedPill />
       ) : (
         <button
           type="button"

@@ -56,7 +56,7 @@ impl CaptureSource for MacosCapture {
     /// MUST be called on the main thread (Tauri `setup`) — the observers attach to
     /// the current (main) `CFRunLoop`, which Tauri pumps.
     fn start(self: Box<Self>, tx: Sender<FocusEvent>) {
-        prompt_trust_if_needed();
+        warn_if_capture_degraded();
 
         let Some(run_loop) = CFRunLoop::current() else {
             eprintln!("[Capture] fatal: no current CFRunLoop; capture disabled");
@@ -398,9 +398,10 @@ fn copy_attr(element: &AXUIElement, attr: &str) -> Option<CFRetained<CFType>> {
 
 // ── Trust ────────────────────────────────────────────────────────────────────
 
-/// If Accessibility isn't granted, prompt once (non-blocking) and continue — capture
-/// degrades to no-titles until granted (full priming is Phase 4, see D21).
-fn prompt_trust_if_needed() {
+/// If Accessibility isn't granted, log that capture is degraded (no titles) and continue.
+/// Capture never forces the system prompt — onboarding/Settings own that via
+/// `request_accessibility`, so a user who chose "Maybe later" stays promptless (D57).
+fn warn_if_capture_degraded() {
     if crate::permissions::accessibility_trusted() {
         return;
     }
@@ -408,5 +409,4 @@ fn prompt_trust_if_needed() {
         "[Capture] Accessibility not granted — capture is degraded (no titles). \
          Grant UsageOS under System Settings → Privacy & Security → Accessibility."
     );
-    crate::permissions::prompt_accessibility_trust();
 }

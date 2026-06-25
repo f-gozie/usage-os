@@ -15,6 +15,7 @@ import {
   Tag,
 } from "@/components/settings/primitives";
 import { AppIcon } from "@/components/ui/AppIcon";
+import { GrantedPill } from "@/components/ui/GrantedPill";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -220,9 +221,11 @@ export function SettingsView() {
           description="Lets UsageOS read the title of your active window — so it can tell what you were working on, not just which app. Without it, tracking is app-only."
         >
           {permissions?.accessibility ? (
-            <GrantedTag />
+            <GrantedPill />
           ) : (
-            <Pill onClick={() => void requestAccessibility().then(refetchPermissions)}>Grant</Pill>
+            <Pill onClick={() => void requestAccessibility().then(refetchPermissions).catch(() => undefined)}>
+              Grant
+            </Pill>
           )}
         </SettingRow>
         <SettingRow
@@ -230,9 +233,11 @@ export function SettingsView() {
           description="Optional — lets it read the address of the page you're on, so a browser shows the site, not just “Browsing.” Private windows are never read."
         >
           {permissions?.automation === "granted" ? (
-            <GrantedTag />
+            <GrantedPill />
           ) : (
-            <Pill onClick={() => void requestAutomation().then(refetchPermissions)}>Grant</Pill>
+            <Pill onClick={() => void requestAutomation().then(refetchPermissions).catch(() => undefined)}>
+              Grant
+            </Pill>
           )}
         </SettingRow>
       </SettingGroup>
@@ -353,15 +358,6 @@ function CategoryRow({
         ✎
       </IconButton>
     </div>
-  );
-}
-
-/** The "Granted ✓" state for a permission row (mirrors onboarding's granted pill). */
-function GrantedTag() {
-  return (
-    <span className="whitespace-nowrap border-2 border-edge bg-bar-bg px-[11px] py-[5px] text-[11px] font-semibold uppercase tracking-[0.06em] text-bar-fg">
-      Granted ✓
-    </span>
   );
 }
 

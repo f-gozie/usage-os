@@ -109,16 +109,10 @@ pub(crate) fn open_settings(pane: SettingsPane) {
     }
 }
 
-/// Whether Accessibility is granted (macOS only) — capture uses this for its degraded-mode nudge.
+/// Whether Accessibility is granted (macOS only) — capture uses this for its degraded-mode log.
 #[cfg(target_os = "macos")]
 pub(crate) fn accessibility_trusted() -> bool {
     macos::accessibility_trusted()
-}
-
-/// Show the Accessibility trust prompt (macOS only) — capture uses this on first run.
-#[cfg(target_os = "macos")]
-pub(crate) fn prompt_accessibility_trust() {
-    macos::prompt_accessibility_trust();
 }
 
 #[cfg(test)]

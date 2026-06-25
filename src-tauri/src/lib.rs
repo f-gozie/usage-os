@@ -29,7 +29,9 @@ pub mod ai;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{
@@ -504,12 +506,32 @@ fn position_glance(window: &WebviewWindow, rect: &Rect) {
     let _ = window.set_position(PhysicalPosition::new(x as i32, y as i32));
 }
 
+/// When the glance last auto-hid on focus loss — used to debounce a tray click that lands in the
+/// same instant (the click can deliver the panel's focus-loss before the tray handler runs).
+static LAST_GLANCE_HIDE: Mutex<Option<Instant>> = Mutex::new(None);
+
+fn note_glance_hidden() {
+    if let Ok(mut t) = LAST_GLANCE_HIDE.lock() {
+        *t = Some(Instant::now());
+    }
+}
+
+/// True if the glance auto-hid within the last ~200ms — i.e. this tray click is the same one that
+/// dismissed it, so re-showing would immediately re-open it.
+fn glance_just_auto_hidden() -> bool {
+    LAST_GLANCE_HIDE
+        .lock()
+        .ok()
+        .and_then(|t| *t)
+        .is_some_and(|t| t.elapsed() < Duration::from_millis(200))
+}
+
 /// Left-click the tray icon: toggle the glance popover (created lazily, hidden on focus loss).
 fn toggle_glance(app: &AppHandle, rect: Rect) {
     if let Some(window) = app.get_webview_window("glance") {
         if window.is_visible().unwrap_or(false) {
             let _ = window.hide();
-        } else {
+        } else if !glance_just_auto_hidden() {
             position_glance(&window, &rect);
             let _ = window.show();
         }
@@ -519,8 +541,8 @@ fn toggle_glance(app: &AppHandle, rect: Rect) {
         .decorations(false)
         .resizable(false)
         .skip_taskbar(true)
-        // Transparent so the native popover material (set_effects below) is the visible chrome;
-        // the window's level/rounding/float-over-fullscreen are owned by the NSPanel reclass (D56).
+        // Transparent window: the visible chrome is the solid themed CSS card (Glance.tsx); the
+        // window's level/rounding/float-over-fullscreen are owned by the NSPanel reclass (D56).
         .transparent(true)
         .visible(false)
         .inner_size(336.0, 488.0)
@@ -542,6 +564,7 @@ fn toggle_glance(app: &AppHandle, rect: Rect) {
                 // this is unreliable on-device, fall back to an AppKit outside-click monitor.
                 if let WindowEvent::Focused(false) = event {
                     let _ = handle.hide();
+                    note_glance_hidden();
                 }
             });
         }
@@ -624,6 +647,10 @@ fn make_builder() -> Builder<tauri::Wry> {
     ])
 }
 
+/// Set once the menubar tray is built. The main-window close handler reads it to decide whether
+/// hiding-on-close is safe (a reachable tray to reopen) or it should fall back to a normal close.
+static TRAY_READY: AtomicBool = AtomicBool::new(false);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = make_builder();
@@ -637,11 +664,15 @@ pub fn run() {
         .on_window_event(|window, event| {
             // Closing the main window HIDES it (tracking keeps running in the background); the
             // app exits only via the tray "Quit". Other windows (the glance popover) close
-            // normally — its focus-loss handler hides it.
+            // normally — its focus-loss handler hides it. Only swallow the close once the tray
+            // exists to bring the window back — otherwise a tray-setup failure would strand the
+            // app with its only window hidden and no Open/Quit path.
             if window.label() == "main" {
                 if let WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    let _ = window.hide();
+                    if TRAY_READY.load(Ordering::Relaxed) {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
                 }
             }
         })
@@ -687,9 +718,12 @@ pub fn run() {
             capture::default_source().start(tx);
             std::thread::spawn(move || capture::consume(db_conn, rx));
 
-            // Menubar tray + glance popover. Non-fatal: a tray failure shouldn't block launch.
-            if let Err(e) = setup_tray(app.handle()) {
-                eprintln!("[Startup] Tray setup failed: {}", e);
+            // Menubar tray + glance popover. Non-fatal: a tray failure shouldn't block launch —
+            // but the main window keeps normal close-to-quit behavior until the tray is up (see
+            // the close handler), so we never strand it behind a missing tray.
+            match setup_tray(app.handle()) {
+                Ok(()) => TRAY_READY.store(true, Ordering::Relaxed),
+                Err(e) => eprintln!("[Startup] Tray setup failed: {}", e),
             }
             Ok(())
         })

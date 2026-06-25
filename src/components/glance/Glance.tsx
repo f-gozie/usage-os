@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { useWindowFocus } from "@/hooks/useWindowFocus";
 import { categoryColorVar } from "@/lib/categories";
 import { dayBounds } from "@/lib/dates";
 import { formatDuration } from "@/lib/format";
@@ -23,33 +24,16 @@ export function Glance() {
 function GlancePanel() {
   const [data, setData] = useState<DayView | null>(null);
 
-  useEffect(() => {
-    const load = () => {
-      const { start, end } = dayBounds(new Date());
-      void getDay(start, end)
-        .then(setData)
-        .catch(() => undefined);
-    };
-    load();
-    // Refresh each time the popover regains focus (i.e. is reopened). Guarded for non-Tauri envs.
-    let active = true;
-    let unlisten: (() => void) | undefined;
-    void import("@tauri-apps/api/window")
-      .then(({ getCurrentWindow }) =>
-        getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-          if (focused) load();
-        }),
-      )
-      .then((stop) => {
-        if (active) unlisten = stop;
-        else stop();
-      })
+  const load = useCallback(() => {
+    const { start, end } = dayBounds(new Date());
+    void getDay(start, end)
+      .then(setData)
       .catch(() => undefined);
-    return () => {
-      active = false;
-      unlisten?.();
-    };
   }, []);
+
+  useEffect(() => load(), [load]);
+  // Refresh each time the popover regains focus (i.e. is reopened).
+  useWindowFocus(load);
 
   // The glance window is transparent (rounded corners + soft shadow), so drop the opaque
   // html/body background the main app sets. Scoped to this webview; restored on unmount.
@@ -233,6 +217,7 @@ function Donut({
     return { d: a1 > a0 ? arc(a0, a1) : null, color: categoryColorVar(c.slug, c.color), slug: c.slug };
   });
 
+  const dur = formatDuration(activeSecs);
   return (
     <div className="relative h-[132px] w-[132px]">
       <svg viewBox="0 0 132 132" className="block w-full overflow-visible" role="img" aria-label="Category share">
@@ -247,9 +232,9 @@ function Donut({
       <div className="pointer-events-none absolute inset-0 flex max-w-full flex-col items-center justify-center px-3 text-center">
         <div
           className="font-display leading-[0.82] whitespace-nowrap"
-          style={{ fontSize: durationFontSize(formatDuration(activeSecs)) }}
+          style={{ fontSize: durationFontSize(dur) }}
         >
-          {formatDuration(activeSecs)}
+          {dur}
         </div>
         <div className="mt-1 text-[8px] font-semibold uppercase tracking-[0.2em] text-muted">Active</div>
       </div>
