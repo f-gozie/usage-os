@@ -254,7 +254,7 @@ function GrantBox({
         <div className="text-xs text-muted">{sub}</div>
       </div>
       {granted ? (
-        <span className="border-2 border-edge bg-edge px-[11px] py-[5px] text-[11px] font-semibold uppercase tracking-[0.06em] text-bg">
+        <span className="border-2 border-edge bg-bar-bg px-[11px] py-[5px] text-[11px] font-semibold uppercase tracking-[0.06em] text-bar-fg">
           Granted ✓
         </span>
       ) : (
@@ -282,7 +282,9 @@ function FootButton({
   const base =
     "border-2 px-5 py-[11px] text-xs font-semibold uppercase tracking-[0.08em] transition-colors";
   const styles = {
-    solid: "border-edge bg-edge text-bg",
+    // Always-inverted pair (legible in every theme — `bg-edge`/`text-bg` is dark-on-dark on the
+    // dark themes); mirrors the titlebar treatment.
+    solid: "border-edge bg-bar-bg text-bar-fg",
     out: "border-edge bg-transparent text-fg",
     ghost: "border-transparent bg-transparent pl-0 text-muted",
   }[variant];

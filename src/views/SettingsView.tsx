@@ -359,7 +359,7 @@ function CategoryRow({
 /** The "Granted ✓" state for a permission row (mirrors onboarding's granted pill). */
 function GrantedTag() {
   return (
-    <span className="whitespace-nowrap border-2 border-edge bg-edge px-[11px] py-[5px] text-[11px] font-semibold uppercase tracking-[0.06em] text-bg">
+    <span className="whitespace-nowrap border-2 border-edge bg-bar-bg px-[11px] py-[5px] text-[11px] font-semibold uppercase tracking-[0.06em] text-bar-fg">
       Granted ✓
     </span>
   );

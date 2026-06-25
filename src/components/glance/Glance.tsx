@@ -151,7 +151,7 @@ function GlancePanel() {
           <button
             type="button"
             onClick={() => void showMainWindow().catch(() => undefined)}
-            className="flex-1 rounded-[7px] bg-edge px-3.5 py-[9px] text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-bg"
+            className="flex-1 rounded-[7px] bg-bar-bg px-3.5 py-[9px] text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-bar-fg"
           >
             Open UsageOS →
           </button>
