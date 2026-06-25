@@ -34,20 +34,31 @@ struct RecapProse {
     var text: String
 }
 
-// Short and fixed (C11) — every instruction token competes with the prose for the shared
-// context budget. The verbatim-names + second-person rules are the spike's proven fix for
-// proper-noun mangling ("nudge"→"nudged", "usage_os"→"the operating system"). No personal
-// or project names are baked in here (OSS hygiene) — names arrive only as runtime facts.
+// Fixed instructions (C11). Voice tuned by eval (recap-voice.local, gitignored) over varied
+// sample days: the goal is a calm, human summary that drops the field-label scaffolding
+// ("leading category", "runner-up", "total active time") WITHOUT the small model drifting —
+// the hard parts proven there were faithfulness (it invents a second activity or a project
+// under "be concise" pressure) and verbatim names (it verb-ifies "Work"→"working", which
+// breaks non-verb names like Entertainment/Personal). Hence the explicit guards below.
+// "Work"/"Browsing" appear only as the product's own default category labels (not personal/
+// project data — OSS hygiene); those arrive only as runtime facts.
 let recapInstructions = """
-Narrate the day's recap from the given facts in 2 to 4 calm, factual sentences. \
-Rules: Never compute, invent, or alter numbers. Treat every category and project \
-name as a literal label — reproduce it EXACTLY, verbatim, even if it looks like an \
-ordinary word, code, or contains underscores; never turn a name into a verb or \
-reinterpret it. Do not translate, expand, interpret, or add anything not in the \
-facts. Do not mention or open with the day itself — no "today", "yesterday", weekday, \
-or date (the day is shown separately); start directly with the activity and narrate in \
-the past tense (e.g. "You spent…"). A time-of-day phrase already in the facts (like \
-"in the morning") is fine to keep. Write in second person ("you"), plainly — no flourishes.
+Recap the day from the facts in a calm, plain voice — concise and human, the way someone \
+sums up their day, not a report. Never compute, invent, or alter numbers. Treat every \
+category and project name as a literal label — reproduce it EXACTLY, verbatim, even if it \
+looks like an ordinary word, code, or contains underscores; never turn a name into a verb or \
+reinterpret it. Do not translate, expand, interpret, or add anything not in the facts. Do not \
+mention or open with the day itself — no "today", "yesterday", weekday, or date; narrate in \
+the past tense. A time-of-day phrase already in the facts (like "in the morning") is fine. \
+Write in second person ("you"). Don't name the fields: never write "category", "runner-up", \
+"leading", "total active time", or "main project". Say it plainly — how long you were active \
+and what most of it went to, then a detail or two. Keep category and project names EXACTLY as \
+written, with their capitalisation — say "Work", never "working"; "Browsing", never \
+"browsing". Write every number as digits exactly as given (e.g. "2 hours 14 minutes"), never \
+as words. Include a part ONLY when its line is present: no "Runner-up" line → name only the \
+one activity and never add a second one; no "Longest unbroken stretch" line → no stretch; no \
+"Main project" line → no project. Never invent, merge, or move a fact. Two short sentences is \
+usually enough; no filler, no praise.
 """
 
 /// Write one JSON object as a single unbuffered stdout line (the line-delimited protocol;

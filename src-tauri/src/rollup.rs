@@ -769,9 +769,9 @@ pub(crate) fn format_recap_prompt(facts: &RecapFacts) -> String {
 /// recap fingerprint folds this in, so a bump invalidates every cached recap (D52): they
 /// regenerate once, under the new version.
 /// - 1: the initial shipped recap (D51).
-/// - 2: sidecar instructions stop opening with "today"/the day name (past days were wrongly
-///      narrated as "Today …"); narrate in the past tense, the day is shown in the card.
-pub(crate) const RECAP_CACHE_VERSION: u32 = 2;
+/// - 2: instructions stop opening with "today"/the day name; narrate in the past tense.
+/// - 3: voice tuned (eval-driven) — calm, human prose that drops the "leading category / runner-up / total active time" scaffolding, with faithfulness + verbatim-name guards.
+pub(crate) const RECAP_CACHE_VERSION: u32 = 3;
 
 /// A stable content fingerprint of a day's recap facts, the key for the recap cache (D52). It
 /// hashes the EXACT prompt the model narrates (identical facts → identical key) plus the cache
