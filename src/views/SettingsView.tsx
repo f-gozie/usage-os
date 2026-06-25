@@ -15,15 +15,19 @@ import {
   Tag,
 } from "@/components/settings/primitives";
 import { AppIcon } from "@/components/ui/AppIcon";
+import { GrantedPill } from "@/components/ui/GrantedPill";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Select } from "@/components/ui/Select";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useSettingsData } from "@/hooks/useSettingsData";
 import { categoryColorVar } from "@/lib/categories";
 import {
   deleteExclusion,
   exportEventsCsv,
   getDatabasePath,
+  requestAccessibility,
+  requestAutomation,
   setRetentionDays,
   type Category,
   type Rule,
@@ -48,6 +52,7 @@ function errMsg(e: unknown): string {
 export function SettingsView() {
   const { data, loading, error, refresh } = useSettingsData();
   const { theme, setTheme } = useTheme();
+  const { permissions, refetch: refetchPermissions } = usePermissions();
 
   const [editing, setEditing] = useState<{
     category: Category | null;
@@ -207,6 +212,34 @@ export function SettingsView() {
           onAdd={() => setExclusionOpen(true)}
           hint="Exclude leaves an app out completely. Private still counts the time, no titles."
         />
+      </SettingGroup>
+
+      {/* Permissions — re-grantable anytime (onboarding can be skipped) */}
+      <SettingGroup title="Permissions">
+        <SettingRow
+          label="Accessibility"
+          description="Lets UsageOS read the title of your active window — so it can tell what you were working on, not just which app. Without it, tracking is app-only."
+        >
+          {permissions?.accessibility ? (
+            <GrantedPill />
+          ) : (
+            <Pill onClick={() => void requestAccessibility().then(refetchPermissions).catch(() => undefined)}>
+              Grant
+            </Pill>
+          )}
+        </SettingRow>
+        <SettingRow
+          label="Automation"
+          description="Optional — lets it read the address of the page you're on, so a browser shows the site, not just “Browsing.” Private windows are never read."
+        >
+          {permissions?.automation === "granted" ? (
+            <GrantedPill />
+          ) : (
+            <Pill onClick={() => void requestAutomation().then(refetchPermissions).catch(() => undefined)}>
+              Grant
+            </Pill>
+          )}
+        </SettingRow>
       </SettingGroup>
 
       {/* Appearance */}

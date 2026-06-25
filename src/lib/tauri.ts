@@ -9,10 +9,12 @@ import type {
   DayView,
   Exclusion,
   InstalledApp,
+  Permissions,
   Recap,
   Result,
   Rule,
   Setting,
+  SettingsPane,
   TimelineView,
   UncategorizedApp,
   WatcherStatus,
@@ -29,10 +31,13 @@ export type {
   DayView,
   Exclusion,
   InstalledApp,
+  Permissions,
+  PermissionState,
   ProjectSlice,
   Recap,
   Rule,
   Setting,
+  SettingsPane,
   TimelineRun,
   TimelineSegment,
   TimelineView,
@@ -189,4 +194,38 @@ export async function listInstalledApps(): Promise<InstalledApp[]> {
  *  ranked by total time. For the Settings "Uncategorized" list. */
 export async function getUncategorizedApps(): Promise<UncategorizedApp[]> {
   return unwrap(await commands.getUncategorizedApps());
+}
+
+// --- Permissions (macOS capture grants: Accessibility + Automation) ---
+
+/** Current state of the Accessibility + Automation permissions (for onboarding + Settings). */
+export async function getPermissions(): Promise<Permissions> {
+  return unwrap(await commands.getPermissions());
+}
+
+/** Prompt for Accessibility and open its System Settings → Privacy pane. */
+export async function requestAccessibility(): Promise<void> {
+  unwrap(await commands.requestAccessibility());
+}
+
+/** Trigger the Automation consent prompt for running browsers and open its Privacy pane. */
+export async function requestAutomation(): Promise<void> {
+  unwrap(await commands.requestAutomation());
+}
+
+/** Open a System Settings → Privacy pane directly (Accessibility or Automation). */
+export async function openSettingsPane(pane: SettingsPane): Promise<void> {
+  unwrap(await commands.openSettingsPane(pane));
+}
+
+// --- Window / app (menubar glance popover actions) ---
+
+/** Show + focus the main window and hide the glance popover. */
+export async function showMainWindow(): Promise<void> {
+  unwrap(await commands.showMainWindow());
+}
+
+/** Quit UsageOS entirely (stops background tracking). */
+export async function quitApp(): Promise<void> {
+  unwrap(await commands.quitApp());
 }

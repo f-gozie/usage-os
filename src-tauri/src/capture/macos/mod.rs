@@ -20,8 +20,7 @@ use block2::RcBlock;
 use objc2_app_kit::{NSWorkspace, NSWorkspaceDidActivateApplicationNotification};
 use objc2_application_services::{AXError, AXObserver, AXUIElement};
 use objc2_core_foundation::{
-    kCFBooleanTrue, kCFRunLoopCommonModes, CFBoolean, CFDictionary, CFRetained, CFRunLoop,
-    CFRunLoopSource, CFString, CFType,
+    kCFRunLoopCommonModes, CFRetained, CFRunLoop, CFRunLoopSource, CFString, CFType,
 };
 use objc2_foundation::NSNotification;
 
@@ -57,7 +56,7 @@ impl CaptureSource for MacosCapture {
     /// MUST be called on the main thread (Tauri `setup`) — the observers attach to
     /// the current (main) `CFRunLoop`, which Tauri pumps.
     fn start(self: Box<Self>, tx: Sender<FocusEvent>) {
-        prompt_trust_if_needed();
+        warn_if_capture_degraded();
 
         let Some(run_loop) = CFRunLoop::current() else {
             eprintln!("[Capture] fatal: no current CFRunLoop; capture disabled");
@@ -399,30 +398,15 @@ fn copy_attr(element: &AXUIElement, attr: &str) -> Option<CFRetained<CFType>> {
 
 // ── Trust ────────────────────────────────────────────────────────────────────
 
-/// If Accessibility isn't granted, prompt once (non-blocking) and continue — capture
-/// degrades to no-titles until granted (full priming is Phase 4, see D21).
-fn prompt_trust_if_needed() {
-    // SAFETY: argless C call.
-    if unsafe { objc2_application_services::AXIsProcessTrusted() } {
+/// If Accessibility isn't granted, log that capture is degraded (no titles) and continue.
+/// Capture never forces the system prompt — onboarding/Settings own that via
+/// `request_accessibility`, so a user who chose "Maybe later" stays promptless (D57).
+fn warn_if_capture_degraded() {
+    if crate::permissions::accessibility_trusted() {
         return;
     }
     eprintln!(
         "[Capture] Accessibility not granted — capture is degraded (no titles). \
          Grant UsageOS under System Settings → Privacy & Security → Accessibility."
     );
-    // SAFETY: framework-guaranteed constant string.
-    let key: &CFString = unsafe { objc2_application_services::kAXTrustedCheckOptionPrompt };
-    let Some(value) = (unsafe { kCFBooleanTrue }) else {
-        return;
-    };
-    let value: &CFBoolean = value;
-    let options: CFRetained<CFDictionary<CFString, CFBoolean>> =
-        CFDictionary::from_slices(&[key], &[value]);
-    let untyped: &CFDictionary = {
-        let ptr = CFRetained::as_ptr(&options).cast::<CFDictionary>();
-        // SAFETY: same layout (generics are PhantomData); `options` outlives this.
-        unsafe { ptr.as_ref() }
-    };
-    // SAFETY: a valid CFDictionary whose key/value types match the option.
-    let _ = unsafe { objc2_application_services::AXIsProcessTrustedWithOptions(Some(untyped)) };
 }

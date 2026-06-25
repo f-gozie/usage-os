@@ -268,6 +268,73 @@ async getUncategorizedApps() : Promise<Result<UncategorizedApp[], AppError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Snapshot the two macOS capture permissions (Accessibility + Automation) for onboarding +
+ * Settings. Non-macOS builds report accessibility=true / automation=NotApplicable.
+ */
+async getPermissions() : Promise<Result<Permissions, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_permissions") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Prompt for Accessibility and open its System Settings → Privacy pane.
+ */
+async requestAccessibility() : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("request_accessibility") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Trigger the Automation consent prompt for running browsers and open its Privacy pane.
+ */
+async requestAutomation() : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("request_automation") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Open a specific System Settings → Privacy pane (Accessibility or Automation).
+ */
+async openSettingsPane(pane: SettingsPane) : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_settings_pane", { pane }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Show + focus the main window, hiding the glance popover (its "Open UsageOS" affordance).
+ */
+async showMainWindow() : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("show_main_window") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Quit UsageOS entirely (stops background tracking) — the glance popover's "Quit".
+ */
+async quitApp() : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("quit_app") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -387,6 +454,19 @@ icon: string | null;
  */
 suggested_slug: string | null }
 /**
+ * One permission's state. Accessibility is a plain granted/not (`AXIsProcessTrusted`) so it
+ * rides as a bool on [`Permissions`]; Automation is per-target and genuinely tri-state.
+ */
+export type PermissionState = "granted" | "denied" | "not_determined" | 
+/**
+ * Not a macOS build (Linux CI / dev) — the grant doesn't apply.
+ */
+"not_applicable"
+/**
+ * Snapshot of both capture permissions for the UI.
+ */
+export type Permissions = { accessibility: boolean; automation: PermissionState }
+/**
  * A project's share of time *inside* a category-run (shown as a text line, never a bar).
  */
 export type ProjectSlice = { name: string; secs: number }
@@ -400,6 +480,10 @@ export type Rule = { id: number; category_id: number; match_field: string; patte
  * One persisted setting key/value (replaces the awkward `[string, string][]`).
  */
 export type Setting = { key: string; value: string }
+/**
+ * Which System Settings → Privacy pane a request should open.
+ */
+export type SettingsPane = "accessibility" | "automation"
 /**
  * A category-run plus its inner app-switch segments — one expandable Timeline row (D34).
  */
