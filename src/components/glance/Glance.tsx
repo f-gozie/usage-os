@@ -73,9 +73,9 @@ function GlancePanel() {
   const focusPct = active > 0 ? Math.round(((deep + research) / active) * 100) : 0;
 
   return (
-    <div className="flex h-screen flex-col bg-transparent p-2.5 text-fg">
-      <div className="flex flex-1 flex-col overflow-hidden rounded-[16px] border border-rule bg-bg shadow-[0_14px_44px_rgba(0,0,0,0.4)]">
-        {/* Head */}
+    <div className="flex h-screen flex-col overflow-hidden rounded-[16px] text-fg">
+      {/* Native popover material (set_effects) is the background; content sits on the frost. */}
+      {/* Head */}
         <div className="flex items-center gap-2 bg-bar-bg px-[13px] py-2.5">
         <span className="font-display text-[13px] uppercase tracking-[0.05em] text-bar-fg">
           USAGE<span className="text-c-research">OS</span>
@@ -161,7 +161,6 @@ function GlancePanel() {
             Quit
           </button>
         </div>
-      </div>
     </div>
   );
 }
@@ -190,6 +189,14 @@ function Kpi({
       </div>
     </div>
   );
+}
+
+/** Size the donut's centre duration so it never overflows the inner circle (~74px), regardless of
+ *  length: "5h 22m" stays big, "12h 48m" / longer step down. */
+function durationFontSize(label: string): number {
+  if (label.length <= 6) return 25;
+  if (label.length <= 8) return 20;
+  return 16;
 }
 
 /** Category-share donut: each arc sized by the category's share of active time. Always ≤5 clean
@@ -235,8 +242,13 @@ function Donut({
             ),
         )}
       </svg>
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-        <div className="font-display text-[25px] leading-[0.82]">{formatDuration(activeSecs)}</div>
+      <div className="pointer-events-none absolute inset-0 flex max-w-full flex-col items-center justify-center px-3 text-center">
+        <div
+          className="font-display leading-[0.82] whitespace-nowrap"
+          style={{ fontSize: durationFontSize(formatDuration(activeSecs)) }}
+        >
+          {formatDuration(activeSecs)}
+        </div>
         <div className="mt-1 text-[8px] font-semibold uppercase tracking-[0.2em] text-muted">Active</div>
       </div>
     </div>

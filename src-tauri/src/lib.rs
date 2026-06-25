@@ -18,6 +18,9 @@ mod rollup;
 mod apps;
 // macOS capture permissions (Accessibility + Automation) surfaced to onboarding + Settings.
 mod permissions;
+// macOS NSPanel reclass so the menubar glance floats over full-screen Spaces (D56).
+#[cfg(target_os = "macos")]
+mod glance_panel;
 
 // The recap-narration seam (hard rule 5): a mockable `Narrator` + `build_recap` with a
 // deterministic template fallback (D48). `pub` so its not-yet-wired API isn't dead-code.
@@ -29,6 +32,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::window::{Effect, EffectsBuilder};
 use tauri::{
     AppHandle, Manager, PhysicalPosition, Position, Rect, Size, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
@@ -492,28 +496,21 @@ fn position_glance(window: &WebviewWindow, rect: &Rect) {
     let win_w = window
         .outer_size()
         .map(|s| f64::from(s.width))
-        .unwrap_or(320.0 * scale);
-    let x = (tray_x + tray_w / 2.0 - win_w / 2.0).max(0.0);
+        .unwrap_or(336.0 * scale);
+    let mut x = tray_x + tray_w / 2.0 - win_w / 2.0;
     let y = tray_y + tray_h;
-    let _ = window.set_position(PhysicalPosition::new(x as i32, y as i32));
-}
-
-/// Make the glance popover appear on every Space — including over another app's full-screen
-/// Space, like the system menubar popovers — so a left-click while full-screen still shows it.
-/// (Without `FullScreenAuxiliary` the window opens on the desktop Space and stays invisible.)
-#[cfg(target_os = "macos")]
-fn float_over_fullscreen(window: &WebviewWindow) {
-    use objc2_app_kit::{NSWindow, NSWindowCollectionBehavior};
-    if let Ok(ptr) = window.ns_window() {
-        // SAFETY: ns_window() returns this window's live NSWindow; the deref needs `unsafe`, and
-        // the setter (main thread — we're on the UI callback) rides in the same block.
-        unsafe {
-            let ns_window: &NSWindow = &*(ptr as *const NSWindow);
-            let behavior = NSWindowCollectionBehavior::CanJoinAllSpaces
-                | NSWindowCollectionBehavior::FullScreenAuxiliary;
-            ns_window.setCollectionBehavior(behavior);
+    // Keep it on the tray's own display (a left-of-main external monitor has negative coords).
+    match window.monitor_from_point(tray_x, tray_y) {
+        Ok(Some(monitor)) => {
+            let min_x = f64::from(monitor.position().x);
+            let max_x = min_x + f64::from(monitor.size().width) - win_w;
+            if max_x >= min_x {
+                x = x.clamp(min_x, max_x);
+            }
         }
+        _ => x = x.max(0.0),
     }
+    let _ = window.set_position(PhysicalPosition::new(x as i32, y as i32));
 }
 
 /// Left-click the tray icon: toggle the glance popover (created lazily, hidden on focus loss).
@@ -524,32 +521,39 @@ fn toggle_glance(app: &AppHandle, rect: Rect) {
         } else {
             position_glance(&window, &rect);
             let _ = window.show();
-            let _ = window.set_focus();
         }
         return;
     }
     match WebviewWindowBuilder::new(app, "glance", WebviewUrl::App("index.html#/glance".into()))
         .decorations(false)
         .resizable(false)
-        .always_on_top(true)
         .skip_taskbar(true)
-        // Transparent + no OS shadow so the popover can render rounded corners + its own soft
-        // shadow (a hard rectangle floating on the desktop looks out of place — refined per owner).
+        // Transparent so the native popover material (set_effects below) is the visible chrome;
+        // the window's level/rounding/float-over-fullscreen are owned by the NSPanel reclass (D56).
         .transparent(true)
-        .shadow(false)
         .visible(false)
         .inner_size(336.0, 488.0)
         .build()
     {
         Ok(window) => {
+            // Native rounded + frosted chrome: a popover-material NSVisualEffectView under the
+            // webview. Tauri 2.9.x wraps window-vibrancy, so no extra dependency (D56).
+            let _ = window.set_effects(
+                EffectsBuilder::new()
+                    .effect(Effect::Popover)
+                    .radius(16.0)
+                    .build(),
+            );
+            // Reclass to a non-activating NSPanel so it floats over full-screen Spaces without
+            // activating the app (D56). Never `set_focus()` — that would activate UsageOS.
             #[cfg(target_os = "macos")]
-            float_over_fullscreen(&window);
+            glance_panel::configure(&window);
             position_glance(&window, &rect);
             let _ = window.show();
-            let _ = window.set_focus();
             let handle = window.clone();
             window.on_window_event(move |event| {
-                // Dismiss when the user clicks away (standard menubar-popover behaviour).
+                // Dismiss on click-away. A non-activating panel may resolve focus differently; if
+                // this is unreliable on-device, fall back to an AppKit outside-click monitor.
                 if let WindowEvent::Focused(false) = event {
                     let _ = handle.hide();
                 }

@@ -65,3 +65,14 @@ fresh — all green in CI (Linux + macOS-compile).
 ## Deferred
 Day-start offset (D14); the evening "your day is ready" ping (Phase 3 deferral). Tray-popover
 positioning across multiple displays may need tuning (settled on-device).
+
+## As-built revision — glance re-architected to NSPanel (D56, via `/debate`)
+On-device, the D55 glance (a transparent `WebviewWindow`) failed three ways: didn't float over
+full-screen apps, transparency/rounding halo, donut center-text overflow. A two-round `/debate`
+(Codex vs Opus) converged: the window **primitive** was wrong. Redone as a **non-activating
+`NSPanel`** (in-repo objc2 reclass — `src/glance_panel.rs`) at `NSPopUpMenuWindowLevel` with
+`CanJoinAllSpaces | CanJoinAllApplications | FullScreenAuxiliary | Transient | IgnoresCycle`, no
+`set_focus()`; native rounded/frosted chrome via tauri's built-in `set_effects(Effect::Popover,
+radius)` (no new dep — it wraps window-vibrancy); CSS card removed; donut center text sizes off
+string length; positioning clamps to the tray's display. Full rationale: **D56**. Still on-device-
+gated (the float-over-fullscreen + frosted render must be confirmed on Favour's Mac).
