@@ -767,8 +767,11 @@ pub(crate) fn format_recap_prompt(facts: &RecapFacts) -> String {
 /// Bumped whenever the model's *input or behavior* changes in a way that should re-narrate
 /// every day — the prompt format here, OR the Swift sidecar's instructions/temperature. The
 /// recap fingerprint folds this in, so a bump invalidates every cached recap (D52): they
-/// regenerate once, under the new version. (1 = the initial shipped recap, D51.)
-pub(crate) const RECAP_CACHE_VERSION: u32 = 1;
+/// regenerate once, under the new version.
+/// - 1: the initial shipped recap (D51).
+/// - 2: sidecar instructions stop opening with "today"/the day name (past days were wrongly
+///      narrated as "Today …"); narrate in the past tense, the day is shown in the card.
+pub(crate) const RECAP_CACHE_VERSION: u32 = 2;
 
 /// A stable content fingerprint of a day's recap facts, the key for the recap cache (D52). It
 /// hashes the EXACT prompt the model narrates (identical facts → identical key) plus the cache

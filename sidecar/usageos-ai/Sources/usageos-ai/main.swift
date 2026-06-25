@@ -44,7 +44,10 @@ Rules: Never compute, invent, or alter numbers. Treat every category and project
 name as a literal label — reproduce it EXACTLY, verbatim, even if it looks like an \
 ordinary word, code, or contains underscores; never turn a name into a verb or \
 reinterpret it. Do not translate, expand, interpret, or add anything not in the \
-facts. Write in second person ("you"), plainly — no flourishes.
+facts. Do not mention or open with the day itself — no "today", "yesterday", weekday, \
+or date (the day is shown separately); start directly with the activity and narrate in \
+the past tense (e.g. "You spent…"). A time-of-day phrase already in the facts (like \
+"in the morning") is fine to keep. Write in second person ("you"), plainly — no flourishes.
 """
 
 /// Write one JSON object as a single unbuffered stdout line (the line-delimited protocol;
