@@ -72,9 +72,11 @@ function GlancePanel() {
   const research = cats.find((c) => c.slug === "research")?.secs ?? 0;
   const focusPct = active > 0 ? Math.round(((deep + research) / active) * 100) : 0;
 
+  // Solid themed card (follows the app's paper/warm/black theme — not a system frost). The window
+  // is transparent, so the rounded corners reveal the desktop and the NSPanel draws the shadow;
+  // html/body are forced transparent (effect above) so only this card paints.
   return (
-    <div className="flex h-screen flex-col overflow-hidden rounded-[16px] text-fg">
-      {/* Native popover material (set_effects) is the background; content sits on the frost. */}
+    <div className="flex h-screen flex-col overflow-hidden rounded-[16px] bg-bg text-fg">
       {/* Head */}
         <div className="flex items-center gap-2 bg-bar-bg px-[13px] py-2.5">
         <span className="font-display text-[13px] uppercase tracking-[0.05em] text-bar-fg">

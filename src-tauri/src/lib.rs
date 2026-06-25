@@ -32,7 +32,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::window::{Effect, EffectsBuilder};
 use tauri::{
     AppHandle, Manager, PhysicalPosition, Position, Rect, Size, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
@@ -497,19 +496,11 @@ fn position_glance(window: &WebviewWindow, rect: &Rect) {
         .outer_size()
         .map(|s| f64::from(s.width))
         .unwrap_or(336.0 * scale);
-    let mut x = tray_x + tray_w / 2.0 - win_w / 2.0;
+    // Centre under the tray icon, in the tray rect's own coordinate space — which is already on
+    // the correct display. (An earlier `monitor_from_point` clamp mis-resolved the display and
+    // threw the popover onto the wrong screen; the raw tray coords are authoritative.)
+    let x = tray_x + tray_w / 2.0 - win_w / 2.0;
     let y = tray_y + tray_h;
-    // Keep it on the tray's own display (a left-of-main external monitor has negative coords).
-    match window.monitor_from_point(tray_x, tray_y) {
-        Ok(Some(monitor)) => {
-            let min_x = f64::from(monitor.position().x);
-            let max_x = min_x + f64::from(monitor.size().width) - win_w;
-            if max_x >= min_x {
-                x = x.clamp(min_x, max_x);
-            }
-        }
-        _ => x = x.max(0.0),
-    }
     let _ = window.set_position(PhysicalPosition::new(x as i32, y as i32));
 }
 
@@ -536,16 +527,11 @@ fn toggle_glance(app: &AppHandle, rect: Rect) {
         .build()
     {
         Ok(window) => {
-            // Native rounded + frosted chrome: a popover-material NSVisualEffectView under the
-            // webview. Tauri 2.9.x wraps window-vibrancy, so no extra dependency (D56).
-            let _ = window.set_effects(
-                EffectsBuilder::new()
-                    .effect(Effect::Popover)
-                    .radius(16.0)
-                    .build(),
-            );
             // Reclass to a non-activating NSPanel so it floats over full-screen Spaces without
             // activating the app (D56). Never `set_focus()` — that would activate UsageOS.
+            // The rounded shell is a solid themed CSS card (not a system frost — it must follow the
+            // app's own paper/warm/black theme, not macOS light/dark); the transparent window shows
+            // the desktop in the corners and the NSPanel draws the native shadow.
             #[cfg(target_os = "macos")]
             glance_panel::configure(&window);
             position_glance(&window, &rect);
