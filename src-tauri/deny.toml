@@ -1,0 +1,55 @@
+# cargo-deny — the Phase-6 dependency / license / advisory gate (D53, hard rule 8 spirit).
+# Run: `cargo deny check` (from src-tauri). CI can add it as a lane later.
+#
+# UsageOS ships macOS-only, so the graph is scoped to the Apple targets. This audits what
+# actually ships and drops Windows/Linux-only transitive crates that never reach the binary
+# (e.g. r-efi (LGPL, UEFI/wasi), the gtk/webkit2gtk stack).
+
+[graph]
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+
+[advisories]
+# Known *vulnerability* advisories fail the check (the two found — bytes 1.11.0 / time 0.3.44 —
+# were fixed by patch bumps to 1.11.1 / 0.3.47). The ignores below are all *unmaintained* (not
+# vulnerable) transitive crates with no available upgrade, pulled in by Tauri / its macro & webview
+# stack. Revisit when upstream migrates off them.
+ignore = [
+    "RUSTSEC-2025-0098", # unic-ucd-version  (tauri → urlpattern → rust-unic)
+    "RUSTSEC-2025-0081", # unic-char-property (same rust-unic family)
+    "RUSTSEC-2025-0075", # unic-char-range
+    "RUSTSEC-2025-0080", # unic-common
+    "RUSTSEC-2025-0100", # unic-ucd-ident
+    "RUSTSEC-2025-0057", # fxhash — unmaintained (rustc-hash recommended); transitive
+    "RUSTSEC-2020-0168", # mach — unmaintained; transitive (macOS objc/core stack)
+    "RUSTSEC-2024-0436", # paste — unmaintained; transitive (proc-macro stack)
+]
+
+[licenses]
+# All permissive and MIT-compatible (matching our MIT license). No copyleft that affects
+# distribution of a statically-linked binary; MPL-2.0 is file-level and we don't modify those files.
+allow = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "BSL-1.0",
+    "CC0-1.0",
+    "ISC",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+
+[bans]
+# Duplicate transitive versions are pervasive in the Tauri tree (windows-sys, hashbrown, …);
+# that's a build-graph fact, not a security gate.
+multiple-versions = "allow"
+
+[sources]
+# Every dependency must come from a known registry / git source.
+unknown-registry = "deny"
+unknown-git = "deny"

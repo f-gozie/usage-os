@@ -314,6 +314,46 @@ mod tests {
         assert_eq!(day2[0].end_time, 100_600);
     }
 
+    #[test]
+    fn get_activity_logs_lower_bounds_the_scan_at_max_span_lookback() {
+        // The Phase-6 perf guard: the overlap scan is floored at `start - MAX_SPAN_LOOKBACK_SECS`
+        // (2 days) so `idx_start_time` does a bounded range scan instead of walking all history.
+        // A span overlapping the window but starting before that floor is dropped — no real span
+        // lives that long (the idle gate closes spans within minutes), so this only excludes the
+        // impossible while keeping the read O(window).
+        let conn = setup_test_db();
+        let win_start = 10_000_000;
+        let win_end = win_start + 86_400;
+        // (a) Starts 1 day before the window, overlaps into it → INCLUDED, clipped at the start.
+        span(
+            &conn,
+            "Cursor",
+            win_start - 86_400,
+            86_400 + 100,
+            Some(1),
+            false,
+        );
+        // (b) Starts 3 days before (beyond the 2-day floor) but still overlaps → DROPPED by the guard.
+        span(
+            &conn,
+            "Ghost",
+            win_start - 3 * 86_400,
+            3 * 86_400 + 50,
+            Some(1),
+            false,
+        );
+
+        let logs = get_activity_logs(&conn, win_start, win_end).unwrap();
+        let apps: Vec<&str> = logs.iter().map(|l| l.process_name.as_str()).collect();
+        assert_eq!(
+            apps,
+            vec!["Cursor"],
+            "within-lookback kept; beyond-lookback dropped"
+        );
+        assert_eq!(logs[0].start_time, win_start, "clipped at the window start");
+        assert_eq!(logs[0].end_time, win_start + 100);
+    }
+
     // (Span coalescing / close-on-switch / idle behaviour now lives in the capture
     // state machine — see `crate::capture` tests.)
 

@@ -48,6 +48,39 @@ pub fn insert_event(conn: &Connection, event: &NewEvent) -> Result<i64> {
     Ok(conn.last_insert_rowid())
 }
 
+/// Bulk-insert fully-formed spans (explicit `start`/`end`) in one prepared statement —
+/// the dev seeding path for the Phase-6 perf harness. The live capture path is
+/// [`insert_event`] + [`set_span_end`]; that models an *open* span (`start == end`), so it
+/// can't seed history with real durations. Here the caller supplies each span's `end_time`
+/// alongside its [`NewEvent`] (whose `timestamp` is the start). Caller wraps a batch in one
+/// transaction (e.g. `conn.unchecked_transaction()`) for speed. SQL stays in the repository
+/// layer (hard rule 4); the generator never writes raw SQL.
+#[cfg(feature = "perf")]
+pub fn bulk_insert_events(conn: &Connection, spans: &[(NewEvent, i64)]) -> Result<()> {
+    let mut stmt = conn.prepare(
+        "INSERT INTO activity_logs
+            (process_name, window_title, start_time, end_time, is_idle, category_id,
+             url, site, project_id, project_abstain_reason, is_private)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+    )?;
+    for (event, end_time) in spans {
+        stmt.execute(rusqlite::params![
+            event.process_name,
+            event.window_title,
+            event.timestamp,
+            end_time,
+            event.is_idle as i64,
+            event.category_id,
+            event.url,
+            event.site,
+            event.project_id,
+            event.project_abstain_reason,
+            event.is_private as i64,
+        ])?;
+    }
+    Ok(())
+}
+
 /// Set a span's `end_time` by id — the only mutation the capture write path needs.
 /// The consumer state machine owns the open span, so there's no "find the last row"
 /// guesswork here (see `capture::consume`).
@@ -58,6 +91,14 @@ pub fn set_span_end(conn: &Connection, id: i64, end_time: i64) -> Result<()> {
     )?;
     Ok(())
 }
+
+/// Lower bound for the overlap scan below: a span overlapping `[start, end)` is *guaranteed* to
+/// have started no earlier than `start - MAX_SPAN_LOOKBACK_SECS`, because the capture write path
+/// caps span length at `capture::MAX_OPEN_SPAN_SECS` (12 h) — far below this 2-day bound (D58). So
+/// the bounded scan is complete, not heuristic, and keeps a recent-day read O(window) not O(all
+/// history). _(A future bulk-import of externally-sourced multi-day spans would need to respect
+/// the same cap or widen this bound.)_
+const MAX_SPAN_LOOKBACK_SECS: i64 = 2 * 86_400;
 
 /// Query activity logs within a time range.
 ///
@@ -77,13 +118,21 @@ pub fn get_activity_logs(
     // those that start in it), then clip each to the window below. A span crossing the boundary
     // (e.g. across local midnight) is thereby counted only for its in-window portion on each day,
     // instead of whole on the start day and absent from the next.
+    //
+    // The `start_time >= ?1` lower bound (`start_time - MAX_SPAN_LOOKBACK_SECS`) is the PERF fix:
+    // without it, `start_time < ?end` matches ~the whole table for a recent day, so idx_start_time
+    // walks all history — O(total rows) per call; with it the index does a bounded range scan over
+    // ~the window — O(window). It's complete (not heuristic) because the write path caps span
+    // length below the lookback (see MAX_SPAN_LOOKBACK_SECS), so no stored span starts earlier than
+    // the lookback and still overlaps the window.
+    let scan_lo = start_time.saturating_sub(MAX_SPAN_LOOKBACK_SECS);
     let sql = format!(
         "SELECT {ACTIVITY_LOG_COLUMNS} FROM activity_logs
-         WHERE start_time < ?2 AND end_time > ?1
+         WHERE start_time >= ?1 AND start_time < ?3 AND end_time > ?2
          ORDER BY start_time ASC"
     );
     let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map([start_time, end_time], row_to_activity_log)?;
+    let rows = stmt.query_map([scan_lo, start_time, end_time], row_to_activity_log)?;
 
     let mut logs = Vec::new();
     for row in rows {
