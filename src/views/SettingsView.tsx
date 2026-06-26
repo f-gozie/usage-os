@@ -1,6 +1,7 @@
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useState } from "react";
 
+import { AboutModal } from "@/components/settings/AboutModal";
 import { CategoryEditorModal } from "@/components/settings/CategoryEditorModal";
 import { DeleteAllModal } from "@/components/settings/DeleteAllModal";
 import { ExclusionModal } from "@/components/settings/ExclusionModal";
@@ -61,6 +62,7 @@ export function SettingsView() {
   } | null>(null);
   const [exclusionOpen, setExclusionOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   // Auto-dismiss the action notice.
@@ -290,6 +292,13 @@ export function SettingsView() {
         </SettingRow>
       </SettingGroup>
 
+      {/* About */}
+      <SettingGroup title="About">
+        <SettingRow label="About UsageOS" description="Version, links, and the privacy promise.">
+          <Pill onClick={() => setAboutOpen(true)}>About</Pill>
+        </SettingRow>
+      </SettingGroup>
+
       <CategoryEditorModal
         open={editing !== null}
         category={editing?.category ?? null}
@@ -312,6 +321,7 @@ export function SettingsView() {
           setNotice("All recorded activity deleted.");
         }}
       />
+      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </div>
   );
 }

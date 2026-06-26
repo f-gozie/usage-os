@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — M3: About + onboarding splash</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{--bg:#EEEBE1;--surface:#F6F3EA;--fg:#161616;--muted:#6A6A66;--edge:#161616;--rule:rgba(22,22,22,.16);--track:#D7D3C7;--blue:#1B45BE;--red:#E0241B;--gold:#EAB308;--green:#2E8B57;--on-ink:#EEEBE1;--bar-bg:#161616;--bar-fg:#EEEBE1;--scrim:rgba(22,22,22,.5);}
+[data-theme="warm"]{--bg:#1A1916;--surface:#24221A;--fg:#EDE9DD;--muted:#938E81;--edge:#4A453B;--rule:rgba(237,233,221,.14);--track:#39342B;--blue:#5C82F0;--red:#F0463C;--gold:#F2BC0C;--green:#46B97E;--on-ink:#1A1916;--bar-bg:#100F0C;--bar-fg:#EDE9DD;--scrim:rgba(0,0,0,.55);}
+[data-theme="black"]{--bg:#0E0E0E;--surface:#171719;--fg:#F4F4F2;--muted:#8C8C8A;--edge:#2F2F2F;--rule:rgba(244,244,242,.12);--track:#252525;--blue:#5C8BFF;--red:#FF4B40;--gold:#F5C518;--green:#4FCB8A;--on-ink:#0E0E0E;--bar-bg:#000000;--bar-fg:#F4F4F2;--scrim:rgba(0,0,0,.6);}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;}
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);min-height:100vh;}
+svg{display:block;}
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:13px 24px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.brand{font-family:'Anton';font-size:22px;letter-spacing:.05em;text-transform:uppercase;}
+.row{display:flex;gap:12px;align-items:center;}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-family:'Jost';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+.replay{font-family:'Jost';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;border:2px solid var(--edge);background:transparent;color:var(--fg);padding:8px 13px;cursor:pointer;}
+section{padding:34px 26px;border-bottom:3px solid var(--edge);}
+.eyebrow{font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;}
+.shead{font-family:'Anton';font-size:28px;line-height:.95;text-transform:uppercase;margin-bottom:8px;}
+.lead{font-size:14.5px;max-width:64ch;color:var(--muted);margin:0 0 20px;font-weight:500;}
+
+/* dial-O wordmark (frozen geometry) */
+.wm{font-family:'Anton';text-transform:uppercase;letter-spacing:.02em;display:inline-flex;align-items:baseline;line-height:1;}
+.wm .o{display:inline-block;width:1.02em;height:1.02em;transform:translateY(.08em);margin:0 -.05em;}
+.wm .o svg{width:100%;height:100%;overflow:visible;}
+
+/* ---------- About dialog ---------- */
+.scene{position:relative;border:2px solid var(--edge);background:var(--bg);min-height:430px;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+/* faint app behind */
+.scene .behind{position:absolute;inset:0;opacity:.25;padding:22px;}
+.scene .behind .h{font-family:'Anton';font-size:30px;text-transform:uppercase;}
+.scene .behind .tabs{display:flex;gap:18px;margin-top:12px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;}
+.scene .scrim{position:absolute;inset:0;background:var(--scrim);}
+.modal{position:relative;z-index:2;width:380px;border:3px solid var(--edge);background:var(--bg);}
+.modal-head{display:flex;align-items:center;justify-content:space-between;background:var(--bar-bg);color:var(--bar-fg);padding:10px 14px;}
+.modal-head .t{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;}
+.modal-head .x{font-size:16px;color:var(--bar-fg);opacity:.7;cursor:pointer;}
+.modal-body{padding:30px 26px 24px;text-align:center;}
+.modal-body .bigwm{font-size:46px;justify-content:center;color:var(--fg);}
+.modal-body .ver{font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:14px;}
+.modal-body .tag{font-size:14.5px;font-weight:500;color:var(--fg);margin-top:14px;max-width:34ch;margin-left:auto;margin-right:auto;line-height:1.5;}
+.modal-body .tag b{font-weight:600;}
+.links{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:22px;}
+.links a{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border:2px solid var(--edge);padding:7px 12px;color:var(--fg);cursor:pointer;}
+.links a:hover{background:var(--blue);border-color:var(--blue);color:#fff;}
+.credit{margin-top:20px;padding-top:16px;border-top:1px solid var(--rule);font-size:11.5px;color:var(--muted);}
+
+/* ---------- Onboarding opening beat ---------- */
+.obwrap{--tL:600ms;--tD:850ms;}
+.obcard{width:520px;margin:0 auto;border:3px solid var(--edge);background:var(--bg);overflow:hidden;}
+.obhead{display:flex;align-items:center;justify-content:space-between;background:var(--bar-bg);color:var(--bar-fg);padding:11px 16px;}
+.obhead .wm{font-size:15px;}
+.obhead .step{font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;opacity:.55;}
+.obprog{display:flex;gap:5px;padding:14px 16px 0;}
+.obprog span{height:5px;flex:1;background:var(--track);}
+.obprog span.on{background:var(--blue);}
+.obbody{padding:30px 24px 26px;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+.build{font-size:46px;color:var(--fg);}
+.build .ltr,.build .o{opacity:0;transform:translateY(.2em);transition:opacity var(--tL) cubic-bezier(.2,.7,.3,1),transform var(--tL) cubic-bezier(.2,.7,.3,1);}
+.build.lettersin .ltr,.build.lettersin .o{opacity:1;transform:none;}
+.build .o .arc{stroke-dasharray:100;stroke-dashoffset:100;transition:stroke-dashoffset var(--tD) cubic-bezier(.3,.9,.3,1);}
+.build.dialin .o .arc{stroke-dashoffset:0;}
+.obcontent{margin-top:24px;opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s ease;}
+.obcontent.in{opacity:1;transform:none;}
+.obcontent .eb{font-size:11px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--blue);}
+.obcontent .h{font-family:'Anton';font-size:34px;text-transform:uppercase;line-height:.9;margin-top:8px;}
+.obcontent .h .ac{color:var(--red);}
+.obcontent .ld{font-size:14.5px;color:var(--muted);font-weight:500;max-width:40ch;margin:12px auto 0;}
+
+.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 24px;border:2px solid var(--edge);padding:16px 18px;margin-top:18px;}
+.ctl label{display:flex;justify-content:space-between;font-size:12px;font-weight:600;letter-spacing:.04em;margin-bottom:6px;text-transform:uppercase;}
+.ctl label span{color:var(--blue);}
+.ctl input{width:100%;accent-color:var(--blue);}
+.readout{font-size:12.5px;color:var(--muted);margin-top:12px;}
+.readout code{color:var(--fg);font-weight:600;}
+.cap{font-size:12px;color:var(--muted);margin-top:10px;}
+.foot{padding:24px 26px;color:var(--muted);font-size:12.5px;}
+@media(max-width:620px){.controls{grid-template-columns:1fr;}.obcard,.modal{width:100%;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="oFull" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="34" fill="none" stroke="var(--track)" stroke-width="17"/>
+    <path d="M55.90 16.52 A34 34 0 0 1 80.02 65.96" fill="none" stroke="var(--blue)" stroke-width="17"/>
+    <path d="M71.85 76.04 A34 34 0 0 1 27.25 75.27" fill="none" stroke="var(--red)" stroke-width="17"/>
+    <path d="M19.44 64.91 A34 34 0 0 1 44.10 16.52" fill="none" stroke="var(--gold)" stroke-width="17"/>
+  </symbol>
+</defs></svg>
+
+<div class="top">
+  <div class="brand">M3 · About + splash</div>
+  <div class="row">
+    <button class="replay" id="replay">↻ Replay splash</button>
+    <div class="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+  </div>
+</div>
+
+<!-- ABOUT -->
+<section>
+  <div class="eyebrow">In-app · reachable from Settings</div>
+  <div class="shead">About dialog</div>
+  <p class="lead">A quiet brand moment: the dial-O wordmark, the version, one honest line, and the links that matter. Matches the app's modal chrome (ink header, hard edges).</p>
+  <div class="scene">
+    <div class="behind"><div class="h">USAGE<span style="color:var(--red)">OS</span></div><div class="tabs"><span>Day</span><span>Week</span><span>Timeline</span><span>Settings</span></div></div>
+    <div class="scrim"></div>
+    <div class="modal">
+      <div class="modal-head"><span class="t">About</span><span class="x">✕</span></div>
+      <div class="modal-body">
+        <div class="wm bigwm">USAGE<span class="o"><svg><use href="#oFull"/></svg></span>S</div>
+        <div class="ver">Version 0.1.0</div>
+        <div class="tag">A calm, private look at where your time goes. <b>Everything stays on your Mac.</b></div>
+        <div class="links"><a>Website</a><a>GitHub</a><a>License · MIT</a><a>Sponsor</a></div>
+        <div class="credit">Open source under MIT · made by Favour · © 2026</div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Links: <b>Website</b> → usageos.app · <b>GitHub</b> → the repo · <b>License</b> → MIT · <b>Sponsor</b> → GitHub Sponsors. Tell me if you want different copy or an extra line (e.g. “Check for updates”).</p>
+</section>
+
+<!-- SPLASH -->
+<section>
+  <div class="eyebrow">First run only · onboarding's opening beat</div>
+  <div class="shead">The wordmark builds</div>
+  <p class="lead">USAGE_S settles in, then the dial draws into the gap as the O — the logo assembling itself — and the Welcome copy follows. No blocking splash anywhere else; this plays once, on first launch. Tune the timing and read off the values.</p>
+
+  <div class="obwrap" id="ob">
+    <div class="obcard">
+      <div class="obhead"><span class="wm" style="font-size:15px">USAGE<span class="o" style="opacity:1"><svg><use href="#oFull"/></svg></span>S</span><span class="step">Welcome</span></div>
+      <div class="obprog"><span class="on"></span><span></span><span></span><span></span><span></span></div>
+      <div class="obbody">
+        <div class="build wm" id="build">
+          <span class="ltr">U</span><span class="ltr">S</span><span class="ltr">A</span><span class="ltr">G</span><span class="ltr">E</span><span class="o"><svg><use href="#oFull"/></svg></span><span class="ltr">S</span>
+        </div>
+        <div class="obcontent" id="obcontent">
+          <div class="eb">A private time tracker for Mac</div>
+          <div class="h">Where did your <span class="ac">day</span> go?</div>
+          <div class="ld">Your Mac already knows how you spent today. UsageOS quietly keeps track, then tells you the story.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="ctl"><label>Letters settle <span id="vL">600ms</span></label><input type="range" id="sL" min="200" max="1200" step="50" value="600"></div>
+      <div class="ctl"><label>Dial draws <span id="vD">850ms</span></label><input type="range" id="sD" min="300" max="1600" step="50" value="850"></div>
+      <div class="ctl"><label>Hold before copy <span id="vH">250ms</span></label><input type="range" id="sH" min="0" max="900" step="50" value="250"></div>
+    </div>
+    <div class="readout" id="readout"></div>
+    <p class="cap">Note: in the real app the O carries a faint ring from the start (so it reads as a letter), then the colours draw in. Replay restarts; theme-switch to check all three.</p>
+  </div>
+</section>
+
+<div class="foot">When the splash feel is right, give me the three numbers (letters · dial · hold) and approve the About copy/links — then I wire both into the app (onboarding Welcome + a Settings → About).</div>
+
+</div>
+<script>
+  // theme
+  document.querySelectorAll('.themesw button').forEach(b=>b.addEventListener('click',()=>{
+    document.documentElement.setAttribute('data-theme',b.dataset.t);
+    document.querySelectorAll('.themesw button').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+
+  const ob=document.getElementById('ob'), build=document.getElementById('build'), content=document.getElementById('obcontent');
+  const sL=document.getElementById('sL'), sD=document.getElementById('sD'), sH=document.getElementById('sH');
+  const ltrs=[...build.querySelectorAll('.ltr')];
+  let timers=[];
+  function vals(){return {L:+sL.value, D:+sD.value, H:+sH.value};}
+  function readout(){const v=vals();
+    document.getElementById('vL').textContent=v.L+'ms';
+    document.getElementById('vD').textContent=v.D+'ms';
+    document.getElementById('vH').textContent=v.H+'ms';
+    document.getElementById('readout').innerHTML=`letters <code>${v.L}ms</code> · dial <code>${v.D}ms</code> · hold <code>${v.H}ms</code> · stagger 45ms/letter`;
+  }
+  function clearTimers(){timers.forEach(clearTimeout);timers=[];}
+  function play(){
+    clearTimers();
+    const v=vals();
+    ob.style.setProperty('--tL', v.L+'ms');
+    ob.style.setProperty('--tD', v.D+'ms');
+    // reset
+    build.classList.remove('lettersin','dialin'); content.classList.remove('in');
+    ltrs.forEach((l,i)=>{ l.style.transitionDelay=(i*45)+'ms'; });
+    build.querySelector('.o').style.transitionDelay=(ltrs.length*45)+'ms';
+    // sequence
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      build.classList.add('lettersin');            // letters + O ring fade/settle in
+      const lettersDone = v.L + ltrs.length*45;
+      timers.push(setTimeout(()=>build.classList.add('dialin'), lettersDone));   // dial draws
+      const dialDone = lettersDone + v.D;
+      timers.push(setTimeout(()=>content.classList.add('in'), dialDone + v.H));  // copy follows
+      const total = dialDone + v.H + 500 + 1600;   // + copy fade + hold
+      timers.push(setTimeout(play, total));        // loop
+    }));
+  }
+  [sL,sD,sH].forEach(s=>s.addEventListener('input',()=>{readout();play();}));
+  document.getElementById('replay').addEventListener('click',play);
+  readout(); play();
+</script>
+</body>
+</html>

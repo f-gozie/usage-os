@@ -1,0 +1,227 @@
+---
+// Fonts bundled locally (no CDN — parity with the app, and independence). The dial + theme
+// switcher are tiny client islands; everything else is pre-rendered.
+import "@fontsource/anton/400.css";
+import "@fontsource/jost/400.css";
+import "@fontsource/jost/500.css";
+import "@fontsource/jost/600.css";
+import "@fontsource/jost/700.css";
+import "../styles/landing.css";
+
+const title = "UsageOS — see where your screen time goes";
+const description =
+  "A private, on-device Mac time tracker. It shows the day back — every app, sorted by the kind of work it was. Nothing leaves your machine.";
+---
+
+<!doctype html>
+<html lang="en" data-theme="paper">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://usageos.app" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content="https://usageos.app/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content="https://usageos.app/og.png" />
+  </head>
+  <body>
+    <div class="wrap">
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true"
+        ><defs>
+          <symbol id="oDial" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="34" fill="none" stroke="var(--track)" stroke-width="13"></circle>
+            <path d="M55.90 16.52 A34 34 0 0 1 80.02 65.96" fill="none" stroke="var(--blue)" stroke-width="13"></path>
+            <path d="M71.85 76.04 A34 34 0 0 1 27.25 75.27" fill="none" stroke="var(--red)" stroke-width="13"></path>
+            <path d="M19.44 64.91 A34 34 0 0 1 44.10 16.52" fill="none" stroke="var(--gold)" stroke-width="13"></path>
+          </symbol>
+        </defs></svg
+      >
+
+      <nav class="nav">
+        <span class="wm">USAGE<span class="o"><svg><use href="#oDial"></use></svg></span>S</span>
+        <div class="lks"><a href="#how">How it works</a><a href="#privacy">Privacy</a><a href="https://github.com/f-gozie/usage-os">Open source</a></div>
+        <div class="right">
+          <div class="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+          <a class="btn btn-p" href="#download">Download</a>
+        </div>
+      </nav>
+
+      <section class="hero">
+        <div class="eyebrow">A private time tracker for <span class="ac">Mac</span></div>
+        <h1>See where your <span class="u">screen time</span> actually goes.</h1>
+        <p class="sub">It watches your Mac quietly and shows the day back — every app, sorted by the kind of work it was. All of it on your machine.</p>
+        <div class="ctas"><a class="btn btn-p" href="#download">↓ Download for Mac</a><a class="btn btn-s" href="#how">See how it works</a></div>
+        <div class="pr">Free · open source · nothing leaves the machine.</div>
+      </section>
+
+      <div class="shotwrap">
+        <div class="appwin">
+          <div class="aw-bar">
+            <div class="lights"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i></div>
+            <span class="w">Usageos</span><span class="trk"><span class="d"></span>Tracking</span>
+          </div>
+          <div class="aw-tabs"><a class="on">Day</a><a>Week</a><a>Timeline</a><a>Settings</a></div>
+          <div class="aw-date"><span class="arw">‹</span>Thursday, June 19<span class="arw">›</span></div>
+          <div class="aw-body">
+            <div class="dialcol"><svg id="appDial" viewBox="0 0 200 200" aria-label="A day on the dial"></svg></div>
+            <div>
+              <div class="recapcard">
+                <div class="rc-top"><span class="rc-lbl">Daily recap</span><span class="rc-badge">⌁ On-device</span></div>
+                <p class="rc-text">You spent most of the morning in Cursor on usage_os, broke for a bit of YouTube after lunch, and Slack picked up through the afternoon. Your longest stretch was just over two hours.</p>
+              </div>
+              <div class="stats">
+                <div class="stat"><div class="n">8h 12m</div><div class="l">On screen</div></div>
+                <div class="stat"><div class="n">5h 40m</div><div class="l">Deep work</div></div>
+              </div>
+              <div class="ledger">
+                <div class="lrow"><span class="sw" style="background:var(--blue)"></span><span class="nm">Cursor</span><span class="bar"><i style="background:var(--blue);width:100%"></i></span><span class="t">4h 10m</span></div>
+                <div class="lrow"><span class="sw" style="background:var(--gold)"></span><span class="nm">Slack</span><span class="bar"><i style="background:var(--gold);width:42%"></i></span><span class="t">1h 02m</span></div>
+                <div class="lrow"><span class="sw" style="background:var(--red)"></span><span class="nm">Chrome</span><span class="bar"><i style="background:var(--red);width:30%"></i></span><span class="t">48m</span></div>
+                <div class="lrow"><span class="sw" style="background:var(--breaks)"></span><span class="nm">YouTube</span><span class="bar"><i style="background:var(--breaks);width:20%"></i></span><span class="t">31m</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="strip"><span>On your Mac</span><span class="d">·</span><span>No cloud</span><span class="d">·</span><span>No telemetry</span><span class="d">·</span><span>Open source</span></div>
+
+      <section class="row" id="how">
+        <div class="txt">
+          <div class="eyebrow"><span class="ac">The week</span></div>
+          <h2>Read the shape<br />of your week.</h2>
+          <p>Seven mini-dials on the same 24-hour scale. A heavy Wednesday and a light Sunday, side by side.</p>
+        </div>
+        <div class="crop"><div class="weekstrip" id="weekstrip"></div></div>
+      </section>
+
+      <section class="row flip">
+        <div class="txt">
+          <div class="eyebrow"><span class="ac">The timeline</span></div>
+          <h2>Find any moment<br />of the day.</h2>
+          <p>The same day as a plain list — what you were doing at 2pm, which app, which project. Click any run to expand it.</p>
+        </div>
+        <div class="crop"><div class="tline">
+          <div class="tr"><span class="tm">9:40a</span><div class="ct"><span class="sw" style="background:var(--blue)"></span><div><div class="nm">Deep work · usage_os</div><div class="ap">Cursor · Terminal</div></div></div></div>
+          <div class="tr"><span class="tm">12:32p</span><div class="ct"><span class="sw" style="background:var(--red)"></span><div><div class="nm">Browsing</div><div class="ap">Chrome · YouTube</div></div></div></div>
+          <div class="tr"><span class="tm">1:15p</span><div class="ct"><span class="sw" style="background:var(--blue)"></span><div><div class="nm">Deep work · usage_os</div><div class="ap">Cursor</div></div></div></div>
+          <div class="tr"><span class="tm">5:28p</span><div class="ct"><span class="sw" style="background:var(--gold)"></span><div><div class="nm">Messaging</div><div class="ap">Slack</div></div></div></div>
+        </div></div>
+      </section>
+
+      <section class="privacy" id="privacy">
+        <div class="eyebrow">Privacy</div>
+        <h2>Nothing leaves this machine.</h2>
+        <div class="cols">
+          <p>It reads your window titles and the current browser tab, and writes them to a database <b>on your Mac</b>. There is no network in the data path at all — and it’s open source, so you can read the code and confirm it.</p>
+          <p>It never uses Screen Recording. It skips incognito and private windows, ignores anything you mark private, and auto-excludes password managers and banking. No cloud, no account, no telemetry. <b>Ever.</b></p>
+        </div>
+      </section>
+
+      <section class="nums">
+        <div class="c"><div class="n ac">100%</div><div class="l">On your device</div></div>
+        <div class="c"><div class="n">0</div><div class="l">Servers</div></div>
+        <div class="c"><div class="n">0</div><div class="l">Trackers</div></div>
+        <div class="c"><div class="n">MIT</div><div class="l">Open source</div></div>
+      </section>
+
+      <section class="final" id="download">
+        <span class="wm">USAGE<span class="o"><svg><use href="#oDial"></use></svg></span>S</span>
+        <h2>See where your day actually went.</h2>
+        <div class="ctas"><a class="btn btn-p" href="#">↓ Download for Mac</a><a class="btn btn-s" href="https://github.com/f-gozie/usage-os">Star on GitHub</a></div>
+        <div class="note">Free and open source. It runs quietly and waits for you to look.</div>
+      </section>
+
+      <footer class="foot">
+        <span class="wm">USAGE<span class="o"><svg><use href="#oDial"></use></svg></span>S</span>
+        <div class="cp">A calm, private look at your time. © 2026 · usageos.app</div>
+        <div class="lks"><a href="https://github.com/f-gozie/usage-os">GitHub</a><a href="https://github.com/f-gozie/usage-os/blob/main/LICENSE">License (MIT)</a><a href="#">Sponsor</a></div>
+      </footer>
+    </div>
+
+    <script>
+      const MPD = 1440;
+      const polar = (m: number, r: number): [number, number] => {
+        const a = (m / MPD) * 2 * Math.PI;
+        return [100 + r * Math.sin(a), 100 - r * Math.cos(a)];
+      };
+      const arcPath = (r: number, a: number, b: number) => {
+        const lg = b - a > MPD / 2 ? 1 : 0;
+        const [x0, y0] = polar(a, r);
+        const [x1, y1] = polar(b, r);
+        return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${lg} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+      };
+      type Day = [number, number, string][];
+      type Opts = { r: number; sw: number; day: Day; now?: number | null; ticks?: boolean; figure?: string };
+      const buildDial = (svg: SVGElement, o: Opts) => {
+        const r = o.r;
+        const sw = o.sw;
+        let h = `<circle cx="100" cy="100" r="${r}" fill="none" stroke="var(--track)" stroke-width="${sw}"/>`;
+        if (o.ticks)
+          [0, 6, 12, 18].forEach((t) => {
+            const [xi, yi] = polar(t * 60, r - sw / 2 - 3);
+            const [xo, yo] = polar(t * 60, r + sw / 2 + 3);
+            h += `<line x1="${xi.toFixed(1)}" y1="${yi.toFixed(1)}" x2="${xo.toFixed(1)}" y2="${yo.toFixed(1)}" stroke="var(--edge)" stroke-width="2"/>`;
+          });
+        o.day.forEach(([a, b, c], i) => {
+          const d = arcPath(r, a * 60, b * 60);
+          const len = (((b - a) * 60) / MPD) * 2 * Math.PI * r;
+          h += `<path class="arc draw" d="${d}" stroke="var(--${c})" stroke-width="${sw}" style="--len:${len.toFixed(1)};--d:${(0.06 * i).toFixed(2)}s"/>`;
+        });
+        if (o.now != null) {
+          const [nx, ny] = polar(o.now, r + sw / 2 + 2);
+          h += `<polygon points="${nx.toFixed(1)},${ny.toFixed(1)} ${(nx - 5).toFixed(1)},${(ny - 9).toFixed(1)} ${(nx + 5).toFixed(1)},${(ny - 9).toFixed(1)}" fill="var(--fg)"/>`;
+        }
+        if (o.figure)
+          h += `<text x="100" y="98" text-anchor="middle" font-family="Anton" font-size="30" fill="var(--fg)">${o.figure}</text><text x="100" y="116" text-anchor="middle" font-family="Jost" font-weight="600" font-size="9.5" letter-spacing="2" fill="var(--muted)">ON SCREEN</text>`;
+        svg.innerHTML = h;
+      };
+
+      const DAY: Day = [
+        [7.5, 8.25, "gold"], [8.5, 12.5, "blue"], [12.5, 13.25, "red"], [13.25, 17.5, "blue"],
+        [17.5, 18.5, "gold"], [18.5, 19.25, "red"], [21, 22.5, "breaks"],
+      ];
+      const appDial = document.getElementById("appDial") as SVGElement | null;
+      if (appDial) buildDial(appDial, { r: 72, sw: 16, day: DAY, now: 16.17 * 60, ticks: true, figure: "8h 12m" });
+
+      const WK: { dl: string; day: Day }[] = [
+        { dl: "M", day: [[8, 12.5, "blue"], [13, 17.5, "blue"], [18, 19, "gold"], [21, 22.5, "breaks"]] },
+        { dl: "T", day: [[9, 12, "blue"], [12.5, 13.5, "red"], [14, 18.5, "blue"], [19, 20.5, "gold"]] },
+        { dl: "W", day: [[7.5, 12.5, "blue"], [13, 18, "blue"], [18.5, 19.5, "red"], [20, 23, "blue"]] },
+        { dl: "T", day: [[9, 12.5, "blue"], [13.5, 17, "blue"], [17.5, 19, "gold"], [21, 22, "breaks"]] },
+        { dl: "F", day: [[9.5, 12.5, "blue"], [12.5, 14, "red"], [14.5, 17.5, "gold"], [18, 19, "red"]] },
+        { dl: "S", day: [[11, 12.5, "red"], [15, 16.5, "breaks"], [20, 22.5, "breaks"]] },
+        { dl: "S", day: [[12, 13, "red"], [18, 19, "gold"], [20.5, 22, "breaks"]] },
+      ];
+      const ws = document.getElementById("weekstrip");
+      if (ws)
+        WK.forEach((w, idx) => {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          s.setAttribute("viewBox", "0 0 200 200");
+          cell.appendChild(s);
+          const dl = document.createElement("div");
+          dl.className = "dl";
+          dl.textContent = w.dl;
+          cell.appendChild(dl);
+          ws.appendChild(cell);
+          buildDial(s, { r: 78, sw: 20, day: w.day, now: idx === 3 ? 16.17 * 60 : null });
+        });
+
+      document.querySelectorAll<HTMLButtonElement>(".themesw button").forEach((b) =>
+        b.addEventListener("click", () => {
+          document.documentElement.setAttribute("data-theme", b.dataset.t || "paper");
+          document.querySelectorAll(".themesw button").forEach((x) => x.classList.toggle("on", x === b));
+        }),
+      );
+    </script>
+  </body>
+</html>

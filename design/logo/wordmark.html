@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Dial-O wordmark lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --blue:#1B45BE; --red:#E0241B; --gold:#EAB308; --ink:#161616; --on-ink:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --blue:#3358E0; --red:#F0463C; --gold:#F2BC0C; --ink:#EDE9DD; --on-ink:#1A1916;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --blue:#3A6BF0; --red:#FF4B40; --gold:#F5C518; --ink:#F4F4F2; --on-ink:#0E0E0E;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);min-height:100vh;}
+svg{display:block;}
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+  padding:13px 24px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.brand{font-family:'Anton',sans-serif;font-size:22px;letter-spacing:.05em;text-transform:uppercase;}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-family:'Jost';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+section{padding:34px 26px;border-bottom:3px solid var(--edge);}
+.eyebrow{font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;}
+.shead{font-family:'Anton',sans-serif;font-size:30px;line-height:.95;text-transform:uppercase;margin-bottom:10px;}
+.lead{font-size:15px;max-width:64ch;color:var(--muted);margin:0 0 22px;font-weight:500;}
+.lead b{color:var(--fg);font-weight:600;}
+.cap{font-size:12px;color:var(--muted);margin-top:10px;}
+
+/* ---- the wordmark ---- */
+.wlab{
+  --od:0.84em;   /* O diameter */
+  --oy:0.06em;   /* O vertical nudge (down +) */
+  --ow:15;       /* ring stroke (viewbox units) */
+  --os:0.01em;   /* side space around O */
+}
+.stage{background:var(--surface);border:2px solid var(--edge);padding:54px 30px;display:flex;align-items:center;justify-content:center;min-height:200px;}
+.mark{font-family:'Anton',sans-serif;text-transform:uppercase;letter-spacing:.03em;line-height:1;
+  font-size:84px;color:var(--fg);display:inline-flex;align-items:baseline;white-space:nowrap;}
+.mark .oSlot{display:inline-block;width:var(--od);height:var(--od);transform:translateY(var(--oy));
+  margin-left:var(--os);margin-right:var(--os);vertical-align:baseline;}
+.mark .oSlot svg{width:100%;height:100%;overflow:visible;}
+.oarc{fill:none;stroke-width:var(--ow);}
+.oarc.t{stroke:var(--track);}
+.oarc.b{stroke:var(--blue);}
+.oarc.r{stroke:var(--red);}
+.oarc.g{stroke:var(--gold);}
+.wlab.mono .oarc.t{stroke:transparent;}
+.wlab.mono .oarc.b,.wlab.mono .oarc.r,.wlab.mono .oarc.g{stroke:currentColor;}
+/* cap-height guide overlay */
+.stage.guides{position:relative;}
+.stage.guides::before,.stage.guides::after{content:"";position:absolute;left:18px;right:18px;height:1px;background:var(--blue);opacity:.5;}
+
+/* controls */
+.controls{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 26px;margin-top:18px;border:2px solid var(--edge);padding:18px 20px;}
+.ctl label{display:flex;justify-content:space-between;font-size:12.5px;font-weight:600;letter-spacing:.04em;margin-bottom:6px;text-transform:uppercase;}
+.ctl label span{color:var(--blue);font-family:'Jost';}
+.ctl input[type=range]{width:100%;accent-color:var(--blue);}
+.togs{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:center;}
+.togs button{font-family:'Jost';font-weight:600;font-size:12px;letter-spacing:.05em;text-transform:uppercase;
+  border:2px solid var(--edge);background:transparent;color:var(--fg);padding:8px 14px;cursor:pointer;}
+.togs button.on{background:var(--edge);color:var(--bg);}
+.readout{font-family:'Jost';font-size:12.5px;color:var(--muted);margin-left:auto;}
+.readout code{color:var(--fg);font-weight:600;}
+
+/* small-size previews driven by same vars */
+.previews{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:8px;}
+.pv{border:2px solid var(--edge);padding:18px;display:flex;flex-direction:column;gap:14px;align-items:flex-start;justify-content:center;min-height:120px;}
+.pv .lbl{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;}
+.mark.nav{font-size:26px;}
+.mark.tiny{font-size:17px;}
+.mark.jost{font-family:'Jost';font-weight:700;letter-spacing:-.01em;text-transform:lowercase;font-size:30px;}
+.mark.jost .oSlot{transform:translateY(calc(var(--oy) + .02em));}
+.pv.ink{background:var(--ink);color:var(--on-ink);}
+.foot{padding:24px 26px;color:var(--muted);font-size:12.5px;}
+@media(max-width:760px){.controls,.previews{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="oDial" viewBox="0 0 100 100">
+    <circle class="oarc t" cx="50" cy="50" r="34"/>
+    <path class="oarc b" d="M55.90 16.52 A34 34 0 0 1 80.02 65.96"/>
+    <path class="oarc r" d="M71.85 76.04 A34 34 0 0 1 27.25 75.27"/>
+    <path class="oarc g" d="M19.44 64.91 A34 34 0 0 1 44.10 16.52"/>
+  </symbol>
+</defs></svg>
+
+<div class="top">
+  <div class="brand">Dial-O lab</div>
+  <div class="themesw">
+    <button data-t="paper" class="on">Paper</button>
+    <button data-t="warm">Warm</button>
+    <button data-t="black">Black</button>
+  </div>
+</div>
+
+<section>
+  <div class="eyebrow">Wordmark · the O is the dial</div>
+  <div class="shead">Get the O to sit right</div>
+  <p class="lead">The fix: the O is sized to the <b>cap height</b> with a touch of <b>overshoot</b> (it pokes a hair above the cap line and below the baseline, like a real round letter), and the ring is weighted to match Anton’s stroke. Drag the sliders until it feels locked in, then read off the values at the bottom and tell me — I’ll bake them as the spec.</p>
+
+  <div class="wlab" id="lab">
+    <div class="stage">
+      <div class="mark" id="bigmark">USAGE<span class="oSlot"><svg><use href="#oDial"/></svg></span>S</div>
+    </div>
+
+    <div class="togs">
+      <button id="tColor" class="on">Color</button>
+      <button id="tMono">Mono</button>
+      <span class="readout" id="readout"></span>
+    </div>
+
+    <div class="controls">
+      <div class="ctl"><label>O diameter <span id="vOd">0.84em</span></label><input type="range" id="od" min="0.70" max="1.05" step="0.01" value="0.84"></div>
+      <div class="ctl"><label>O vertical nudge <span id="vOy">0.06em</span></label><input type="range" id="oy" min="-0.10" max="0.22" step="0.01" value="0.06"></div>
+      <div class="ctl"><label>Ring weight <span id="vOw">15</span></label><input type="range" id="ow" min="9" max="22" step="1" value="15"></div>
+      <div class="ctl"><label>Side space <span id="vOs">0.01em</span></label><input type="range" id="os" min="-0.05" max="0.12" step="0.01" value="0.01"></div>
+    </div>
+
+    <p class="cap">The small previews below use the <i>same</i> values — so you can see the nav and favicon update as you tune the hero.</p>
+    <div class="previews">
+      <div class="pv"><span class="lbl">Site nav · 26px</span><div class="mark nav">USAGE<span class="oSlot"><svg><use href="#oDial"/></svg></span>S</div></div>
+      <div class="pv"><span class="lbl">Lowercase · Jost</span><div class="mark jost">usage<span class="oSlot"><svg><use href="#oDial"/></svg></span>s</div></div>
+      <div class="pv ink"><span class="lbl">On ink</span><div class="mark nav" style="color:var(--on-ink)">USAGE<span class="oSlot"><svg><use href="#oDial"/></svg></span>S</div></div>
+    </div>
+  </div>
+</section>
+
+<div class="foot">
+  When this feels right, give me the four numbers from the readout and I’ll freeze the dial-O wordmark spec + export the masters.
+</div>
+
+</div>
+<script>
+  const lab=document.getElementById('lab');
+  const map={od:['vOd','--od','em'],oy:['vOy','--oy','em'],ow:['vOw','--ow',''],os:['vOs','--os','em']};
+  function fmt(id,v,u){document.getElementById(map[id][0]).textContent = u==='em'? Number(v).toFixed(2)+'em' : v;}
+  function apply(id){
+    const el=document.getElementById(id), v=el.value, [lblId,varName,u]=map[id];
+    lab.style.setProperty(varName, u==='em'? v+'em' : v);
+    fmt(id,v,u); readout();
+  }
+  function readout(){
+    document.getElementById('readout').innerHTML =
+      `diameter <code>${(+document.getElementById('od').value).toFixed(2)}em</code> · `+
+      `nudge <code>${(+document.getElementById('oy').value).toFixed(2)}em</code> · `+
+      `ring <code>${document.getElementById('ow').value}</code> · `+
+      `space <code>${(+document.getElementById('os').value).toFixed(2)}em</code>`;
+  }
+  Object.keys(map).forEach(id=>{document.getElementById(id).addEventListener('input',()=>apply(id));apply(id);});
+  document.getElementById('tColor').addEventListener('click',()=>{lab.classList.remove('mono');tColor.classList.add('on');tMono.classList.remove('on');});
+  document.getElementById('tMono').addEventListener('click',()=>{lab.classList.add('mono');tMono.classList.add('on');tColor.classList.remove('on');});
+  document.querySelectorAll('.themesw button').forEach(b=>b.addEventListener('click',()=>{
+    document.documentElement.setAttribute('data-theme',b.dataset.t);
+    document.querySelectorAll('.themesw button').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+</script>
+</body>
+</html>

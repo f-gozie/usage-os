@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Wordmark } from "@/components/ui/Wordmark";
+
 import { Footer } from "./Footer";
 import { TabNav, type View } from "./TabNav";
 import { ThemeSwitcher } from "./ThemeSwitcher";
@@ -24,9 +26,7 @@ export function AppShell({ view, onViewChange, headerDate, children }: AppShellP
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-[1040px] px-[22px]">
           <header className="flex items-end justify-between pt-[18px]">
-            <div className="font-display text-[36px] uppercase leading-[0.82] tracking-[0.01em]">
-              USAGE<span style={{ color: "var(--c-research)" }}>OS</span>
-            </div>
+            <Wordmark className="text-[36px] leading-[0.82] tracking-[0.01em]" />
             <div className="flex items-center gap-4">
               {/* Reserve the date slot (two lines) so the header height is identical across
                   every view — a missing/short date must never shift the chrome below it. */}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- UsageOS macOS app-icon master. Bone squircle (824/1024, ~10% margin) + the Contexts mark.
+       Frozen spec 2026-06-26: bone tile, arc weight ~9%, padding ~15%, gap 18°, track off, no now-hand.
+       Regenerate the set with:  npm run tauri icon src-tauri/icons/source/app-icon.png  -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="#EEEBE1"/>
+  <path d="M551.26 264.09 A251 251 0 0 1 746.33 601.95" fill="none" stroke="#1B45BE" stroke-width="74"/>
+  <path d="M707.07 669.96 A251 251 0 0 1 316.93 669.96" fill="none" stroke="#E0241B" stroke-width="74"/>
+  <path d="M277.67 601.95 A251 251 0 0 1 472.74 264.09" fill="none" stroke="#EAB308" stroke-width="74"/>
+</svg>

@@ -30,7 +30,7 @@ required-features = ["perf"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
+tauri = { version = "2", features = ["macos-private-api", "tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
 # The AI recap sidecar is spawned via the shell plugin (D49 chunk C). The capability is
 # scoped to exactly the one named sidecar (`sidecar: true`), never a general shell:allow-

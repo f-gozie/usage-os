@@ -18,6 +18,8 @@ mod rollup;
 mod apps;
 // macOS capture permissions (Accessibility + Automation) surfaced to onboarding + Settings.
 mod permissions;
+// The menubar tray icon: the mono Contexts mark + a now-triangle pointing at the current hour.
+mod tray_icon;
 // macOS NSPanel reclass so the menubar glance floats over full-screen Spaces (D56).
 #[cfg(target_os = "macos")]
 mod glance_panel;
@@ -590,6 +592,7 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         .tooltip("UsageOS")
         .menu(&menu)
         .show_menu_on_left_click(false)
+        .icon_as_template(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => show_main(app),
             "quit" => app.exit(0),
@@ -606,12 +609,45 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
                 toggle_glance(tray.app_handle(), rect);
             }
         });
-    let builder = match app.default_window_icon().cloned() {
-        Some(icon) => builder.icon(icon),
-        None => builder,
+    // The tray wears the mono Contexts mark with a now-triangle at the current hour (a template
+    // image, so macOS tints it for the light/dark menu bar). Falls back to the app icon if a frame
+    // can't be decoded.
+    let builder = if let Some(icon) = tray_icon::current() {
+        builder.icon(icon)
+    } else if let Some(icon) = app.default_window_icon().cloned() {
+        builder.icon(icon)
+    } else {
+        builder
     };
     builder.build(app)?;
+    spawn_tray_updater(app.clone());
     Ok(())
+}
+
+/// Keep the tray's now-triangle pointing at the right hour. A background thread that wakes every
+/// 10 minutes (negligible — no busy timer, honours the idle-CPU discipline) and updates the icon
+/// only when the local hour rolls over. The tray outlives the main window, so this runs for the
+/// life of the process.
+fn spawn_tray_updater(app: AppHandle) {
+    let _ = std::thread::Builder::new()
+        .name("tray-now-hand".into())
+        .spawn(move || {
+            let mut last = tray_icon::local_hour();
+            loop {
+                std::thread::sleep(Duration::from_secs(600));
+                let hour = tray_icon::local_hour();
+                if hour == last {
+                    continue;
+                }
+                last = hour;
+                if let (Some(tray), Some(icon)) =
+                    (app.tray_by_id("main-tray"), tray_icon::frame(hour))
+                {
+                    let _ = tray.set_icon(Some(icon));
+                    let _ = tray.set_icon_as_template(true);
+                }
+            }
+        });
 }
 
 /// The single source of command registration. Both the runtime invoke handler

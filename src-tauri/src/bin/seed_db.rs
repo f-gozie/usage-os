@@ -34,6 +34,8 @@ fn run() -> Result<(), String> {
     let mut out = PathBuf::from("./usageos-seed.db");
     let mut seed: u64 = 0xC0FFEE;
     let mut max_spans: usize = 2000;
+    let mut end: i64 = DEFAULT_END_DAY_START;
+    let mut demo = false;
     let mut force = false;
 
     let mut args = std::env::args().skip(1);
@@ -47,6 +49,8 @@ fn run() -> Result<(), String> {
             "--out" => out = PathBuf::from(take("--out")?),
             "--seed" => seed = parse_u64(&take("--seed")?)?,
             "--max" => max_spans = parse_i64(&take("--max")?)?.max(1) as usize,
+            "--end" => end = parse_i64(&take("--end")?)?,
+            "--demo" => demo = true,
             "--force" => force = true,
             "-h" | "--help" => {
                 println!(
@@ -77,9 +81,12 @@ fn run() -> Result<(), String> {
 
     let cfg = SeedConfig {
         days,
-        end_day_start: DEFAULT_END_DAY_START,
+        // The most-recent seeded day's local-midnight epoch. Defaults to the fixed perf baseline;
+        // `--end $(date -v0H -v0M -v0S +%s)` dates the history to *today* (e.g. for demo screenshots).
+        end_day_start: end,
         max_spans_per_day: max_spans,
         seed,
+        demo,
     };
     println!(
         "seeding {days} days (~{} months) into {} …",

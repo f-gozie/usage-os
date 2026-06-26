@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Logo explorations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --blue:#1B45BE; --red:#E0241B; --gold:#EAB308; --green:#2E8B57; --ink:#161616;
+  --on-ink:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --blue:#3358E0; --red:#F0463C; --gold:#F2BC0C; --green:#46B97E; --ink:#EDE9DD;
+  --on-ink:#1A1916;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --blue:#3A6BF0; --red:#FF4B40; --gold:#F5C518; --green:#4FCB8A; --ink:#F4F4F2;
+  --on-ink:#0E0E0E;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;}
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);min-height:100vh;}
+
+/* topbar */
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+  padding:13px 24px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.brand{font-family:'Anton',sans-serif;font-size:24px;letter-spacing:.02em;text-transform:uppercase;display:flex;align-items:center;gap:10px;}
+.brand .o{color:var(--red);}
+.brand svg{width:26px;height:26px;color:var(--fg);}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-family:'Jost';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+
+section{padding:38px 24px;border-bottom:3px solid var(--edge);}
+.eyebrow{font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;}
+.shead{font-family:'Anton',sans-serif;font-size:34px;line-height:.92;text-transform:uppercase;margin-bottom:14px;}
+.lead{font-size:15px;max-width:64ch;color:var(--muted);margin:0 0 22px;font-weight:500;}
+.lead b{color:var(--fg);font-weight:600;}
+
+/* intro brief */
+.brief{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;}
+.brief .card{border:2px solid var(--edge);padding:16px 18px;}
+.brief h4{font-family:'Anton',sans-serif;font-size:14px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px;}
+.brief ul{list-style:none;font-size:13.5px;}
+.brief li{padding:3px 0 3px 16px;position:relative;color:var(--muted);}
+.brief li::before{content:"";position:absolute;left:0;top:10px;width:7px;height:7px;background:var(--blue);}
+.brief li b{color:var(--fg);font-weight:600;}
+
+/* mark grid */
+.markgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:2px solid var(--edge);}
+.cell{border:1px solid var(--rule);padding:24px 22px 18px;position:relative;}
+.cell .no{position:absolute;top:10px;left:12px;font-family:'Anton',sans-serif;font-size:13px;color:var(--muted);letter-spacing:.04em;}
+.cell .big{display:flex;align-items:center;justify-content:center;height:130px;color:var(--fg);}
+.cell .big svg{width:104px;height:104px;}
+.cell .nm{font-family:'Anton',sans-serif;font-size:16px;letter-spacing:.03em;text-transform:uppercase;margin-top:6px;}
+.cell .desc{font-size:12.5px;color:var(--muted);margin-top:4px;min-height:34px;}
+.variants{display:flex;align-items:center;gap:8px;margin-top:12px;}
+.vtile{display:flex;align-items:center;justify-content:center;border:1.5px solid var(--edge);}
+.vtile svg{display:block;}
+.v-color{width:42px;height:42px;background:var(--surface);color:var(--fg);}.v-color svg{width:30px;height:30px;}
+.v-ink{width:42px;height:42px;background:var(--ink);color:var(--on-ink);}.v-ink svg{width:30px;height:30px;}
+.v-mini{width:26px;height:26px;background:var(--surface);color:var(--fg);}.v-mini svg{width:18px;height:18px;}
+.v-mini-ink{width:26px;height:26px;background:var(--ink);color:var(--on-ink);}.v-mini-ink svg{width:18px;height:18px;}
+.vlab{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-left:auto;font-weight:600;}
+
+/* wordmarks */
+.locks{display:flex;flex-direction:column;gap:0;border:2px solid var(--edge);}
+.lock{display:flex;align-items:center;gap:18px;padding:24px 26px;border-bottom:1px solid var(--rule);flex-wrap:wrap;}
+.lock:last-child{border-bottom:none;}
+.lock .wm{display:flex;align-items:center;gap:12px;color:var(--fg);}
+.lock .wm svg{display:block;}
+.lock .tag{margin-left:auto;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600;}
+.wm-jost{font-family:'Jost';font-weight:600;font-size:26px;letter-spacing:-.01em;}
+.wm-jost .os{color:var(--muted);}
+.wm-anton{font-family:'Anton';font-size:30px;letter-spacing:.04em;text-transform:uppercase;}
+.wm-anton .o{color:var(--red);}
+.dialo{display:inline-block;vertical-align:-0.13em;width:.82em;height:.82em;color:var(--fg);}
+.dialo svg{width:100%;height:100%;display:block;}
+.stack{font-family:'Anton';font-size:34px;line-height:.84;text-transform:uppercase;border-left:6px solid var(--blue);padding-left:12px;}
+.stack .o{color:var(--red);}
+
+/* app icons */
+.tiles{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end;}
+.tilewrap{text-align:center;}
+.tile{width:104px;height:104px;border-radius:23px;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--rule);}
+.tile svg{width:62px;height:62px;}
+.tile.bone{background:#EEEBE1;color:#161616;}
+.tile.inkt{background:#161616;color:#EEEBE1;}
+.tile.bluet{background:var(--blue);color:#EEEBE1;}
+.tile.redt{background:var(--red);color:#EEEBE1;}
+.tilewrap .cap{font-size:11px;color:var(--muted);margin-top:8px;letter-spacing:.04em;}
+
+/* favicon strip */
+.favs{display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
+.favset{display:flex;align-items:center;gap:7px;border:1.5px solid var(--edge);padding:9px 12px;}
+.favset .px{display:flex;align-items:center;justify-content:center;}
+.favset .px.s16{width:16px;height:16px;color:var(--fg);}
+.favset .px.s24{width:24px;height:24px;color:var(--fg);}
+.favset .px.s32{width:32px;height:32px;color:var(--fg);}
+.favset svg{width:100%;height:100%;}
+.favset .nm{font-size:11px;color:var(--muted);margin-left:6px;letter-spacing:.04em;font-weight:600;}
+
+.note{font-size:13px;color:var(--muted);margin-top:18px;border-left:3px solid var(--gold);padding-left:12px;max-width:70ch;}
+.foot{padding:26px 24px;color:var(--muted);font-size:12.5px;}
+@media(max-width:780px){.markgrid{grid-template-columns:repeat(2,1fr);}.brief{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ================= DEFS: every mark as a reusable symbol ================= -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+
+<!-- 01 Midnight — dial ring + the now-triangle parked at midnight (top) -->
+<symbol id="m1" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="33" fill="none" stroke="currentColor" stroke-width="7"/>
+  <path d="M50 36 L42 18 L58 18 Z" fill="currentColor"/>
+</symbol>
+
+<!-- 02 Contexts — a day inked in three categories (color) -->
+<symbol id="m2" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="33" fill="none" stroke="var(--track)" stroke-width="7"/>
+  <path d="M50 17 A33 33 0 0 1 75.28 71.22" fill="none" stroke="var(--blue)" stroke-width="7"/>
+  <path d="M68.94 77.03 A33 33 0 0 1 22.97 68.94" fill="none" stroke="var(--red)" stroke-width="7"/>
+  <path d="M18.98 61.29 A33 33 0 0 1 44.26 17.5" fill="none" stroke="var(--gold)" stroke-width="7"/>
+</symbol>
+<!-- 02 mono fallback -->
+<symbol id="m2k" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="33" fill="none" stroke="currentColor" stroke-width="2" opacity=".35"/>
+  <path d="M50 17 A33 33 0 0 1 75.28 71.22" fill="none" stroke="currentColor" stroke-width="7"/>
+  <path d="M68.94 77.03 A33 33 0 0 1 22.97 68.94" fill="none" stroke="currentColor" stroke-width="3"/>
+  <path d="M18.98 61.29 A33 33 0 0 1 44.26 17.5" fill="none" stroke="currentColor" stroke-width="7"/>
+</symbol>
+
+<!-- 03 The slice — the day so far as one bold sweep, now-hand at the end -->
+<symbol id="m3" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="33" fill="none" stroke="currentColor" stroke-width="2" opacity=".3"/>
+  <path d="M50 17 A33 33 0 1 1 17 50" fill="none" stroke="currentColor" stroke-width="8"/>
+  <path d="M17 42 L31 50 L17 58 Z" fill="currentColor"/>
+</symbol>
+
+<!-- 04 U-gauge — the U is the dial; open at the top with the midnight marker in the gap -->
+<symbol id="m4" viewBox="0 0 100 100">
+  <path d="M36.05 20.09 A33 33 0 1 1 63.95 20.09" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="butt"/>
+  <path d="M44 15 L50 29 L56 15 Z" fill="currentColor"/>
+</symbol>
+
+<!-- 05 Notch — solid disc, a wedge cut at midnight (true cut-out via evenodd) -->
+<symbol id="m5" viewBox="0 0 100 100">
+  <path fill-rule="evenodd" fill="currentColor"
+        d="M50 14 A36 36 0 1 0 50.01 14 Z M50 50 L41 18 L59 18 Z"/>
+</symbol>
+
+<!-- 06 Window — the app frame (square) holding the dial (circle) -->
+<symbol id="m6" viewBox="0 0 100 100">
+  <rect x="16" y="16" width="68" height="68" rx="5" fill="none" stroke="currentColor" stroke-width="6"/>
+  <circle cx="50" cy="50" r="17" fill="none" stroke="currentColor" stroke-width="5"/>
+  <path d="M50 41 L45 31 L55 31 Z" fill="currentColor"/>
+</symbol>
+
+<!-- 07 Primitives — Bauhaus trinity: circle (dial) · triangle (hand) · square (window) -->
+<symbol id="m7" viewBox="0 0 100 100">
+  <circle cx="38" cy="42" r="19" fill="var(--blue)"/>
+  <rect x="48" y="44" width="29" height="29" fill="var(--red)"/>
+  <path d="M50 20 L67 51 L33 51 Z" fill="var(--gold)"/>
+</symbol>
+<symbol id="m7k" viewBox="0 0 100 100">
+  <circle cx="38" cy="42" r="19" fill="none" stroke="currentColor" stroke-width="4"/>
+  <rect x="48" y="44" width="29" height="29" fill="none" stroke="currentColor" stroke-width="4"/>
+  <path d="M50 20 L67 51 L33 51 Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="miter"/>
+</symbol>
+
+<!-- 08 Sundial — half-dial of ticks, a gnomon, a baseline. Calm, rear-view. -->
+<symbol id="m8" viewBox="0 0 100 100">
+  <path d="M18 66 A34 34 0 0 1 82 66" fill="none" stroke="currentColor" stroke-width="3"/>
+  <line x1="16" y1="66" x2="84" y2="66" stroke="currentColor" stroke-width="5"/>
+  <path d="M50 66 L50 30 L72 66 Z" fill="currentColor"/>
+</symbol>
+
+<!-- 09 Now-hand — ring with the dial's signature now-triangle on the rim -->
+<symbol id="m9" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="33" fill="none" stroke="currentColor" stroke-width="6"/>
+  <path d="M67.97 22.32 L74.14 27.49 L62.86 34.68 Z" fill="currentColor"/>
+  <circle cx="50" cy="50" r="3.4" fill="currentColor"/>
+</symbol>
+
+<!-- 10 Horizon — the day as an arc above a baseline; noon marker at the apex -->
+<symbol id="m10" viewBox="0 0 100 100">
+  <path d="M16 62 A34 34 0 0 1 84 62" fill="none" stroke="currentColor" stroke-width="7"/>
+  <line x1="16" y1="62" x2="84" y2="62" stroke="currentColor" stroke-width="4"/>
+  <path d="M50 28 L44 41 L56 41 Z" fill="currentColor"/>
+</symbol>
+
+<!-- 11 Week — the ticked dial; eight marks for the hours -->
+<symbol id="m11" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="29" fill="none" stroke="currentColor" stroke-width="5"/>
+  <g stroke="currentColor" stroke-width="3.4">
+    <line x1="50" y1="16" x2="50" y2="9"/>
+    <line x1="74" y1="26" x2="79" y2="21"/>
+    <line x1="84" y1="50" x2="91" y2="50"/>
+    <line x1="74" y1="74" x2="79" y2="79"/>
+    <line x1="50" y1="84" x2="50" y2="91"/>
+    <line x1="26" y1="74" x2="21" y2="79"/>
+    <line x1="16" y1="50" x2="9" y2="50"/>
+    <line x1="26" y1="26" x2="21" y2="21"/>
+  </g>
+  <path d="M50 40 L45 31 L55 31 Z" fill="currentColor"/>
+</symbol>
+
+<!-- 12 Eye / mirror — the rear-view metaphor: a dial held in a lens -->
+<symbol id="m12" viewBox="0 0 100 100">
+  <path d="M10 50 Q50 18 90 50 Q50 82 10 50 Z" fill="none" stroke="currentColor" stroke-width="5"/>
+  <circle cx="50" cy="50" r="15" fill="none" stroke="currentColor" stroke-width="6"/>
+  <path d="M50 43 L46 35 L54 35 Z" fill="currentColor"/>
+</symbol>
+
+<!-- dial-o glyph for inline wordmark use -->
+<symbol id="dialo" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" stroke-width="11"/>
+  <path d="M50 33 L42 9 L58 9 Z" fill="currentColor"/>
+</symbol>
+<symbol id="dialo-red" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="38" fill="none" stroke="var(--red)" stroke-width="11"/>
+  <path d="M50 33 L42 9 L58 9 Z" fill="var(--red)"/>
+</symbol>
+
+</defs>
+</svg>
+
+<!-- ================= TOPBAR ================= -->
+<div class="top">
+  <div class="brand"><svg><use href="#m1"/></svg>USAGE<span class="o">O</span>S</div>
+  <div class="themesw">
+    <button data-t="paper" class="on">Paper</button>
+    <button data-t="warm">Warm</button>
+    <button data-t="black">Black</button>
+  </div>
+</div>
+
+<!-- ================= INTRO / BRIEF ================= -->
+<section>
+  <div class="eyebrow">Design session · 2026-06-25</div>
+  <div class="shead">A mark for usageos</div>
+  <p class="lead">No real logo exists yet — the landing’s glowing cyan <b>◈</b> is leftover cyberpunk, off-brand against our Bauhaus system. This is a wide first pass: <b>many directions, many variants</b>, so we can react and narrow. Every mark is drawn to live in mono (menubar / favicon), in the primary palette, and on ink — across all three themes (try the switcher).</p>
+  <div class="brief">
+    <div class="card">
+      <h4>What it has to carry</h4>
+      <ul>
+        <li><b>The dial is the soul</b> — a 24h chronometer, midnight at top, a now-hand. The mark should grow from it.</li>
+        <li><b>Calm, private, rear-view</b> — not a productivity-app clock screaming at you.</li>
+        <li><b>Reads at 16px</b> in flat black for the menubar, and as a bold app-icon tile.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>The Bauhaus kit it’s built from</h4>
+      <ul>
+        <li><b>Circle · triangle · square</b> — which already map to dial · now-hand · window.</li>
+        <li><b>Primary inks</b> — blue #1B45BE, red #E0241B, gold #EAB308, on bone / ink.</li>
+        <li><b>Anton + Jost</b>, hard edges, flat fills. No glow, no gradient, no rounded accent.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= THE MARKS ================= -->
+<section>
+  <div class="eyebrow">Direction A–L</div>
+  <div class="shead">The marks</div>
+  <p class="lead">Twelve starts. Below each: its <b>primary-color</b> take, its <b>on-ink</b> take, and a <b>16px</b> proof. Don’t judge polish yet — judge which <i>idea</i> pulls you.</p>
+
+  <div class="markgrid">
+
+    <div class="cell"><div class="no">01</div>
+      <div class="big"><svg><use href="#m1"/></svg></div>
+      <div class="nm">Midnight</div>
+      <div class="desc">The dial reduced to a ring + the now-triangle parked at the top. The truest distillation.</div>
+      <div class="variants">
+        <div class="vtile v-color" style="color:var(--blue)"><svg><use href="#m1"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m1"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m1"/></svg></div>
+        <span class="vlab">strongest small</span>
+      </div>
+    </div>
+
+    <div class="cell"><div class="no">02</div>
+      <div class="big"><svg><use href="#m2"/></svg></div>
+      <div class="nm">Contexts</div>
+      <div class="desc">A day actually inked in three categories. Literally the product. Loudest in color.</div>
+      <div class="variants">
+        <div class="vtile v-color"><svg><use href="#m2"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m2k"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m2"/></svg></div>
+        <span class="vlab">needs color</span>
+      </div>
+    </div>
+
+    <div class="cell"><div class="no">03</div>
+      <div class="big"><svg><use href="#m3"/></svg></div>
+      <div class="nm">The slice</div>
+      <div class="desc">One bold sweep from midnight — the day so far — ending in the now-hand.</div>
+      <div class="variants">
+        <div class="vtile v-color" style="color:var(--blue)"><svg><use href="#m3"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m3"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m3"/></svg></div>
+        <span class="vlab">motion-ready</span>
+      </div>
+    </div>
+
+    <div class="cell"><div class="no">04</div>
+      <div class="big"><svg><use href="#m4"/></svg></div>
+      <div class="nm">U-gauge</div>
+      <div class="desc">The <b>U</b> of usageos <i>is</i> the dial — an open-top gauge, midnight marker in the gap.</div>
+      <div class="variants">
+        <div class="vtile v-color" style="color:var(--blue)"><svg><use href="#m4"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m4"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m4"/></svg></div>
+        <span class="vlab">monogram</span>
+      </div>
+    </div>
+
+    <div class="cell"><div class="no">05</div>
+      <div class="big"><svg><use href="#m5"/></svg></div>
+      <div class="nm">Notch</div>
+      <div class="desc">A solid disc with a single wedge cut at midnight. The most app-icon of the set.</div>
+      <div class="variants">
+        <div class="vtile v-color" style="color:var(--red)"><svg><use href="#m5"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m5"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m5"/></svg></div>
+        <span class="vlab">boldest tile</span>
+      </div>
+    </div>
+
+    <div class="cell"><div class="no">06</div>
+      <div class="big"><svg><use href="#m6"/></svg></div>
+      <div class="nm">Window</div>
+      <div class="desc">The Mac window (square) holding the dial (circle). Says “app” + “time” at once.</div>
+      <div class="variants">
+        <div class="vtile v-color" style="color:var(--blue)"><svg><use href="#m6"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m6"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m6"/></svg></div>
+        <span class="vlab">busy at 16px</span>
+      </div>
+    </div>
+
+    <div class="cell"><div class="no">07</div>
+      <div class="big"><svg><use href="#m7"/></svg></div>
+      <div class="nm">Primitives</div>
+      <div class="desc">Pure Bauhaus trinity — circle, triangle, square = dial, hand, window. Abstract brand-DNA.</div>
+      <div class="variants">
+        <div class="vtile v-color"><svg><use href="#m7"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m7k"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m7"/></svg></div>
+        <span class="vlab">most “design”</span>
+      </div>
+    </div>
+
+    <div class="cell"><div class="no">08</div>
+      <div class="big"><svg><use href="#m8"/></svg></div>
+      <div class="nm">Sundial</div>
+      <div class="desc">A gnomon over a horizon line. The oldest, calmest way to read time. Rear-view, not coach.</div>
+      <div class="variants">
+        <div class="vtile v-color" style="color:var(--gold)"><svg><use href="#m8"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m8"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m8"/></svg></div>
+        <span class="vlab">warmest idea</span>
+      </div>
+    </div>
+
+    <div class="cell"><div class="no">09</div>
+      <div class="big"><svg><use href="#m9"/></svg></div>
+      <div class="nm">Now-hand</div>
+      <div class="desc">The ring + the dial’s actual now-triangle on the rim. A clock with only the present.</div>
+      <div class="variants">
+        <div class="vtile v-color" style="color:var(--red)"><svg><use href="#m9"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m9"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m9"/></svg></div>
+        <span class="vlab">reads as clock</span>
+      </div>
+    </div>
+
+    <div class="cell"><div class="no">10</div>
+      <div class="big"><svg><use href="#m10"/></svg></div>
+      <div class="nm">Horizon</div>
+      <div class="desc">The day as an arc over a baseline — sunrise to sunset. Quietest, least clock-like.</div>
+      <div class="variants">
+        <div class="vtile v-color" style="color:var(--gold)"><svg><use href="#m10"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m10"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m10"/></svg></div>
+        <span class="vlab">calmest</span>
+      </div>
+    </div>
+
+    <div class="cell"><div class="no">11</div>
+      <div class="big"><svg><use href="#m11"/></svg></div>
+      <div class="nm">Ticked</div>
+      <div class="desc">Ring + hour ticks + a marker. The most literally “a dial,” a touch more ornate.</div>
+      <div class="variants">
+        <div class="vtile v-color" style="color:var(--blue)"><svg><use href="#m11"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m11"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m11"/></svg></div>
+        <span class="vlab">ornate</span>
+      </div>
+    </div>
+
+    <div class="cell"><div class="no">12</div>
+      <div class="big"><svg><use href="#m12"/></svg></div>
+      <div class="nm">Rear-view</div>
+      <div class="desc">A dial held inside an eye / mirror lens — the “calm rear-view mirror” made literal.</div>
+      <div class="variants">
+        <div class="vtile v-color" style="color:var(--blue)"><svg><use href="#m12"/></svg></div>
+        <div class="vtile v-ink"><svg><use href="#m12"/></svg></div>
+        <div class="vtile v-mini"><svg><use href="#m12"/></svg></div>
+        <span class="vlab">on the nose?</span>
+      </div>
+    </div>
+
+  </div>
+  <p class="note">My instinct: <b>01 Midnight</b>, <b>03 Slice</b>, and <b>05 Notch</b> are the safest bets — they survive 16px, work in one ink, and are unmistakably “the dial.” <b>04 U-gauge</b> is the most ownable if we want a true monogram. <b>02 Contexts</b> is the best “hero” mark for the website where color is free.</p>
+</section>
+
+<!-- ================= WORDMARK LOCKUPS ================= -->
+<section>
+  <div class="eyebrow">Mark + word</div>
+  <div class="shead">Wordmark lockups</div>
+  <p class="lead">How the mark sits next to the name. We already tint the <b>O</b> red in the library — these push on that. Casing is open: lowercase reads calmer (our voice), all-caps Anton reads like a poster.</p>
+
+  <div class="locks">
+    <div class="lock">
+      <div class="wm"><svg width="34" height="34"><use href="#m1"/></svg><span class="wm-jost">usage<span class="os">os</span></span></div>
+      <span class="tag">Lockup A · Midnight + Jost lowercase</span>
+    </div>
+    <div class="lock">
+      <div class="wm"><svg width="34" height="34"><use href="#m3"/></svg><span class="wm-anton">USAGE<span class="o">O</span>S</span></div>
+      <span class="tag">Lockup B · Slice + Anton, red O</span>
+    </div>
+    <div class="lock">
+      <div class="wm"><span class="wm-anton">USAGE<span class="dialo" style="margin:0 .02em"><svg><use href="#dialo-red"/></svg></span>S</span></div>
+      <span class="tag">Lockup C · the O <i>is</i> the dial (no separate mark)</span>
+    </div>
+    <div class="lock">
+      <div class="wm"><span class="wm-jost">usage<span class="dialo"><svg><use href="#dialo"/></svg></span>s</span></div>
+      <span class="tag">Lockup D · dial-o, lowercase / calm</span>
+    </div>
+    <div class="lock">
+      <div class="wm"><svg width="40" height="40"><use href="#m4"/></svg><span class="wm-anton">USAGE<span class="o">O</span>S</span></div>
+      <span class="tag">Lockup E · U-gauge monogram + word</span>
+    </div>
+    <div class="lock">
+      <div class="wm"><span class="stack">USAGE<br>OS</span></div>
+      <span class="tag">Lockup F · poster stack, primary bar</span>
+    </div>
+  </div>
+  <p class="note"><b>Lockup C / D</b> are the cleverest — the dial replaces the O, so the wordmark <i>is</i> the logo and you don’t carry a separate glyph. That’s often the strongest outcome for a one-word product name.</p>
+</section>
+
+<!-- ================= APP ICON TILES ================= -->
+<section>
+  <div class="eyebrow">macOS</div>
+  <div class="shead">App-icon tiles</div>
+  <p class="lead">How the strongest marks sit in the dock / menubar tile (rounded square). Filled and confident — an icon has to win at thumbnail size against a screen full of others.</p>
+  <div class="tiles">
+    <div class="tilewrap"><div class="tile bone"><svg><use href="#m1"/></svg></div><div class="cap">Midnight · bone</div></div>
+    <div class="tilewrap"><div class="tile inkt"><svg><use href="#m1"/></svg></div><div class="cap">Midnight · ink</div></div>
+    <div class="tilewrap"><div class="tile bluet"><svg><use href="#m1"/></svg></div><div class="cap">Midnight · blue</div></div>
+    <div class="tilewrap"><div class="tile bone"><svg><use href="#m5"/></svg></div><div class="cap">Notch · bone</div></div>
+    <div class="tilewrap"><div class="tile inkt"><svg><use href="#m3"/></svg></div><div class="cap">Slice · ink</div></div>
+    <div class="tilewrap"><div class="tile bone"><svg><use href="#m2"/></svg></div><div class="cap">Contexts · color</div></div>
+    <div class="tilewrap"><div class="tile redt"><svg><use href="#m4"/></svg></div><div class="cap">U-gauge · red</div></div>
+  </div>
+</section>
+
+<!-- ================= FAVICON / MENUBAR ================= -->
+<section>
+  <div class="eyebrow">16–32px · the honest test</div>
+  <div class="shead">Menubar &amp; favicon</div>
+  <p class="lead">Mono, tiny, no color crutch — exactly how it lives in the menubar and browser tab. If it dies here, it’s out. The simplest marks win this round.</p>
+  <div class="favs">
+    <div class="favset">
+      <span class="px s16"><svg><use href="#m1"/></svg></span>
+      <span class="px s24"><svg><use href="#m1"/></svg></span>
+      <span class="px s32"><svg><use href="#m1"/></svg></span>
+      <span class="nm">01 Midnight</span>
+    </div>
+    <div class="favset">
+      <span class="px s16"><svg><use href="#m3"/></svg></span>
+      <span class="px s24"><svg><use href="#m3"/></svg></span>
+      <span class="px s32"><svg><use href="#m3"/></svg></span>
+      <span class="nm">03 Slice</span>
+    </div>
+    <div class="favset">
+      <span class="px s16"><svg><use href="#m5"/></svg></span>
+      <span class="px s24"><svg><use href="#m5"/></svg></span>
+      <span class="px s32"><svg><use href="#m5"/></svg></span>
+      <span class="nm">05 Notch</span>
+    </div>
+    <div class="favset">
+      <span class="px s16"><svg><use href="#m4"/></svg></span>
+      <span class="px s24"><svg><use href="#m4"/></svg></span>
+      <span class="px s32"><svg><use href="#m4"/></svg></span>
+      <span class="nm">04 U-gauge</span>
+    </div>
+    <div class="favset">
+      <span class="px s16"><svg><use href="#m9"/></svg></span>
+      <span class="px s24"><svg><use href="#m9"/></svg></span>
+      <span class="px s32"><svg><use href="#m9"/></svg></span>
+      <span class="nm">09 Now-hand</span>
+    </div>
+  </div>
+</section>
+
+<div class="foot">
+  Exploration only — fonts loaded from Google for the gallery; the app bundles them locally (hard rule 1).
+  Switch themes top-right to sanity-check every mark on paper / warm / black. Tell me which idea(s) to push and I’ll cut a refined round.
+</div>
+
+</div>
+<script>
+  document.querySelectorAll('.themesw button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.documentElement.setAttribute('data-theme',b.dataset.t);
+      document.querySelectorAll('.themesw button').forEach(x=>x.classList.toggle('on',x===b));
+    });
+  });
+</script>
+</body>
+</html>

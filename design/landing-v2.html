@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — landing (v2, screen-time-led)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --blue:#1B45BE; --red:#E0241B; --gold:#EAB308; --green:#2E8B57; --breaks:#161616; --ink:#161616;
+  --on-ink:#EEEBE1; --bar-bg:#161616; --bar-fg:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --blue:#3358E0; --red:#F0463C; --gold:#F2BC0C; --green:#46B97E; --breaks:#CFC9B8; --ink:#EDE9DD;
+  --on-ink:#1A1916; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --blue:#3A6BF0; --red:#FF4B40; --gold:#F5C518; --green:#4FCB8A; --breaks:#C6C6C4; --ink:#F4F4F2;
+  --on-ink:#0E0E0E; --bar-bg:#000000; --bar-fg:#F4F4F2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;scroll-behavior:smooth;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;}
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);}
+svg{display:block;}
+a{color:inherit;text-decoration:none;}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:14px 30px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.nav .lb{display:flex;align-items:center;gap:11px;}
+.nav .lb .mk{width:26px;height:26px;}
+.nav .lb .wm{font-family:'Anton';font-size:21px;text-transform:uppercase;letter-spacing:.03em;display:inline-flex;align-items:baseline;}
+.wm .oSlot{display:inline-block;width:1.02em;height:1.02em;transform:translateY(.08em);margin:0 -.05em;}
+.wm .oSlot svg{width:100%;height:100%;overflow:visible;}
+.nav .lks{display:flex;gap:24px;font-size:13.5px;color:var(--muted);font-weight:500;}
+.nav .lks a:hover{color:var(--fg);}
+.nav .right{display:flex;align-items:center;gap:14px;}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-family:'Jost';font-weight:600;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 10px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+.btn-p{background:var(--blue);color:#fff;font-weight:600;font-size:13px;padding:9px 17px;display:inline-flex;gap:8px;align-items:center;cursor:pointer;}
+.btn-s{border:2px solid var(--edge);color:var(--fg);font-weight:600;font-size:13px;padding:9px 16px;cursor:pointer;}
+
+section{border-bottom:3px solid var(--edge);}
+.eyebrow{font-weight:600;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+.eyebrow b{color:var(--blue);}
+.shead{font-family:'Anton';text-transform:uppercase;line-height:.95;letter-spacing:.005em;}
+
+/* hero */
+.hero{padding:64px 40px 70px;display:grid;grid-template-columns:1.05fr .95fr;gap:34px;align-items:center;}
+.hero h1{font-family:'Anton';font-size:56px;line-height:.93;text-transform:uppercase;margin-top:14px;}
+.hero .sub{font-size:17px;color:var(--muted);margin-top:18px;max-width:44ch;font-weight:500;}
+.hero .ctas{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap;}
+.hero .priv{margin-top:18px;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:8px;}
+.hero .priv .dot{width:7px;height:7px;border-radius:50%;background:var(--green);}
+.hero .dialwrap{display:flex;align-items:center;justify-content:center;}
+.hero .dialwrap svg{width:340px;height:340px;overflow:visible;}
+
+/* marquee */
+.marquee{background:var(--bar-bg);color:var(--bar-fg);overflow:hidden;border-bottom:3px solid var(--edge);}
+.marquee .trk{display:inline-flex;white-space:nowrap;animation:scroll 26s linear infinite;}
+.marquee span{font-family:'Anton';font-size:18px;text-transform:uppercase;letter-spacing:.04em;padding:13px 0;}
+.marquee .d{color:var(--red);padding:0 22px;}
+@keyframes scroll{to{transform:translateX(-50%);}}
+
+/* feature rows */
+.feat{padding:54px 40px;display:grid;grid-template-columns:1fr 1fr;gap:38px;align-items:center;}
+.feat.flip .txt{order:2;}
+.feat h2{font-family:'Anton';font-size:34px;text-transform:uppercase;line-height:.96;margin-top:8px;}
+.feat p{font-size:15.5px;color:var(--muted);margin-top:14px;max-width:42ch;font-weight:500;}
+.viz{display:flex;align-items:center;justify-content:center;}
+.viz svg.dial{width:230px;height:230px;overflow:visible;}
+
+/* recap card */
+.recapcard{border:3px solid var(--edge);background:var(--surface);padding:18px 20px;width:100%;max-width:380px;}
+.rc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;}
+.rc-lbl{font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+.rc-badge{border:2px solid var(--edge);font-size:10px;padding:3px 8px;font-weight:600;}
+.rc-text{font-size:16px;font-weight:500;line-height:1.45;}
+
+/* ledger */
+.ledger{border:3px solid var(--edge);background:var(--surface);padding:16px 18px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:11px;}
+.lrow{display:flex;align-items:center;gap:11px;}
+.lrow .sw{width:13px;height:13px;flex:none;}
+.lrow .nm{font-weight:600;font-size:14px;}
+.lrow .bar{flex:1;height:9px;background:var(--track);}
+.lrow .bar i{display:block;height:100%;}
+.lrow .t{font-family:'Anton';font-size:15px;color:var(--muted);min-width:54px;text-align:right;}
+
+/* week */
+.week{padding:54px 40px;}
+.week .hd{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:30px;}
+.week .strip{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;}
+.minicell{text-align:center;}
+.minicell svg{width:100%;height:auto;overflow:visible;}
+.minicell .dl{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:8px;}
+.minicell .dt{font-family:'Anton';font-size:13px;margin-top:1px;}
+
+/* numbers */
+.nums{display:grid;grid-template-columns:repeat(4,1fr);}
+.numcell{padding:34px 22px;text-align:center;border-right:3px solid var(--edge);}
+.numcell:last-child{border-right:none;}
+.numcell .n{font-family:'Anton';font-size:42px;line-height:1;}
+.numcell .l{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-top:8px;}
+
+/* privacy */
+.privacy{background:var(--bar-bg);color:var(--bar-fg);padding:70px 40px;}
+.privacy .eyebrow{color:var(--bar-fg);opacity:.6;}
+.privacy h2{font-family:'Anton';font-size:52px;text-transform:uppercase;line-height:.94;margin-top:10px;max-width:16ch;}
+.privacy .cols{display:grid;grid-template-columns:1fr 1fr;gap:34px;margin-top:30px;}
+.privacy p{font-size:15.5px;opacity:.82;line-height:1.55;font-weight:500;}
+.privacy p b{opacity:1;font-weight:700;}
+
+/* final cta */
+.final{padding:74px 40px;text-align:center;}
+.final h2{font-family:'Anton';font-size:50px;text-transform:uppercase;line-height:.95;}
+.final .sub{color:var(--muted);font-size:16px;margin-top:14px;font-weight:500;}
+.final .ctas{display:flex;gap:12px;justify-content:center;margin-top:26px;flex-wrap:wrap;}
+
+/* footer */
+.foot{padding:34px 40px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;}
+.foot .lb{display:flex;align-items:center;gap:10px;}
+.foot .lb .mk{width:22px;height:22px;}
+.foot .lb .wm{font-family:'Anton';font-size:17px;text-transform:uppercase;letter-spacing:.03em;display:inline-flex;align-items:baseline;}
+.foot .tg{font-size:13px;color:var(--muted);}
+.foot .lks{display:flex;gap:20px;font-size:13px;color:var(--muted);font-weight:500;}
+.foot .lks a:hover{color:var(--fg);}
+
+.arc{fill:none;stroke-linecap:butt;}
+.arc.draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:draw .7s cubic-bezier(.3,.9,.3,1) forwards;animation-delay:var(--d);}
+@keyframes draw{to{stroke-dashoffset:0;}}
+@media (prefers-reduced-motion: reduce){.arc.draw{animation:none;stroke-dashoffset:0;}.marquee .trk{animation:none;}}
+@media(max-width:880px){.hero,.feat,.privacy .cols{grid-template-columns:1fr;}.feat.flip .txt{order:0;}.nums{grid-template-columns:repeat(2,1fr);}.numcell:nth-child(2){border-right:none;}.week .strip{grid-template-columns:repeat(7,1fr);}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="mk" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="33" fill="none" stroke="var(--track)" stroke-width="8"/>
+    <path d="M53.45 17.18 A33 33 0 0 1 76.70 69.40" fill="none" stroke="var(--blue)" stroke-width="8"/>
+    <path d="M71.21 75.28 A33 33 0 0 1 26.26 72.92" fill="none" stroke="var(--red)" stroke-width="8"/>
+    <path d="M21.42 66.50 A33 33 0 0 1 46.55 17.18" fill="none" stroke="var(--gold)" stroke-width="8"/>
+  </symbol>
+  <symbol id="oDial" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="34" fill="none" stroke="var(--track)" stroke-width="13"/>
+    <path d="M55.90 16.52 A34 34 0 0 1 80.02 65.96" fill="none" stroke="var(--blue)" stroke-width="13"/>
+    <path d="M71.85 76.04 A34 34 0 0 1 27.25 75.27" fill="none" stroke="var(--red)" stroke-width="13"/>
+    <path d="M19.44 64.91 A34 34 0 0 1 44.10 16.52" fill="none" stroke="var(--gold)" stroke-width="13"/>
+  </symbol>
+</defs></svg>
+
+<!-- nav -->
+<nav class="nav">
+  <div class="lb"><svg class="mk"><use href="#mk"/></svg>
+    <span class="wm">USAGE<span class="oSlot"><svg><use href="#oDial"/></svg></span>S</span></div>
+  <div class="lks"><a href="#how">How it works</a><a href="#privacy">Privacy</a><a href="#">Open source</a></div>
+  <div class="right">
+    <div class="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+    <div class="btn-p">Download</div>
+  </div>
+</nav>
+
+<!-- hero -->
+<section class="hero">
+  <div>
+    <div class="eyebrow">A private time tracker for <b>Mac</b></div>
+    <h1>See where your screen&nbsp;time actually goes.</h1>
+    <p class="sub">UsageOS watches your Mac quietly and shows you the day back — every app, sorted by the kind of work it was. No guessing, no spreadsheet.</p>
+    <div class="ctas"><div class="btn-p">↓ Download for Mac</div><div class="btn-s">See how it works</div></div>
+    <div class="priv"><span class="dot"></span>It all stays on your Mac. Nothing leaves the machine.</div>
+  </div>
+  <div class="dialwrap"><svg id="heroDial" viewBox="0 0 200 200" aria-label="A day on the dial"></svg></div>
+</section>
+
+<!-- marquee -->
+<div class="marquee"><div class="trk" id="trk"></div></div>
+
+<!-- how it works -->
+<section id="how"></section>
+<section class="feat">
+  <div class="txt">
+    <div class="eyebrow">How it works · 01</div>
+    <h2>The whole day, one dial.</h2>
+    <p>A 24-hour dial, midnight at the top. Your hours inked in plain colors, so a glance tells you where they went — deep work through the morning, a scroll after lunch, messages picking up at five.</p>
+  </div>
+  <div class="viz"><svg id="featDial" class="dial" viewBox="0 0 200 200"></svg></div>
+</section>
+<section class="feat flip">
+  <div class="txt">
+    <div class="eyebrow">How it works · 02</div>
+    <h2>A recap, not a spreadsheet.</h2>
+    <p>Each evening, a few honest sentences about your day — written on your Mac, by a model that runs on your Mac. It never leaves. Prefer no AI? A plain template recap says the same thing in plainer words.</p>
+  </div>
+  <div class="viz">
+    <div class="recapcard">
+      <div class="rc-top"><span class="rc-lbl">Daily recap</span><span class="rc-badge">⌁ On-device</span></div>
+      <p class="rc-text">You spent most of the morning in Cursor on usage_os, broke for a bit of YouTube after lunch, and Slack picked up through the afternoon. Your longest stretch was just over two hours.</p>
+    </div>
+  </div>
+</section>
+<section class="feat">
+  <div class="txt">
+    <div class="eyebrow">How it works · 03</div>
+    <h2>Sorted by the kind of work — and the project.</h2>
+    <p>Work, browsing, messaging, breaks. Plus which project you were on, read from your window titles. Get one wrong? Fix it once, and it remembers.</p>
+  </div>
+  <div class="viz">
+    <div class="ledger">
+      <div class="lrow"><span class="sw" style="background:var(--blue)"></span><span class="nm">Cursor</span><span class="bar"><i style="background:var(--blue);width:100%"></i></span><span class="t">4h 10m</span></div>
+      <div class="lrow"><span class="sw" style="background:var(--gold)"></span><span class="nm">Slack</span><span class="bar"><i style="background:var(--gold);width:42%"></i></span><span class="t">1h 02m</span></div>
+      <div class="lrow"><span class="sw" style="background:var(--red)"></span><span class="nm">Chrome</span><span class="bar"><i style="background:var(--red);width:30%"></i></span><span class="t">48m</span></div>
+      <div class="lrow"><span class="sw" style="background:var(--breaks)"></span><span class="nm">YouTube</span><span class="bar"><i style="background:var(--breaks);width:20%"></i></span><span class="t">31m</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- week -->
+<section class="week">
+  <div class="hd">
+    <div><div class="eyebrow">Day &amp; week</div><h2 class="shead" style="font-size:34px">Your week, at a glance.</h2></div>
+    <p style="color:var(--muted);font-size:15px;max-width:34ch;font-weight:500">Seven mini-dials on the same 24-hour scale — the shape of a heavy Wednesday and a light Sunday, side by side.</p>
+  </div>
+  <div class="strip" id="weekStrip"></div>
+</section>
+
+<!-- numbers -->
+<section class="nums">
+  <div class="numcell"><div class="n">100%</div><div class="l">On device</div></div>
+  <div class="numcell"><div class="n">0</div><div class="l">Servers</div></div>
+  <div class="numcell"><div class="n">&lt;1%</div><div class="l">CPU when idle</div></div>
+  <div class="numcell"><div class="n">MIT</div><div class="l">Open source</div></div>
+</section>
+
+<!-- privacy -->
+<section class="privacy" id="privacy">
+  <div class="eyebrow">Privacy</div>
+  <h2>Nothing leaves this machine.</h2>
+  <div class="cols">
+    <p>UsageOS reads your window titles and the current browser tab to understand your day, and writes it to a database <b>on your Mac</b>. There is no network in the data path at all — and because it’s open source, you can read the code and confirm that yourself.</p>
+    <p>It never uses Screen Recording. It skips incognito and private windows, ignores anything you mark private, and auto-excludes password managers and banking. No cloud, no account, no telemetry. <b>Ever.</b></p>
+  </div>
+</section>
+
+<!-- final cta -->
+<section class="final">
+  <div class="eyebrow" style="justify-content:center">Free · open source · macOS</div>
+  <h2>See where your day<br>actually went.</h2>
+  <p class="sub">Free and open source. It runs quietly and waits for you to look.</p>
+  <div class="ctas"><div class="btn-p">↓ Download for Mac</div><div class="btn-s">Star on GitHub</div></div>
+</section>
+
+<!-- footer -->
+<footer class="foot">
+  <div class="lb"><svg class="mk"><use href="#mk"/></svg>
+    <span class="wm">USAGE<span class="oSlot"><svg><use href="#oDial"/></svg></span>S</span></div>
+  <div class="tg">A calm, private look at your time. © 2026 · usageos.app</div>
+  <div class="lks"><a href="#">GitHub</a><a href="#">License (MIT)</a><a href="#">Sponsor</a></div>
+</footer>
+
+</div>
+<script>
+  const MPD=1440;
+  function polar(cx,cy,min,r){const a=min/MPD*2*Math.PI;return [cx+r*Math.sin(a), cy-r*Math.cos(a)];}
+  function arcPath(cx,cy,r,a,b){const large=(b-a)>MPD/2?1:0;const[x0,y0]=polar(cx,cy,a,r);const[x1,y1]=polar(cx,cy,b,r);
+    return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;}
+  // {svg, r, sw, day:[[h,h,color]], now, figure, sub, ticks, animate}
+  function buildDial(o){
+    const svg=document.getElementById(o.svg)||o.el; if(!svg) return;
+    const cx=100,cy=100,r=o.r,sw=o.sw;
+    let h=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--track)" stroke-width="${sw}"/>`;
+    if(o.ticks)[0,6,12,18].forEach(t=>{const[xi,yi]=polar(cx,cy,t*60,r-sw/2-3);const[xo,yo]=polar(cx,cy,t*60,r+sw/2+3);
+      h+=`<line x1="${xi.toFixed(1)}" y1="${yi.toFixed(1)}" x2="${xo.toFixed(1)}" y2="${yo.toFixed(1)}" stroke="var(--edge)" stroke-width="2"/>`;});
+    let i=0;
+    o.day.forEach(([a,b,c])=>{const d=arcPath(cx,cy,r,a*60,b*60);
+      if(o.animate){const len=(b-a)*60/MPD*2*Math.PI*r;
+        h+=`<path class="arc draw" d="${d}" stroke="var(--${c})" stroke-width="${sw}" style="--len:${len.toFixed(1)};--d:${(0.07*i).toFixed(2)}s"/>`;}
+      else h+=`<path class="arc" d="${d}" stroke="var(--${c})" stroke-width="${sw}"/>`;
+      i++;});
+    if(o.now!=null){const[nx,ny]=polar(cx,cy,o.now,r+sw/2+2);
+      h+=`<polygon points="${nx.toFixed(1)},${ny.toFixed(1)} ${(nx-5).toFixed(1)},${(ny-9).toFixed(1)} ${(nx+5).toFixed(1)},${(ny-9).toFixed(1)}" fill="var(--fg)"/>`;}
+    if(o.figure){h+=`<text x="100" y="98" text-anchor="middle" font-family="Anton" font-size="34" fill="var(--fg)">${o.figure}</text>`;
+      if(o.sub)h+=`<text x="100" y="117" text-anchor="middle" font-family="Jost" font-weight="600" font-size="10" letter-spacing="2" fill="var(--muted)">${o.sub}</text>`;}
+    svg.innerHTML=h;
+  }
+  const DAY=[[7.5,8.25,'gold'],[8.5,12.5,'blue'],[12.5,13.25,'red'],[13.25,17.5,'blue'],[17.5,18.5,'gold'],[18.5,19.25,'red'],[21,22.5,'breaks']];
+  buildDial({svg:'heroDial',r:72,sw:16,day:DAY,now:16.17*60,ticks:true,figure:'8h 12m',sub:'ON SCREEN',animate:true});
+  buildDial({svg:'featDial',r:74,sw:16,day:DAY,now:16.17*60,ticks:true,animate:true});
+  // week
+  const WEEK=[
+    {dl:'Mon',dt:'16',day:[[8,12.5,'blue'],[13,17.5,'blue'],[18,19,'gold'],[21,22.5,'breaks']]},
+    {dl:'Tue',dt:'17',day:[[9,12,'blue'],[12.5,13.5,'red'],[14,18.5,'blue'],[19,20.5,'gold']]},
+    {dl:'Wed',dt:'18',day:[[7.5,12.5,'blue'],[13,18,'blue'],[18.5,19.5,'red'],[20,23,'blue']]},
+    {dl:'Thu',dt:'19',day:[[9,12.5,'blue'],[13.5,17,'blue'],[17.5,19,'gold'],[21,22,'breaks']]},
+    {dl:'Fri',dt:'20',day:[[9.5,12.5,'blue'],[12.5,14,'red'],[14.5,17.5,'gold'],[18,19,'red']]},
+    {dl:'Sat',dt:'21',day:[[11,12.5,'red'],[15,16.5,'breaks'],[20,22.5,'breaks']]},
+    {dl:'Sun',dt:'22',day:[[12,13,'red'],[18,19,'gold'],[20.5,22,'breaks']]},
+  ];
+  const strip=document.getElementById('weekStrip');
+  WEEK.forEach((w,idx)=>{
+    const cell=document.createElement('div');cell.className='minicell';
+    const s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox','0 0 200 200');
+    cell.appendChild(s);
+    const dl=document.createElement('div');dl.className='dl';dl.textContent=w.dl;
+    const dt=document.createElement('div');dt.className='dt';dt.textContent=w.dt;
+    cell.appendChild(dl);cell.appendChild(dt);strip.appendChild(cell);
+    buildDial({el:s,r:76,sw:18,day:w.day,now:(idx===0?16.17*60:null),ticks:false,animate:true});
+  });
+  // marquee
+  const items=['On your Mac','No cloud','No telemetry','Open source','Private by design'];
+  const one=items.map(t=>`<span>${t}</span><span class="d">◆</span>`).join('');
+  document.getElementById('trk').innerHTML=one+one;
+  // theme
+  document.querySelectorAll('.themesw button').forEach(b=>b.addEventListener('click',()=>{
+    document.documentElement.setAttribute('data-theme',b.dataset.t);
+    document.querySelectorAll('.themesw button').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+</script>
+</body>
+</html>

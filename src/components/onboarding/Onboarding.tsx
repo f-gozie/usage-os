@@ -57,16 +57,18 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
           <div className="min-h-[280px] px-[22px] pb-2 pt-[22px]">
             {step === 0 && (
               <>
-                <Motif />
-                <Eyebrow>A private time tracker for Mac</Eyebrow>
-                <H>
-                  Where did your <span className="text-c-research">day</span> go?
-                </H>
-                <Lead>
-                  Your Mac already knows how you spent today. UsageOS quietly keeps track, then
-                  tells you the story — where you focused, what pulled you away, and where the
-                  hours actually went.
-                </Lead>
+                <BuildingWordmark />
+                <div className="ob-copy">
+                  <Eyebrow>A private time tracker for Mac</Eyebrow>
+                  <H>
+                    Where did your <span className="text-c-research">day</span> go?
+                  </H>
+                  <Lead>
+                    Your Mac already knows how you spent today. UsageOS quietly keeps track, then
+                    tells you the story — where you focused, what pulled you away, and where the
+                    hours actually went.
+                  </Lead>
+                </div>
               </>
             )}
 
@@ -324,6 +326,50 @@ function Motif({ ready = false }: { ready?: boolean }) {
         />
         {ready && <polygon points="30,5 26,13 34,13" fill="var(--edge)" />}
       </svg>
+    </div>
+  );
+}
+
+/** The Welcome opening beat (first run only): USAGE_S settles in, then the dial draws into the gap
+ *  as the O — the logo assembling itself. CSS-driven (index.css `.ob-*`), one-shot, reduced-motion
+ *  safe. The dial-O carries a faint track ring from the start so it reads as a letter while the
+ *  coloured runs draw in. */
+function BuildingWordmark() {
+  const pre = ["U", "S", "A", "G", "E"];
+  return (
+    <div className="mb-[18px]">
+      <span
+        role="img"
+        aria-label="UsageOS"
+        className="inline-flex items-baseline font-display text-[44px] uppercase leading-none tracking-[0.02em] text-fg"
+      >
+        {pre.map((c, i) => (
+          <span key={i} className="ob-rise inline-block" style={{ animationDelay: `${i * 45}ms` }}>
+            {c}
+          </span>
+        ))}
+        <span
+          aria-hidden
+          className="ob-fade inline-block"
+          style={{
+            width: "1.02em",
+            height: "1.02em",
+            margin: "0 -0.05em",
+            transform: "translateY(0.08em)",
+            animationDelay: "225ms",
+          }}
+        >
+          <svg viewBox="0 0 100 100" className="block h-full w-full overflow-visible">
+            <circle cx="50" cy="50" r="34" fill="none" stroke="var(--track)" strokeWidth="17" />
+            <path className="ob-arc" pathLength={100} d="M55.90 16.52 A34 34 0 0 1 80.02 65.96" fill="none" stroke="var(--c-deep)" strokeWidth="17" />
+            <path className="ob-arc" pathLength={100} d="M71.85 76.04 A34 34 0 0 1 27.25 75.27" fill="none" stroke="var(--c-research)" strokeWidth="17" />
+            <path className="ob-arc" pathLength={100} d="M19.44 64.91 A34 34 0 0 1 44.10 16.52" fill="none" stroke="var(--c-comms)" strokeWidth="17" />
+          </svg>
+        </span>
+        <span className="ob-rise inline-block" style={{ animationDelay: "270ms" }}>
+          S
+        </span>
+      </span>
     </div>
   );
 }

@@ -83,3 +83,74 @@
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
 }
+
+/* Onboarding Welcome opening beat (first run only): the wordmark assembles itself — USAGE_S rises
+   in, then the dial draws into the gap as the O — and the copy follows. One-shot; durations match
+   the approved mockup (letters 600ms · dial 850ms · hold 250ms). Reduced-motion shows the end
+   state immediately (the global rule only zeroes durations, not the staggered delays). */
+@keyframes ob-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.2em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ob-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ob-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes ob-copy {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ob-rise {
+  animation: ob-rise 600ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.ob-fade {
+  animation: ob-fade 600ms ease both;
+}
+.ob-arc {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: ob-draw 850ms cubic-bezier(0.3, 0.9, 0.3, 1) both;
+  animation-delay: 880ms;
+}
+.ob-copy {
+  animation: ob-copy 500ms ease both;
+  animation-delay: 1980ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ob-rise,
+  .ob-copy {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  /* .ob-fade keeps its inline transform (the O's baseline nudge) — only stop the fade. */
+  .ob-fade {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  .ob-arc {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}

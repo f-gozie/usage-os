@@ -35,6 +35,9 @@ pub struct SeedConfig {
     pub end_day_start: i64,
     pub max_spans_per_day: usize,
     pub seed: u64,
+    /// Demo mode: lay down long single-category blocks (clean arcs) instead of the fragmented
+    /// rapid-switch churn the perf harness wants. For screenshots/demos only.
+    pub demo: bool,
 }
 
 /// What a seed run produced — reported by the bin and the timing harness.
@@ -113,7 +116,6 @@ const PROJECTS: &[(&str, &str, &str)] = &[
         "https://github.com/f-gozie/usage-os",
     ),
     ("nudge", "nudge", "https://github.com/f-gozie/nudge"),
-    ("eyemark", "eyemark", "https://github.com/f-gozie/eyemark"),
 ];
 
 /// ~14 apps across the five seeded categories (deep / research / comms / breaks / personal),
@@ -157,10 +159,10 @@ const CATALOG: &[AppSpec] = &[
     AppSpec {
         process: "Code",
         slug: "deep",
-        titles: &["eyemark_frontend — index.ts", "eyemark_frontend — api.ts"],
+        titles: &["nudge — server.ts", "nudge — routes.ts"],
         url: None,
         site: None,
-        project_key: Some("eyemark"),
+        project_key: Some("nudge"),
         weight: 4,
     },
     AppSpec {
@@ -306,14 +308,18 @@ pub fn seed(conn: &Connection, cfg: &SeedConfig) -> rusqlite::Result<SeedStats> 
 
     for d in 0..cfg.days {
         let day_start = cfg.end_day_start - d * SECS_PER_DAY;
-        let spans = generate_day(
-            &mut rng,
-            day_start,
-            cfg.max_spans_per_day,
-            total_weight,
-            &cat_id,
-            &project_id_of,
-        );
+        let spans = if cfg.demo {
+            generate_demo_day(&mut rng, day_start, &cat_id, &project_id_of)
+        } else {
+            generate_day(
+                &mut rng,
+                day_start,
+                cfg.max_spans_per_day,
+                total_weight,
+                &cat_id,
+                &project_id_of,
+            )
+        };
         if spans.is_empty() {
             continue;
         }
@@ -379,6 +385,105 @@ fn generate_day(
         }
     }
     spans
+}
+
+/// Generate one **demo** day: a believable rhythm of long single-category blocks, so the dial
+/// shows a few big clean arcs instead of `generate_day`'s fragmented churn. Each block is one app
+/// held for a long stretch, split into several same-category events (rotating titles) so the
+/// Timeline still has switch-level detail while the dial/week render one arc per block. Per-day
+/// rng variation (block lengths, optional blocks, the odd light day) keeps the week from looking
+/// identical. For demos/screenshots only (`SeedConfig::demo`).
+fn generate_demo_day(
+    rng: &mut Rng,
+    day_start: i64,
+    cat_id: &impl Fn(&str) -> Option<i64>,
+    project_id_of: &impl Fn(&str) -> Option<i64>,
+) -> Vec<(NewEvent<'static>, i64)> {
+    // (slug, min-minutes, max-minutes, probability%). A normal weekday: focus blocks broken by
+    // comms / a midday browse / breaks. The three "deep" blocks become three separate big arcs.
+    let weekday: &[(&str, i64, i64, u64)] = &[
+        ("deep", 90, 160, 100),
+        ("comms", 15, 35, 90),
+        ("deep", 60, 130, 100),
+        ("research", 30, 55, 100),
+        ("deep", 100, 190, 100),
+        ("comms", 20, 45, 85),
+        ("breaks", 30, 65, 80),
+        ("research", 20, 45, 60),
+        ("personal", 15, 35, 55),
+    ];
+    // A light day (weekend-ish): mostly browsing, breaks, a little messaging.
+    let light: &[(&str, i64, i64, u64)] = &[
+        ("research", 25, 50, 100),
+        ("breaks", 30, 70, 100),
+        ("comms", 10, 25, 70),
+        ("personal", 15, 35, 60),
+    ];
+
+    let is_light = rng.chance(22);
+    let plan = if is_light { light } else { weekday };
+    let mut t = if is_light {
+        day_start + rng.range(10 * 3600, 13 * 3600)
+    } else {
+        day_start + rng.range(8 * 3600, 9 * 3600 + 1800)
+    };
+
+    let mut spans: Vec<(NewEvent<'static>, i64)> = Vec::new();
+    for (slug, lo, hi, prob) in plan.iter().copied() {
+        if !rng.chance(prob) {
+            continue;
+        }
+        let block_end = t + rng.range(lo * 60, hi * 60);
+        let category_id = cat_id(slug);
+        // Vary the app *within* the block (same category → still one arc/run), so the Timeline
+        // shows real switch detail across a session (e.g. Cursor → Terminal in a Work block)
+        // instead of one app repeated. Each chunk is 10–25 min.
+        while t < block_end {
+            let chunk = rng.range(10 * 60, 25 * 60).min(block_end - t);
+            if chunk < 60 {
+                break;
+            }
+            let end = t + chunk;
+            let spec = pick_in_category(rng, slug);
+            spans.push((
+                NewEvent {
+                    process_name: spec.process,
+                    window_title: spec.titles[rng.below(spec.titles.len())],
+                    url: spec.url,
+                    site: spec.site,
+                    project_id: spec.project_key.and_then(project_id_of),
+                    project_abstain_reason: None,
+                    is_private: false,
+                    is_idle: false,
+                    category_id,
+                    timestamp: t,
+                },
+                end,
+            ));
+            t = end;
+        }
+        // A short untracked break after some blocks (separates the arcs).
+        if rng.chance(45) {
+            t += rng.range(5 * 60, 20 * 60);
+        }
+    }
+    spans
+}
+
+/// Pick one catalog entry of the given category slug (reservoir sample, so no allocation). Our
+/// demo plan only uses slugs present in `CATALOG`; falls back to the first entry otherwise.
+fn pick_in_category(rng: &mut Rng, slug: &str) -> &'static AppSpec {
+    let mut chosen = &CATALOG[0];
+    let mut count = 0usize;
+    for spec in CATALOG {
+        if spec.slug == slug {
+            count += 1;
+            if rng.below(count) == 0 {
+                chosen = spec;
+            }
+        }
+    }
+    chosen
 }
 
 /// Pick an app by weight. `roll < total_weight` always lands inside the loop; the trailing
@@ -491,6 +596,7 @@ mod tests {
                 end_day_start: day_start,
                 max_spans_per_day: 2000,
                 seed: 0xC0FFEE,
+                demo: false,
             };
             let t_seed = Instant::now();
             let stats = seed(&conn, &cfg).expect("seed");
@@ -620,6 +726,7 @@ mod tests {
                 end_day_start: DEFAULT_END_DAY_START,
                 max_spans_per_day: 2000,
                 seed: 0xC0FFEE,
+                demo: false,
             };
             seed(&conn, &cfg).expect("seed");
             Arc::new(Mutex::new(conn))
