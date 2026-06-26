@@ -4,10 +4,27 @@ version = "0.1.0"
 description = "UsageOS — a private, on-device Mac app that records where your time goes and tells you the story of your day."
 authors = ["Favour Agozie"]
 edition = "2021"
+license = "MIT"
+# The app binary. Required because the dev-only `seed_db` bin (perf feature) makes this a
+# multi-binary package, and `tauri dev`'s bare `cargo run` needs to know which one to launch.
+default-run = "usage-os"
 
 [lib]
 name = "usage_os_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+# Dev-only perf/stress harness (Phase 6). Gates the synthetic-history generator + the
+# read-path timing tests + the `seed_db` bin so none of it ships in the default binary or
+# touches the CI default lanes. Enable with `--features perf`.
+[features]
+perf = []
+
+# The synthetic-history seeder CLI — only built when `perf` is on (`required-features`),
+# so a plain `cargo build`/`tauri build` skips it and never sees the feature-gated module.
+[[bin]]
+name = "seed_db"
+path = "src/bin/seed_db.rs"
+required-features = ["perf"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

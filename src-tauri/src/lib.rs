@@ -26,6 +26,12 @@ mod glance_panel;
 // deterministic template fallback (D48). `pub` so its not-yet-wired API isn't dead-code.
 pub mod ai;
 
+// Dev-only synthetic-history generator for the Phase-6 perf/stress harness. Behind the
+// `perf` cargo feature so it never compiles into the shipped binary; seeds through the
+// repository layer (hard rule 4) so the read path under test is the real one.
+#[cfg(feature = "perf")]
+pub mod perf;
+
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

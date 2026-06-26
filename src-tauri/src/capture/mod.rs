@@ -101,6 +101,13 @@ const GATE_SECS: i64 = 120;
 /// Longer idle gate (secs) for surfaces where you watch work happen with little input (an AI
 /// agent, a long build). Bounded — a real walk-away still closes the span. Dogfood-tunable; see D39.
 const PATIENT_GATE_SECS: i64 = 600;
+/// Hard cap on a single span's length (secs): a span active past this is split into a fresh span
+/// (same window). This makes the read-path lower-bound scan provably complete — no stored span
+/// outlives `db::MAX_SPAN_LOOKBACK_SECS`, so `get_activity_logs`'s bounded scan can't miss an
+/// overlapping span (D58). 12 h is far longer than any real continuous session yet well under the
+/// 2-day read lookback; the split is invisible in the UI (read-time segmentation re-coalesces
+/// adjacent same-window spans).
+const MAX_OPEN_SPAN_SECS: i64 = 12 * 3600;
 /// Process-name substrings (case-insensitive) that earn `PATIENT_GATE_SECS` — decoupled from
 /// categorization (a browser "researching" is not a patient surface).
 const PATIENT_APPS: &[&str] = &[
@@ -146,6 +153,8 @@ impl Focus {
 struct OpenSpan {
     id: i64,
     focus: Focus,
+    /// Span start (Unix secs) — used to cap span length (see `MAX_OPEN_SPAN_SECS`).
+    start: i64,
     end: i64,
 }
 
@@ -248,6 +257,7 @@ fn open_span(conn: &Connection, focus: &Focus, ts: i64) -> rusqlite::Result<Open
     Ok(OpenSpan {
         id,
         focus: focus.clone(),
+        start: ts,
         end: ts,
     })
 }
@@ -338,6 +348,13 @@ fn on_tick(
         if now > open.end {
             db::set_span_end(conn, open.id, now)?;
             open.end = now;
+            // Cap span length: split a marathon span into a fresh one at `now` so no stored span
+            // outlives the read-path lookback (see MAX_OPEN_SPAN_SECS). The two pieces are
+            // contiguous and the same window, so read-time segmentation shows one continuous run.
+            if now - open.start >= MAX_OPEN_SPAN_SECS {
+                let focus = open.focus.clone();
+                state.current = Some(open_span(conn, &focus, now)?);
+            }
         }
     } else if let Some(focus) = state.last_focus.clone() {
         // Active again, same window, no focus event from macOS → resume from now.
@@ -399,6 +416,38 @@ pub fn consume(db_conn: DbConnection, rx: Receiver<FocusEvent>) {
         }
     }
     println!("[Capture] channel closed; consumer stopped");
+}
+
+/// Dev-only write-path probe for the Phase-6 churn stress test (behind the `perf` feature, never
+/// shipped). Wraps the private span-state so a harness can drive the *real* `on_focus` write path
+/// (resolve → privacy/exclusion → project inference → category lookup → insert/extend span)
+/// without exposing the state machine. The producer→channel→consumer plumbing and idle gate are
+/// out of scope here — this measures the per-event write cost the consumer pays under the lock.
+#[cfg(feature = "perf")]
+#[derive(Default)]
+pub struct WriteProbe {
+    state: SpanState,
+}
+
+#[cfg(feature = "perf")]
+impl WriteProbe {
+    /// Drive one synthetic focus event through the write path with `idle_secs = 0` (always
+    /// active, so the idle gate never drops it — steady-state throughput, not gating behaviour).
+    pub fn feed(
+        &mut self,
+        conn: &Connection,
+        app: &str,
+        title: &str,
+        ts: i64,
+    ) -> rusqlite::Result<()> {
+        let ev = FocusEvent {
+            app_name: app.to_string(),
+            window_title: Some(title.to_string()),
+            timestamp: ts,
+            ..Default::default()
+        };
+        on_focus(conn, &mut self.state, &ev, 0)
+    }
 }
 
 #[cfg(test)]
@@ -644,6 +693,25 @@ mod tests {
         feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
         on_tick(&conn, &mut st, 1020, 5).unwrap(); // active
         assert_eq!(all_logs(&conn)[0].end_time, 1020, "sustained work accrues");
+    }
+
+    #[test]
+    fn tick_caps_marathon_span_into_contiguous_pieces() {
+        // A span active past MAX_OPEN_SPAN_SECS is split so no stored span outlives the read-path
+        // lookback (the pieces are the same window, so read-time segmentation shows one run).
+        let conn = test_db();
+        let mut st = SpanState::default();
+        feed(&conn, &mut st, &focus("Code", Some("main.rs"), 1000));
+        on_tick(&conn, &mut st, 1000 + MAX_OPEN_SPAN_SECS - 20, 5).unwrap(); // within the cap
+        assert_eq!(all_logs(&conn).len(), 1, "within the cap → one span");
+
+        let split = 1000 + MAX_OPEN_SPAN_SECS;
+        on_tick(&conn, &mut st, split, 5).unwrap(); // crosses the cap
+        let logs = all_logs(&conn);
+        assert_eq!(logs.len(), 2, "past the cap → the span splits");
+        assert_eq!(logs[0].end_time, split, "first piece closes at the split");
+        assert_eq!(logs[1].start_time, split, "second piece is contiguous");
+        assert_eq!(logs[0].process_name, logs[1].process_name, "same window");
     }
 
     #[test]
