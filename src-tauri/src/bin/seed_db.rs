@@ -54,7 +54,7 @@ fn run() -> Result<(), String> {
             "--force" => force = true,
             "-h" | "--help" => {
                 println!(
-                    "seed_db --months N [--days N] [--out PATH] [--seed N] [--max N] [--force]"
+                    "seed_db --months N [--days N] [--out PATH] [--seed N] [--max N] [--end EPOCH] [--demo] [--force]"
                 );
                 return Ok(());
             }
