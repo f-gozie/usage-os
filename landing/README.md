@@ -1,8 +1,10 @@
 # usageos.app — landing site
 
 The marketing site for UsageOS. Static [Astro](https://astro.build), deployed to **Cloudflare Pages**.
-Fonts (Anton/Jost) are bundled locally; the dial + theme switcher are tiny client scripts. The rest
-is pre-rendered HTML. Design source: `../design/landing-product.html` (the Product direction).
+Fonts (Anton/Jost — both OFL-1.1) are **self-hosted** in `public/fonts/` (with their licenses) and
+preloaded — no CDN, so no visitor IP leaks to a third party, consistent with the product's promise.
+The dial + theme switcher are tiny client scripts; the rest is pre-rendered HTML. Design source:
+`../design/landing-product.html` (the Product direction).
 
 ## Develop
 
