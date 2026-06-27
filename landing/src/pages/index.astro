@@ -1,11 +1,7 @@
 ---
-// Fonts bundled locally (no CDN — parity with the app, and independence). The dial + theme
-// switcher are tiny client islands; everything else is pre-rendered.
-import "@fontsource/anton/400.css";
-import "@fontsource/jost/400.css";
-import "@fontsource/jost/500.css";
-import "@fontsource/jost/600.css";
-import "@fontsource/jost/700.css";
+// Fonts are self-hosted in public/fonts (no CDN) and declared via @font-face in landing.css;
+// the above-the-fold weights are <link rel="preload">ed in <head> so there's no late swap.
+// The dial + theme switcher are tiny client islands; everything else is pre-rendered.
 import "../styles/landing.css";
 
 const title = "UsageOS — see where your screen time goes";
@@ -18,6 +14,9 @@ const description =
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/anton-latin-400-normal.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/jost-latin-400-normal.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/fonts/jost-latin-600-normal.woff2" crossorigin />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
     <meta name="description" content={description} />
@@ -303,9 +302,9 @@ const description =
         );
       };
       const savedTheme = localStorage.getItem(THEME_KEY);
-      applyTheme(
-        savedTheme ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "black" : "paper"),
-      );
+      // Default to paper; a returning visitor's saved choice still wins. (We deliberately do not
+      // follow prefers-color-scheme — the landing's default look is paper.)
+      applyTheme(savedTheme ?? "paper");
       document.querySelectorAll<HTMLButtonElement>(".themesw button").forEach((b) =>
         b.addEventListener("click", () => {
           const t = b.dataset.t || "paper";
