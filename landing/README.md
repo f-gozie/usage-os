@@ -16,14 +16,18 @@ npm run preview  # serve the built dist/
 
 ## Deploy (Cloudflare Pages)
 
-Connect the repo, then set:
+Git-integrated auto-deploy: push to the production branch → Cloudflare builds and deploys;
+other branches/PRs get preview URLs. In the Pages project settings:
 
-- **Build command:** `npm install && npm run build`
-- **Build output directory:** `dist`
+- **Production branch:** `main`
 - **Root directory:** `landing`
-- **Node version:** 20+
+- **Build command:** `npm ci && npm run build`
+- **Build output directory:** `dist`
+- **Node version:** `22` (pinned via `landing/.nvmrc`; or set `NODE_VERSION=22`)
 
-Custom domain: `usageos.app`.
+**Custom domain:** `usageos.app`. The zone is already on Cloudflare (nameservers
+`raegan`/`lakas.ns.cloudflare.com`), so Pages → Custom domains → add `usageos.app`
+auto-creates the record and provisions TLS — no nameserver change needed.
 
 ## Notes
 
