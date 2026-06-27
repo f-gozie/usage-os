@@ -85,7 +85,9 @@ export function TimelineRow({ run, defaultOpen = false }: TimelineRowProps) {
           <div className="py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
             {run.segments.length} app {run.segments.length === 1 ? "stretch" : "stretches"}
           </div>
-          {run.segments.map((seg, i) => {
+          {/* Newest-first, matching the agenda: the run list shows the most recent run on top,
+              so the most recent app-stretch sits on top inside an expanded run too. */}
+          {[...run.segments].reverse().map((seg, i) => {
             // An absorbed detour (D34a) carries a different category than the run — mark it with
             // its own colour dot + label so the expand stays honest about what happened.
             const isDetour = seg.category_slug !== run.category_slug;

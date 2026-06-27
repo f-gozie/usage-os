@@ -30,7 +30,7 @@ UsageOS is a time tracker for macOS. It runs quietly in the background, keeps tr
 - **Nothing leaves your Mac.** No cloud, no account, no telemetry, and no network calls in the data path. It's open source, so you can read the code and check for yourself.
 - **Your data is one file** — a local SQLite database on your Mac. Export it or delete it whenever you want.
 - **It never uses screen recording.** It reads window titles and, if you allow it, the address of the page open in your browser. That's all it reads.
-- **You stay in control.** Private and incognito windows are never recorded. You can leave any app out completely, or mark it private so it still counts the time but hides the title. Password managers and banking apps are left out by default.
+- **You stay in control.** For incognito and private windows, no title or URL is ever stored. You can leave any app or site out completely, or mark one private so it still counts the time but hides the title — your password manager or bank included.
 
 ## Permissions
 

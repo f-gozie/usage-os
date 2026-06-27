@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>UsageOS — new landing sections (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Tokens — copied verbatim from landing.css / design-system (paper / warm / black). */
+:root,[data-theme="paper"]{--bg:#EEEBE1;--surface:#F6F3EA;--fg:#161616;--muted:#6A6A66;--edge:#161616;--rule:rgba(22,22,22,.16);--track:#D7D3C7;--blue:#1B45BE;--red:#E0241B;--gold:#EAB308;--breaks:#161616;--on-ink:#EEEBE1;--bar-bg:#161616;--bar-fg:#EEEBE1;}
+[data-theme="warm"]{--bg:#1A1916;--surface:#24221A;--fg:#EDE9DD;--muted:#938E81;--edge:#4A453B;--rule:rgba(237,233,221,.14);--track:#39342B;--blue:#5C82F0;--red:#F0463C;--gold:#F2BC0C;--breaks:#CFC9B8;--on-ink:#1A1916;--bar-bg:#100F0C;--bar-fg:#EDE9DD;}
+[data-theme="black"]{--bg:#0E0E0E;--surface:#171719;--fg:#F4F4F2;--muted:#8C8C8A;--edge:#2F2F2F;--rule:rgba(244,244,242,.12);--track:#252525;--blue:#5C8BFF;--red:#FF4B40;--gold:#F5C518;--breaks:#C6C6C4;--on-ink:#0E0E0E;--bar-bg:#000000;--bar-fg:#F4F4F2;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;padding-bottom:80px;}
+svg{display:block;}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+
+/* tuning bar (mockup only — not part of the real page) */
+.tuner{position:sticky;top:0;z-index:50;display:flex;flex-wrap:wrap;align-items:center;gap:18px;padding:11px 24px;background:var(--surface);border-bottom:3px solid var(--edge);font-size:12.5px;}
+.tuner .lbl{font-weight:700;letter-spacing:.04em;}
+.tuner .grp{display:flex;align-items:center;gap:8px;color:var(--muted);font-weight:600;}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-family:'Jost';font-weight:600;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 10px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button[aria-pressed="true"]{background:var(--edge);color:var(--bg);}
+.tuner input[type=range]{accent-color:var(--blue);}
+.tuner .ro{font-family:'Anton';font-size:14px;min-width:48px;color:var(--fg);}
+
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);}
+.tag-note{padding:14px 40px;font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--blue);border-bottom:1px solid var(--rule);}
+
+.eyebrow{font-weight:600;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+.eyebrow .ac{color:var(--blue);}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;padding:52px 40px;border-bottom:3px solid var(--edge);}
+.row h2{font-family:'Anton';text-transform:uppercase;font-size:34px;line-height:.96;margin-top:8px;}
+.row p{font-size:15.5px;color:var(--muted);font-weight:500;max-width:42ch;margin-top:14px;}
+.crop{border:3px solid var(--edge);background:var(--surface);}
+
+/* ── categorization: a rules panel (mono — no category colour as chrome) ── */
+.rules-hd{background:var(--bar-bg);color:var(--bar-fg);font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:9px 14px;}
+.rule{display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid var(--rule);font-size:13.5px;}
+.rule:first-of-type{border-top:none;}
+.rule .rpat{font-weight:600;}
+.rtag{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--rule);padding:2px 6px;}
+.rule .rar{color:var(--muted);}
+.rule .rcat{font-weight:700;font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;min-width:74px;text-align:right;}
+.rule.live{background:var(--bg);}
+/* segmented re-sort control (chrome = ink/blue only, never category colour) */
+.seg{display:inline-flex;border:2px solid var(--edge);}
+.seg button{font-family:'Jost';font-weight:700;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:5px 9px;cursor:pointer;}
+.seg button+button{border-left:2px solid var(--edge);}
+.seg button[aria-pressed="true"]{background:var(--blue);color:#fff;}
+
+.resort{border-top:3px solid var(--edge);padding:14px;}
+.resort .cap{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--muted);margin-bottom:12px;}
+.resort .cap b{color:var(--fg);font-weight:700;}
+.demo{display:grid;grid-template-columns:128px 1fr;gap:16px;align-items:center;}
+.demo .ledger{display:flex;flex-direction:column;gap:9px;}
+.lrow{display:grid;grid-template-columns:78px 1fr 52px;align-items:center;gap:9px;}
+.lrow .nm{font-weight:600;font-size:12.5px;}
+.lrow .bar{height:8px;background:var(--track);}
+.lrow .bar i{display:block;height:100%;transition:width var(--anim) ease,background var(--anim) ease;}
+.lrow .t{font-family:'Anton';font-size:12.5px;color:var(--muted);text-align:right;transition:color var(--anim);}
+.mini{width:128px;height:128px;}
+.mini .arc{transition:stroke var(--anim) ease;}
+.dialfig{font-family:'Anton';font-size:11px;fill:var(--fg);}
+.diallbl{font-family:'Jost';font-weight:600;font-size:6.5px;letter-spacing:1.5px;fill:var(--muted);}
+
+/* ── privacy: inspectable exclusion rows (dark section) ── */
+.privacy{background:var(--bar-bg);color:var(--bar-fg);padding:60px 40px;border-bottom:3px solid var(--edge);}
+.privacy .eyebrow{color:var(--bar-fg);opacity:.55;}
+.privacy h2{font-family:'Anton';text-transform:uppercase;font-size:46px;line-height:.93;margin-top:12px;max-width:16ch;}
+.privacy .lead{font-size:15.5px;opacity:.82;font-weight:500;line-height:1.55;max-width:62ch;margin-top:20px;}
+.privacy .lead b{opacity:1;font-weight:700;}
+.exlist{margin-top:28px;border-top:1px solid rgba(255,255,255,.16);}
+.exrow{display:grid;grid-template-columns:96px 1fr auto;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid rgba(255,255,255,.16);}
+.extag{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.6;border:1px solid rgba(255,255,255,.3);padding:2px 7px;text-align:center;}
+.expat{font-weight:600;font-size:14px;}
+.expat .sub{opacity:.6;font-weight:500;font-size:12.5px;margin-left:6px;}
+.exmode{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;white-space:nowrap;}
+.m-excl{border:1px solid var(--bar-fg);}
+.m-priv{background:var(--blue);color:#fff;}
+.m-on{opacity:.7;}
+.dataline{margin-top:22px;font-size:13px;opacity:.7;font-weight:500;}
+.dataline b{opacity:1;font-weight:700;}
+
+@media(max-width:880px){.row{grid-template-columns:1fr;}.privacy h2{font-size:36px;}.demo{grid-template-columns:1fr;}.mini{margin:0 auto;}}
+@media (prefers-reduced-motion: reduce){.lrow .bar i,.mini .arc,.lrow .t{transition:none !important;}}
+</style>
+</head>
+<body data-anim="250">
+  <div class="tuner">
+    <span class="lbl">Mockup · new landing sections</span>
+    <div class="grp">Theme
+      <div class="themesw" role="group" aria-label="Theme">
+        <button data-t="paper" aria-pressed="true">Paper</button>
+        <button data-t="warm" aria-pressed="false">Warm</button>
+        <button data-t="black" aria-pressed="false">Black</button>
+      </div>
+    </div>
+    <div class="grp">Re-sort speed
+      <input id="speed" type="range" min="0" max="600" step="50" value="250" aria-label="Re-sort animation speed (ms)">
+      <span class="ro" id="speedRo">250ms</span>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="tag-note">① Categorization — new section, slots in after the trust strip</div>
+
+    <section class="row">
+      <div class="txt">
+        <div class="eyebrow"><span class="ac">Your categories</span></div>
+        <h2>You decide what<br/>counts as work.</h2>
+        <p>UsageOS sorts your apps with rules you own — by an app's name, or a word in the window title. Sorted something wrong? Fix it once, and every day you've already recorded re-sorts to match.</p>
+      </div>
+      <div class="crop">
+        <div class="rules-hd">Categories &amp; rules</div>
+        <div class="rule"><span class="rpat">Cursor</span><span class="rtag">app</span><span class="rar">→</span><span class="rcat">Work</span></div>
+        <div class="rule"><span class="rpat">youtube.com</span><span class="rtag">site</span><span class="rar">→</span><span class="rcat">Browsing</span></div>
+        <div class="rule"><span class="rpat">Slack</span><span class="rtag">app</span><span class="rar">→</span><span class="rcat">Messaging</span></div>
+        <div class="rule live"><span class="rpat">Reddit</span><span class="rtag">app</span><span class="rar">→</span>
+          <span class="seg" role="group" aria-label="Reddit category">
+            <button data-cat="research" aria-pressed="true">Browsing</button>
+            <button data-cat="deep" aria-pressed="false">Work</button>
+          </span>
+        </div>
+        <div class="resort">
+          <div class="cap">Same day, re-sorted live — <b>edit one rule and the past updates.</b></div>
+          <div class="demo">
+            <svg class="mini" id="mini" viewBox="0 0 200 200" role="img" aria-label="A day on the dial: 5 hours 30 minutes total"></svg>
+            <div class="ledger">
+              <div class="lrow"><span class="nm">Work</span><span class="bar"><i id="bWork" style="background:var(--blue)"></i></span><span class="t" id="tWork">4h</span></div>
+              <div class="lrow"><span class="nm">Browsing</span><span class="bar"><i id="bBrow" style="background:var(--red)"></i></span><span class="t" id="tBrow">1h</span></div>
+              <div class="lrow"><span class="nm">Messaging</span><span class="bar"><i id="bMsg" style="background:var(--gold)"></i></span><span class="t" id="tMsg">30m</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="tag-note">② Privacy — reworked: prose → inspectable controls (replaces the old prose + the cut stats band)</div>
+
+    <section class="privacy">
+      <div class="eyebrow">Privacy</div>
+      <h2>Nothing leaves this machine.</h2>
+      <p class="lead">It reads the frontmost window's title and the current browser tab, and writes them to <b>one file on your Mac</b>. There's no network in the data path — and it's open source, so you can read the code and confirm it. Here's exactly what it leaves alone:</p>
+      <div class="exlist">
+        <div class="exrow"><span class="extag">System</span><span class="expat">Incognito &amp; private windows<span class="sub">never recorded</span></span><span class="exmode m-on">🔒 Always on</span></div>
+        <div class="exrow"><span class="extag">Auto</span><span class="expat">Password managers &amp; banking<span class="sub">excluded out of the box</span></span><span class="exmode m-excl">Excluded</span></div>
+        <div class="exrow"><span class="extag">App</span><span class="expat">Anything you exclude<span class="sub">dropped entirely, never stored</span></span><span class="exmode m-excl">Excluded</span></div>
+        <div class="exrow"><span class="extag">Title</span><span class="expat">Anything you mark private<span class="sub">the time still counts, the title doesn't</span></span><span class="exmode m-priv">Private</span></div>
+      </div>
+      <p class="dataline">Your history is <b>one SQLite file</b> — reveal it in Finder, export it to CSV, set it to auto-delete after 30/90/365 days, or wipe it. <b>It can't see your screen.</b></p>
+    </section>
+  </div>
+
+<script>
+  // ── theme switcher (real control: aria-pressed + group) ──
+  document.querySelectorAll('.themesw button').forEach(b=>b.addEventListener('click',()=>{
+    document.documentElement.setAttribute('data-theme', b.dataset.t);
+    document.querySelectorAll('.themesw button').forEach(x=>x.setAttribute('aria-pressed', String(x===b)));
+  }));
+
+  // ── re-sort speed tuner (mockup knob) ──
+  const speed=document.getElementById('speed'), speedRo=document.getElementById('speedRo');
+  const setAnim=v=>{document.body.style.setProperty('--anim', v+'ms'); speedRo.textContent=v+'ms';};
+  document.body.style.setProperty('--anim','250ms');
+  speed.addEventListener('input',()=>setAnim(speed.value));
+
+  // ── the day (minutes), with one flippable "Reddit" block ──
+  const MPD=1440, R=74, SW=20;
+  const polar=(m,r)=>{const a=(m/MPD)*2*Math.PI;return [100+r*Math.sin(a),100-r*Math.cos(a)];};
+  const arc=(r,a,b)=>{const lg=(b-a)>MPD/2?1:0;const[x0,y0]=polar(a,r);const[x1,y1]=polar(b,r);return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${lg} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;};
+  // blocks: [startHr, endHr, fixedColorVar | 'REDDIT']
+  const BLOCKS=[[9,12,'--blue'],[12,12.75,'REDDIT'],[13,14,'--blue'],[14,14.25,'--red'],[15,15.5,'--gold']];
+  let redditCat='research'; // research = Browsing (red) | deep = Work (blue)
+
+  const mini=document.getElementById('mini');
+  function buildDial(){
+    let h=`<circle cx="100" cy="100" r="${R}" fill="none" stroke="var(--track)" stroke-width="${SW}"/>`;
+    [0,6,12,18].forEach(t=>{const[xi,yi]=polar(t*60,R-SW/2-3);const[xo,yo]=polar(t*60,R+SW/2+3);h+=`<line x1="${xi.toFixed(1)}" y1="${yi.toFixed(1)}" x2="${xo.toFixed(1)}" y2="${yo.toFixed(1)}" stroke="var(--edge)" stroke-width="2"/>`;});
+    BLOCKS.forEach((bl,i)=>{const col=bl[2]==='REDDIT'?(redditCat==='deep'?'--blue':'--red'):bl[2];h+=`<path class="arc" data-reddit="${bl[2]==='REDDIT'}" d="${arc(R,bl[0]*60,bl[1]*60)}" fill="none" stroke="var(${col})" stroke-width="${SW}"/>`;});
+    h+=`<text class="dialfig" x="100" y="98" text-anchor="middle">5h 30m</text><text class="diallbl" x="100" y="114" text-anchor="middle">ON SCREEN</text>`;
+    mini.innerHTML=h;
+  }
+  function render(){
+    // recolor only the reddit arc (calm re-tint; total unchanged)
+    const a=mini.querySelector('[data-reddit="true"]');
+    if(a) a.setAttribute('stroke', redditCat==='deep'?'var(--blue)':'var(--red)');
+    // ledger totals shift Reddit's 45m between Work and Browsing (Messaging fixed)
+    const reddit=45, otherWork=240, otherBrow=15, msg=30; // minutes
+    const work = otherWork + (redditCat==='deep'?reddit:0);
+    const brow = otherBrow + (redditCat==='research'?reddit:0);
+    const MAX=300, pct=m=>Math.round(m/MAX*100)+'%';
+    const fmt=m=>{const h=Math.floor(m/60),mm=m%60;return h&&mm?`${h}h ${mm}m`:h?`${h}h`:`${mm}m`;};
+    document.getElementById('bWork').style.width=pct(work);
+    document.getElementById('bBrow').style.width=pct(brow);
+    document.getElementById('bMsg').style.width=pct(msg);
+    document.getElementById('tWork').textContent=fmt(work);
+    document.getElementById('tBrow').textContent=fmt(brow);
+    document.getElementById('tMsg').textContent=fmt(msg);
+  }
+  document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+    redditCat=b.dataset.cat;
+    document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+    document.querySelector('.rule.live').classList.toggle('flash');
+    render();
+  }));
+  buildDial(); render();
+</script>
+</body>
+</html>

@@ -203,7 +203,7 @@ export function SettingsView() {
           <Tag>System</Tag>
           <span className="flex-1 text-sm font-semibold">
             Incognito / private windows
-            <span className="ml-1.5 text-xs font-medium text-muted">— never recorded</span>
+            <span className="ml-1.5 text-xs font-medium text-muted">— no title or URL stored</span>
           </span>
           <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted">
             🔒 Always on

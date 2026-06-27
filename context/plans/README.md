@@ -8,6 +8,7 @@ file is the entry point: find the plan you're working on, then read its folder.
 
 | Plan | Status | What |
 |---|---|---|
+| [`2026-06-27-categorization-v2/`](2026-06-27-categorization-v2/) | paused | **Backlog (not started).** Rule-engine gaps found while verifying landing claims: site-based category rules, rule precedence/specificity (let a specific site/title override a broad app rule), and default exclusions (auto-exclude password managers/banking). |
 | [`2026-06-26-branding-launch/`](2026-06-26-branding-launch/) | **active** | Phase-5 launch front: finalize the logo (the **Contexts** dial-O), scatter it across every surface, build the landing page (Astro/Cloudflare), README/OSS face, notarized DMG. |
 | [`2026-06-22-product-redesign/`](2026-06-22-product-redesign/) | **active** | The recap + day-dial + local-AI redesign (Phases 0–6). Phases 0–4 ✅, Phase 6 ✅; **Phase 5 launch spun out → branding-launch plan.** |
 | [`2026-03-22-tier1-oss-hygiene/`](2026-03-22-tier1-oss-hygiene/) | done | v0.1.0 + OSS hygiene (tests, migrations, CI, retention). The foundation the redesign builds on. |
