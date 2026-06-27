@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Splash round 2 (more creative)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --blue:#1B45BE; --red:#E0241B; --gold:#EAB308; --ink:#161616; --on-ink:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --blue:#3358E0; --red:#F0463C; --gold:#F2BC0C; --ink:#EDE9DD; --on-ink:#1A1916;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --blue:#3A6BF0; --red:#FF4B40; --gold:#F5C518; --ink:#F4F4F2; --on-ink:#0E0E0E;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);min-height:100vh;}
+svg{display:block;}
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:13px 24px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.brand{font-family:'Anton',sans-serif;font-size:22px;letter-spacing:.05em;text-transform:uppercase;}
+.row{display:flex;gap:12px;align-items:center;}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-family:'Jost';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+.replay{font-family:'Jost';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;border:2px solid var(--edge);background:transparent;color:var(--fg);padding:8px 13px;cursor:pointer;}
+section{padding:30px 26px;border-bottom:3px solid var(--edge);}
+.eyebrow{font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;}
+.shead{font-family:'Anton',sans-serif;font-size:30px;line-height:.95;text-transform:uppercase;margin-bottom:10px;}
+.lead{font-size:15px;max-width:66ch;color:var(--muted);margin:0 0 4px;font-weight:500;}
+.lead b{color:var(--fg);font-weight:600;}
+.lead a{color:var(--blue);}
+
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-top:24px;}
+.concept .name{font-family:'Anton';font-size:17px;text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px;}
+.concept .desc{font-size:13px;color:var(--muted);margin-bottom:12px;min-height:42px;}
+.win{border:2px solid var(--edge);border-radius:6px;overflow:hidden;background:var(--surface);}
+.winbar{background:var(--ink);height:30px;display:flex;align-items:center;padding:0 12px;gap:7px;}
+.winbar i{width:10px;height:10px;border-radius:50%;display:block;}
+.stage{aspect-ratio:16/10;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+.stage svg.dial{width:32%;height:auto;overflow:visible;}
+.cap{font-family:'Anton';text-transform:uppercase;letter-spacing:.16em;font-size:13px;color:var(--fg);}
+
+.oarc{fill:none;stroke-width:9;}
+.t{stroke:var(--track);} .b{stroke:var(--blue);} .r{stroke:var(--red);} .g{stroke:var(--gold);}
+.hand{stroke:var(--fg);stroke-width:3;}
+
+/* ===================== D — Pulse open ===================== */
+.D .ring{transform-box:view-box;transform-origin:50px 50px;animation:D-grow 3.6s cubic-bezier(.3,.8,.3,1) infinite;}
+@keyframes D-grow{0%{transform:scale(.05);stroke:var(--fg);opacity:1}24%{transform:scale(1);stroke:var(--fg);opacity:1}46%{stroke:var(--track)}86%{transform:scale(1);stroke:var(--track);opacity:1}95%,100%{opacity:0}}
+.D .arc{stroke-dasharray:100;stroke-dashoffset:100;animation:D-draw 3.6s ease infinite;}
+@keyframes D-draw{0%,26%{stroke-dashoffset:100}48%{stroke-dashoffset:0}86%{stroke-dashoffset:0}94%,100%{stroke-dashoffset:100}}
+
+/* ===================== E — Mono → colour pour ===================== */
+.E .arc{stroke-dasharray:100;stroke-dashoffset:100;}
+.E .eb{animation:E-draw 3.8s ease infinite, E-cb 3.8s ease infinite;}
+.E .er{animation:E-draw 3.8s ease infinite, E-cr 3.8s ease infinite;}
+.E .eg{animation:E-draw 3.8s ease infinite, E-cg 3.8s ease infinite;}
+@keyframes E-draw{0%,8%{stroke-dashoffset:100}32%{stroke-dashoffset:0}88%{stroke-dashoffset:0}95%,100%{stroke-dashoffset:100}}
+@keyframes E-cb{0%,36%{stroke:var(--fg)}48%,88%{stroke:var(--blue)}95%,100%{stroke:var(--fg)}}
+@keyframes E-cr{0%,42%{stroke:var(--fg)}54%,88%{stroke:var(--red)}95%,100%{stroke:var(--fg)}}
+@keyframes E-cg{0%,48%{stroke:var(--fg)}60%,88%{stroke:var(--gold)}95%,100%{stroke:var(--fg)}}
+
+/* ===================== F — Now-hand to now ===================== */
+.F .arc{stroke-dasharray:100;stroke-dashoffset:100;animation:F-draw 3.8s ease infinite;}
+@keyframes F-draw{0%,4%{stroke-dashoffset:100}26%{stroke-dashoffset:0}90%{stroke-dashoffset:0}96%,100%{stroke-dashoffset:100}}
+.F .hg{transform-box:view-box;transform-origin:50px 50px;animation:F-hand 3.8s cubic-bezier(.4,0,.2,1) infinite;}
+@keyframes F-hand{0%,28%{transform:rotate(0);opacity:0}33%{opacity:1}60%{transform:rotate(232deg);opacity:1}90%{transform:rotate(232deg);opacity:1}96%,100%{transform:rotate(232deg);opacity:0}}
+
+/* ===================== G — Fan out ===================== */
+.G .arc{transform-box:view-box;transform-origin:50px 50px;opacity:0;}
+.G .gb{animation:G-b 3.6s cubic-bezier(.3,.85,.3,1) infinite;}
+.G .gr{animation:G-r 3.6s cubic-bezier(.3,.85,.3,1) infinite;}
+.G .gg{animation:G-g 3.6s cubic-bezier(.3,.85,.3,1) infinite;}
+@keyframes G-b{0%{transform:rotate(96deg);opacity:0}12%{opacity:1}46%{transform:rotate(0);opacity:1}86%{transform:rotate(0);opacity:1}96%,100%{transform:rotate(96deg);opacity:0}}
+@keyframes G-r{0%{transform:rotate(172deg);opacity:0}14%{opacity:1}50%{transform:rotate(0);opacity:1}86%{transform:rotate(0);opacity:1}96%,100%{transform:rotate(172deg);opacity:0}}
+@keyframes G-g{0%{transform:rotate(-96deg);opacity:0}16%{opacity:1}54%{transform:rotate(0);opacity:1}86%{transform:rotate(0);opacity:1}96%,100%{transform:rotate(-96deg);opacity:0}}
+
+/* ===================== H — Wordmark builds, dial-O lands ===================== */
+.H .stage{gap:0;}
+.H .hwm{font-family:'Anton';text-transform:uppercase;font-size:42px;letter-spacing:.02em;color:var(--fg);display:inline-flex;align-items:baseline;opacity:0;animation:H-word 3.8s ease infinite;}
+@keyframes H-word{0%{opacity:0;transform:translateY(8px)}22%,84%{opacity:1;transform:none}94%,100%{opacity:0}}
+.H .hwm .oSlot{display:inline-block;width:1.02em;height:1.02em;transform:translateY(.08em);margin:0 -.05em;}
+.H .hwm .oSlot svg{width:100%;height:100%;overflow:visible;}
+.H .arc{stroke-dasharray:100;stroke-dashoffset:100;animation:H-draw 3.8s ease infinite;}
+@keyframes H-draw{0%,30%{stroke-dashoffset:100}54%{stroke-dashoffset:0}84%{stroke-dashoffset:0}92%,100%{stroke-dashoffset:100}}
+
+/* ===================== I — Soft breath ===================== */
+.I .dialg{transform-box:view-box;transform-origin:50px 50px;animation:I-breath 3.6s ease-in-out infinite;}
+@keyframes I-breath{0%,34%{transform:scale(1)}50%{transform:scale(1.05)}66%,100%{transform:scale(1)}}
+.I .arc{stroke-dasharray:100;stroke-dashoffset:100;animation:I-draw 3.6s ease infinite;}
+@keyframes I-draw{0%,4%{stroke-dashoffset:100}28%{stroke-dashoffset:0}90%{stroke-dashoffset:0}96%,100%{stroke-dashoffset:100}}
+.I .hand{opacity:0;animation:I-now 3.6s ease infinite;}
+@keyframes I-now{0%,30%{opacity:0}40%,90%{opacity:1}96%,100%{opacity:0}}
+
+/* uniform caption */
+.cap{opacity:0;animation:capin 3.7s ease infinite;}
+@keyframes capin{0%,62%{opacity:0;transform:translateY(3px)}76%,90%{opacity:1;transform:none}97%,100%{opacity:0}}
+
+@media (prefers-reduced-motion: reduce){*{animation:none!important;}.arc{stroke-dashoffset:0!important;opacity:1!important;}.cap{opacity:1!important;}.G .arc{transform:none!important;}.E .eb{stroke:var(--blue)!important;}.E .er{stroke:var(--red)!important;}.E .eg{stroke:var(--gold)!important;}}
+@media(max-width:780px){.grid{grid-template-columns:1fr;}}
+.foot{padding:24px 26px;color:var(--muted);font-size:12.5px;}
+.foot a{color:var(--blue);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <div class="brand">Splash · round 2</div>
+  <div class="row">
+    <button class="replay" id="replay">↻ Replay</button>
+    <div class="themesw">
+      <button data-t="paper" class="on">Paper</button>
+      <button data-t="warm">Warm</button>
+      <button data-t="black">Black</button>
+    </div>
+  </div>
+</div>
+
+<section>
+  <div class="eyebrow">Six more, more creative · the O comes alive</div>
+  <div class="shead">Splash round 2</div>
+  <p class="lead">All loop; hit <b>Replay</b> and switch themes. Flat, hard-edged, on-theme. Round 1 (Sweep · Orbit · Spin &amp; spread) is still in <a href="splash.html">splash.html</a> — these are fresh directions. A couple double as brand storytelling, not just motion.</p>
+
+  <div class="grid" id="grid">
+
+    <!-- D -->
+    <div class="concept">
+      <div class="name">D · Pulse open</div>
+      <div class="desc">A single point blooms into a ring, the ring splits into the three contexts. From one moment, a whole day. Minimal, calm.</div>
+      <div class="win"><div class="winbar"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i></div>
+        <div class="stage D">
+          <svg class="dial" viewBox="0 0 100 100">
+            <circle class="oarc t" cx="50" cy="50" r="34"/>
+            <circle class="ring" cx="50" cy="50" r="34" fill="none" stroke="var(--fg)" stroke-width="9"/>
+            <path class="oarc arc b" pathLength="100" d="M55.90 16.52 A34 34 0 0 1 80.02 65.96"/>
+            <path class="oarc arc r" pathLength="100" d="M71.85 76.04 A34 34 0 0 1 27.25 75.27"/>
+            <path class="oarc arc g" pathLength="100" d="M19.44 64.91 A34 34 0 0 1 44.10 16.52"/>
+          </svg>
+          <div class="cap">Usageos</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- E -->
+    <div class="concept">
+      <div class="name">E · Mono → colour pour</div>
+      <div class="desc">The mark draws in one ink, then colour pours into each context in turn. Literally the brand’s mono→colour system, animated.</div>
+      <div class="win"><div class="winbar"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i></div>
+        <div class="stage E">
+          <svg class="dial" viewBox="0 0 100 100">
+            <circle class="oarc t" cx="50" cy="50" r="34"/>
+            <path class="oarc arc eb" pathLength="100" d="M55.90 16.52 A34 34 0 0 1 80.02 65.96"/>
+            <path class="oarc arc er" pathLength="100" d="M71.85 76.04 A34 34 0 0 1 27.25 75.27"/>
+            <path class="oarc arc eg" pathLength="100" d="M19.44 64.91 A34 34 0 0 1 44.10 16.52"/>
+          </svg>
+          <div class="cap">Usageos</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- F -->
+    <div class="concept">
+      <div class="name">F · Now-hand to now</div>
+      <div class="desc">The dial draws, then the now-hand sweeps from midnight and parks at the current time — the same live hand the menubar icon uses. Meaningful, not just pretty.</div>
+      <div class="win"><div class="winbar"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i></div>
+        <div class="stage F">
+          <svg class="dial" viewBox="0 0 100 100">
+            <circle class="oarc t" cx="50" cy="50" r="34"/>
+            <path class="oarc arc b" pathLength="100" d="M55.90 16.52 A34 34 0 0 1 80.02 65.96"/>
+            <path class="oarc arc r" pathLength="100" d="M71.85 76.04 A34 34 0 0 1 27.25 75.27"/>
+            <path class="oarc arc g" pathLength="100" d="M19.44 64.91 A34 34 0 0 1 44.10 16.52"/>
+            <g class="hg"><line class="hand" x1="50" y1="50" x2="50" y2="14"/><polygon points="50,11 46,18 54,18" fill="var(--fg)"/></g>
+            <circle cx="50" cy="50" r="2.6" fill="var(--fg)"/>
+          </svg>
+          <div class="cap">Usageos</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- G -->
+    <div class="concept">
+      <div class="name">G · Fan out</div>
+      <div class="desc">The three arcs swing out from the midnight gap and lock into place, like a fan opening. The most literal “spreads out.”</div>
+      <div class="win"><div class="winbar"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i></div>
+        <div class="stage G">
+          <svg class="dial" viewBox="0 0 100 100">
+            <circle class="oarc t" cx="50" cy="50" r="34"/>
+            <path class="oarc arc gb" d="M55.90 16.52 A34 34 0 0 1 80.02 65.96"/>
+            <path class="oarc arc gr" d="M71.85 76.04 A34 34 0 0 1 27.25 75.27"/>
+            <path class="oarc arc gg" d="M19.44 64.91 A34 34 0 0 1 44.10 16.52"/>
+          </svg>
+          <div class="cap">Usageos</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- H -->
+    <div class="concept">
+      <div class="name">H · Wordmark builds</div>
+      <div class="desc">USAGE_S settles in, then the dial draws into the gap as the O — the name finishing itself. Brand-forward; shows the dial-O off.</div>
+      <div class="win"><div class="winbar"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i></div>
+        <div class="stage H">
+          <div class="hwm">USAGE<span class="oSlot"><svg viewBox="0 0 100 100">
+            <circle class="oarc t" cx="50" cy="50" r="34"/>
+            <path class="oarc arc b" pathLength="100" d="M55.90 16.52 A34 34 0 0 1 80.02 65.96" style="stroke-width:13"/>
+            <path class="oarc arc r" pathLength="100" d="M71.85 76.04 A34 34 0 0 1 27.25 75.27" style="stroke-width:13"/>
+            <path class="oarc arc g" pathLength="100" d="M19.44 64.91 A34 34 0 0 1 44.10 16.52" style="stroke-width:13"/>
+          </svg></span>S</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- I -->
+    <div class="concept">
+      <div class="name">I · Soft breath</div>
+      <div class="desc">The dial draws in, the now-hand lands, and the whole mark takes one quiet breath. The calmest — pure “rear-view mirror.”</div>
+      <div class="win"><div class="winbar"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i></div>
+        <div class="stage I">
+          <svg class="dial" viewBox="0 0 100 100">
+            <g class="dialg">
+              <circle class="oarc t" cx="50" cy="50" r="34"/>
+              <path class="oarc arc b" pathLength="100" d="M55.90 16.52 A34 34 0 0 1 80.02 65.96"/>
+              <path class="oarc arc r" pathLength="100" d="M71.85 76.04 A34 34 0 0 1 27.25 75.27"/>
+              <path class="oarc arc g" pathLength="100" d="M19.44 64.91 A34 34 0 0 1 44.10 16.52"/>
+              <polygon class="hand" points="50,11 46,18 54,18" fill="var(--fg)" stroke="none"/>
+            </g>
+          </svg>
+          <div class="cap">Usageos</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div class="foot">
+  My picks to shortlist: <b>F (Now-hand to now)</b> — it means something (it’s the live hand), and <b>E (Mono → colour pour)</b> — it tells the brand’s own story. <b>I</b> if you want the calmest. Say which (or a hybrid, e.g. F’s hand + E’s pour) and I’ll spec the real timing + build it as onboarding’s opening beat.
+</div>
+
+</div>
+<script>
+  document.querySelectorAll('.themesw button').forEach(b=>b.addEventListener('click',()=>{
+    document.documentElement.setAttribute('data-theme',b.dataset.t);
+    document.querySelectorAll('.themesw button').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+  document.getElementById('replay').addEventListener('click',()=>{
+    const g=document.getElementById('grid');const c=g.cloneNode(true);g.parentNode.replaceChild(c,g);c.id='grid';void c.offsetWidth;
+  });
+</script>
+</body>
+</html>

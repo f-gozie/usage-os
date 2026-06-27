@@ -1,0 +1,17 @@
+{
+  "name": "usageos-landing",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The usageos.app marketing site — static Astro, deployed to Cloudflare Pages.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@fontsource/anton": "^5.2.7",
+    "@fontsource/jost": "^5.2.8",
+    "astro": "^5.6.1"
+  }
+}

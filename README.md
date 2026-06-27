@@ -1,122 +1,103 @@
-# Usage OS
+<p align="center">
+  <img src="docs/banner.png" alt="UsageOS" width="820">
+</p>
 
-[![CI](https://github.com/f-gozie/usage-os/actions/workflows/ci.yml/badge.svg)](https://github.com/f-gozie/usage-os/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/f-gozie/usage-os/actions/workflows/ci.yml"><img src="https://github.com/f-gozie/usage-os/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/license-MIT-1B45BE.svg" alt="License: MIT">
+  <img src="https://img.shields.io/badge/platform-macOS-161616.svg" alt="Platform: macOS">
+</p>
 
-**A private, on-device time mirror for macOS.** Usage OS quietly records where your time goes and shows you the story of your day — calmly, with nothing leaving your machine.
+UsageOS is a time tracker for macOS. It runs quietly in the background, keeps track of which app and window you're using, and shows you where your time actually went — by the hour, and by the kind of work it was. Everything stays on your Mac.
 
-> **Status — in redesign.** Today Usage OS ships as a local activity tracker (see _Available today_). It's being rebuilt around a 24-hour **day-dial**, a daily **recap**, and optional **on-device AI**, in a calm Bauhaus design. The full direction is in [`context/vision.md`](context/vision.md) and the plan is in [`context/plans/`](context/plans/). This README evolves with it.
+## What it shows
 
-## What it is
+- **A day dial.** Your whole day on a 24-hour clock, with each stretch coloured by the kind of work it was.
+- **A daily recap.** A few plain sentences about your day, written on your Mac.
+- **A week and a timeline.** Seven days side by side, and a scrollable list when you want the detail.
+- **Two ways to read it.** By category — work, browsing, messaging, breaks, personal — and by project, picked up from your window titles.
 
-Your Mac already knows how you spent today. Usage OS turns that into _understanding_ — where you focused, what pulled you away, where the hours actually went — as a calm rear-view mirror you check on your own terms, not a productivity coach that nags you. 100% local.
-
-## Features
-
-**Available today (v0.1.0)**
-- Background activity tracking (active window, 5s polling)
-- Idle detection (3-minute threshold) + smart coalescing (30s gap)
-- Category rules engine (process name / window-title matching)
-- Configurable data retention (30 / 60 / 90 / 180 / 365 days, or keep all)
-- Local SQLite with versioned migrations
-- Dashboard: distribution chart, stats cards, today / yesterday / week
-
-**In active redesign** (see [the plan](context/plans/2026-06-22-product-redesign.md))
-- A 24-hour **day-dial** + a week-of-dials — the new signature
-- A daily **recap**: an honest, plain-English summary of your day
-- Two-axis model — **context** (Deep work / Research / Comms / Breaks) × **project** (auto-inferred)
-- Reliable capture via macOS **Accessibility + Automation** (window titles + browser URLs)
-- Optional **on-device AI** (Apple Foundation Models) for the recap and categorization — never the cloud
-- A **Bauhaus** design language, light & dark
+<p align="center">
+  <img src="docs/screenshots/day.png" alt="The day view — your day on a 24-hour dial, with a written recap" width="820">
+</p>
+<p align="center">
+  <img src="docs/screenshots/week.png" alt="The week view — seven days as mini-dials" width="410">
+  <img src="docs/screenshots/timeline.png" alt="The timeline — every run of the day, with the apps inside" width="410">
+</p>
 
 ## Privacy
 
-- **Nothing leaves your machine.** No cloud, no account, no telemetry, no network calls in the data path — and it's open source, so you can verify it.
-- Data lives in a local SQLite database in your app data directory.
-- Capture uses **Accessibility + Automation** only — **never Screen Recording**.
-- You own your data, completely.
+- **Nothing leaves your Mac.** No cloud, no account, no telemetry, and no network calls in the data path. It's open source, so you can read the code and check for yourself.
+- **Your data is one file** — a local SQLite database on your Mac. Export it or delete it whenever you want.
+- **It never uses screen recording.** It reads window titles and, if you allow it, the address of the page open in your browser. That's all it reads.
+- **You stay in control.** For incognito and private windows, no title or URL is ever stored. You can leave any app or site out completely, or mark one private so it still counts the time but hides the title — your password manager or bank included.
 
-## Quick start
+## Permissions
+
+UsageOS asks for two macOS permissions. Both are optional — it still works without them, just with less detail.
+
+- **Accessibility** — to read the title of your active window, so it can tell what you were working on, not just which app was open.
+- **Automation** — to read the address of the current browser tab, so browsing shows the actual site instead of just “browsing.” Private windows are never read.
+
+It never asks for Screen Recording.
+
+## Install
+
+A signed, notarised download is on the way. Until then, you can build it from source — it's a normal Tauri app.
+
+## Build from source
+
+**Requirements**
+
+- macOS
+- Rust (stable)
+- Node.js 22 or newer
+- Xcode Command Line Tools — `xcode-select --install`
+
+**Run it**
 
 ```bash
-# Install frontend dependencies
 npm install
-
-# Run in development mode
 npm run tauri dev
+```
 
-# Build for production
+**Build a release**
+
+```bash
+./sidecar/build.sh      # builds the recap helper → src-tauri/binaries/usageos-ai
 npm run tauri build
 ```
 
-## Platform setup
+The daily recap can use Apple's on-device model (Foundation Models, macOS 26). When that isn't available, UsageOS writes a plain recap instead — nothing else changes.
 
-The shipped tracker builds cross-platform; the **redesign targets macOS first** (capture relies on macOS APIs).
+## Develop
 
-### macOS
-Grant Accessibility permissions when prompted:
-**System Settings → Privacy & Security → Accessibility**. No additional dependencies needed.
-
-### Windows
-No additional dependencies needed.
-
-### Linux
 ```bash
-sudo apt-get install -y \
-  libwebkit2gtk-4.1-dev \
-  libgtk-3-dev \
-  libayatana-appindicator3-dev \
-  librsvg2-dev \
-  libxss-dev \
-  libxdo-dev
+cargo test --manifest-path src-tauri/Cargo.toml   # Rust tests
+npm test                                           # TypeScript tests
 ```
 
-## Development
+Before a pull request, these checks must pass: `cargo clippy -D warnings`, `cargo fmt --check`, `cargo test`, `tsc`, and the generated IPC bindings must be up to date.
 
-### Prerequisites
-- Rust (stable, latest)
-- Node.js 22+
-- Platform dependencies (see above)
+## How it works
 
-### Running tests
-```bash
-# Rust tests (database, coalescing, categorization, migrations)
-cargo test --manifest-path src-tauri/Cargo.toml
+A Rust backend watches macOS for window and app changes through the native Accessibility and Automation APIs, works out the category and project, and stores everything in SQLite. A React and TypeScript frontend draws the dial and the rest of the interface. The recap is written by a small Swift helper using Apple's on-device model, with a plain-text fallback when it isn't available. The interface between Rust and the frontend is generated from the Rust side, so the two can't drift apart.
 
-# TypeScript tests (stats, time utilities)
-npx vitest run
-```
-
-## Architecture
-
-The shipped layout: a React/TypeScript frontend (`src/`), a Rust/Tauri backend (`src-tauri/` — `db.rs` SQLite + migrations + coalescing, `watcher.rs` window polling + idle detection, `lib.rs` Tauri commands), and CI across Linux/macOS/Windows.
-
-The **target architecture** for the redesign — a Rust core (objc2 capture) + a thin Swift Foundation Models sidecar, a generated tauri-specta IPC contract, and the rusqlite repository — is documented in [`context/architecture.md`](context/architecture.md).
-
-## Tech stack
-
-| Layer | Today | Redesign adds |
-|-------|-------|---------------|
-| Framework | Tauri v2 | — |
-| Backend | Rust, rusqlite (bundled SQLite), versioned migrations | objc2 capture, Swift Foundation Models sidecar |
-| Frontend | React 19, TypeScript, Vite 7 | Bauhaus design system, custom SVG day-dial |
-| IPC | hand-written bindings | tauri-specta (generated, type-safe) |
-| Styling | Tailwind CSS, Radix UI | — |
-| Charts | Recharts | custom SVG dial (no chart library) |
-| Testing | `cargo test` (Rust), Vitest (TS) | + capture/AI trait fakes |
+More detail is in [`context/architecture.md`](context/architecture.md).
 
 ## Project docs
 
-- **Vision & spec** → [`context/vision.md`](context/vision.md)
-- **Decisions (ADR log)** → [`context/decisions.md`](context/decisions.md)
+- **What it is and why** → [`context/vision.md`](context/vision.md)
+- **Decisions** → [`context/decisions.md`](context/decisions.md)
 - **Architecture** → [`context/architecture.md`](context/architecture.md)
 - **Design system** → [`context/design-system.md`](context/design-system.md)
-- **Plan** → [`context/plans/`](context/plans/)
-- **Agent contract** → [`CLAUDE.md`](CLAUDE.md)
+- **Plans** → [`context/plans/`](context/plans/)
+- **Contributor &amp; agent guide** → [`CLAUDE.md`](CLAUDE.md)
 
 ## Contributing
 
-See [CONTRIBUTING.md](.github/CONTRIBUTING.md).
+Contributions are welcome — see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).

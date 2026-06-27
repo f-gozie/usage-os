@@ -68,9 +68,11 @@ From the shipped v0.1.0 + Tier-1 work, do **not** rebuild these:
 - [x] **Settings — Your-data controls — ✅ DONE in M4** (D42, `phase2/m4-settings`): retention duration picker (`set_retention_days` wrapping `cleanup_old_data` / `data_retention_days`); **Export CSV** (`export_events_csv` → writes next to the DB, reveals via `opener`); **Delete all data** (`delete_all_data` — wipe record, preserve config — behind a type-`DELETE` confirm modal); **Show in Finder** (`get_database_path` + reveal). _Pulled forward from Phase 4 since M4 was building the Settings shell anyway; the data-ownership/privacy ethos (`vision.md`) justifies them._
 - [ ] **Day-start offset** (night-owl "day starts at 4 AM", D14): applied to day-bucketing + exposed in Settings. _Deferred "later" per D14; the design tags it as such — build after the core dial lands._
 
-## Phase 5 — Launch _(deferred until after Phase 6 — owner's call 2026-06-25: harden + perf-test before shipping)_
+## Phase 5 — Launch _(spun into its own plan 2026-06-26)_
 
-- [ ] Notarized DMG + auto-update + Homebrew cask; rewrite README for the new product; Sponsor link; finalize name/domain.
+➡️ **Branding + landing + launch now live in [`2026-06-26-branding-launch/`](../2026-06-26-branding-launch/plan.md)** — finalize the logo (the **Contexts** dial-O), scatter it across every surface, build the landing page, README/OSS face, and the notarized DMG. Kicked off after Phase 6 merged (handoff `2026-06-26-02`).
+
+- [~] Notarized DMG + auto-update + Homebrew cask; rewrite README for the new product; Sponsor link; finalize name/domain. _(DMG + README in the branding-launch plan; auto-update/Homebrew/Sponsor = its later tail.)_
 
 ## Phase 6 — Optimization, performance, security & hardening (the thorough final pass) — **NOW NEXT (before Phase 5)**
 

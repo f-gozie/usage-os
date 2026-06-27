@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- UsageOS — the Contexts mark (mono template). Same arcs, gaps preserved, one ink — for ≤24px
+       (menubar tray, tiny favicon, single-colour print/etch). Recolour the strokes per surface. -->
+  <path d="M55.16 17.41 A33 33 0 0 1 80.81 61.83" fill="none" stroke="#161616" stroke-width="10"/>
+  <path d="M75.65 70.77 A33 33 0 0 1 24.35 70.77" fill="none" stroke="#161616" stroke-width="10"/>
+  <path d="M19.19 61.83 A33 33 0 0 1 44.84 17.41" fill="none" stroke="#161616" stroke-width="10"/>
+</svg>

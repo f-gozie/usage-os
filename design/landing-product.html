@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — landing (Product / framed app)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{--bg:#EEEBE1;--surface:#F6F3EA;--fg:#161616;--muted:#6A6A66;--edge:#161616;--rule:rgba(22,22,22,.16);--track:#D7D3C7;--blue:#1B45BE;--red:#E0241B;--gold:#EAB308;--breaks:#161616;--on-ink:#EEEBE1;--bar-bg:#161616;--bar-fg:#EEEBE1;}
+[data-theme="warm"]{--bg:#1A1916;--surface:#24221A;--fg:#EDE9DD;--muted:#938E81;--edge:#4A453B;--rule:rgba(237,233,221,.14);--track:#39342B;--blue:#5C82F0;--red:#F0463C;--gold:#F2BC0C;--breaks:#CFC9B8;--on-ink:#1A1916;--bar-bg:#100F0C;--bar-fg:#EDE9DD;}
+[data-theme="black"]{--bg:#0E0E0E;--surface:#171719;--fg:#F4F4F2;--muted:#8C8C8A;--edge:#2F2F2F;--rule:rgba(244,244,242,.12);--track:#252525;--blue:#5C8BFF;--red:#FF4B40;--gold:#F5C518;--breaks:#C6C6C4;--on-ink:#0E0E0E;--bar-bg:#000000;--bar-fg:#F4F4F2;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;scroll-behavior:smooth;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;}
+.wrap{max-width:1100px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);}
+svg{display:block;}a{color:inherit;text-decoration:none;}
+.wm{font-family:'Anton';text-transform:uppercase;letter-spacing:.02em;display:inline-flex;align-items:baseline;line-height:1;}
+.wm .o{display:inline-block;width:1.02em;height:1.02em;transform:translateY(.08em);margin:0 -.05em;}
+.wm .o svg{width:100%;height:100%;overflow:visible;}
+.nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:15px 32px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.nav .wm{font-size:21px;}
+.nav .lks{display:flex;gap:26px;font-size:13.5px;color:var(--muted);font-weight:500;margin-left:auto;margin-right:24px;}
+.nav .lks a:hover{color:var(--fg);}
+.nav .right{display:flex;align-items:center;gap:13px;}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-family:'Jost';font-weight:600;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 10px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+.btn{font-weight:600;font-size:13px;padding:9px 17px;cursor:pointer;display:inline-flex;gap:8px;align-items:center;}
+.btn-p{background:var(--blue);color:#fff;}.btn-s{border:2px solid var(--edge);color:var(--fg);}
+.eyebrow{font-weight:600;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+.eyebrow .ac{color:var(--blue);}
+
+/* hero — pitch on top, the real app below */
+.hero{padding:54px 40px 16px;text-align:center;}
+.hero h1{font-family:'Anton';text-transform:uppercase;font-size:48px;line-height:.95;margin:16px auto 0;max-width:20ch;}
+.hero h1 .u{text-decoration:underline;text-decoration-color:var(--blue);text-decoration-thickness:5px;text-underline-offset:3px;}
+.hero .sub{font-size:17px;color:var(--muted);font-weight:500;max-width:48ch;margin:18px auto 0;}
+.hero .ctas{display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap;}
+.hero .pr{margin-top:13px;font-size:12.5px;color:var(--muted);}
+.shotwrap{padding:34px 40px 56px;border-bottom:3px solid var(--edge);}
+
+/* the framed app window */
+.appwin{border:3px solid var(--edge);border-radius:8px;overflow:hidden;background:var(--bg);}
+.aw-bar{background:var(--bar-bg);color:var(--bar-fg);height:40px;display:flex;align-items:center;padding:0 14px;position:relative;}
+.aw-bar i{width:11px;height:11px;border-radius:50%;display:block;margin-right:7px;}
+.aw-bar .lights{display:flex;}
+.aw-bar .w{position:absolute;left:50%;transform:translateX(-50%);font-family:'Anton';font-size:12px;letter-spacing:.18em;text-transform:uppercase;}
+.aw-bar .trk{margin-left:auto;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.85;display:flex;align-items:center;gap:7px;}
+.aw-bar .trk .d{width:7px;height:7px;border-radius:50%;background:var(--gold);}
+.aw-tabs{display:flex;background:var(--surface);border-bottom:3px solid var(--edge);}
+.aw-tabs a{padding:13px 20px;font-size:13px;font-weight:600;color:var(--muted);border-right:1px solid var(--rule);}
+.aw-tabs a.on{color:var(--fg);box-shadow:inset 0 -3px 0 var(--blue);}
+.aw-date{padding:13px 22px;border-bottom:1px solid var(--rule);font-weight:600;font-size:14px;display:flex;align-items:center;gap:14px;color:var(--fg);}
+.aw-date .arw{color:var(--muted);}
+.aw-body{display:grid;grid-template-columns:300px 1fr;gap:26px;padding:26px;}
+.aw-body .dialcol{display:flex;align-items:center;justify-content:center;}
+.aw-body .dialcol svg{width:280px;height:280px;overflow:visible;}
+.recapcard{border:3px solid var(--edge);background:var(--surface);padding:16px 18px;}
+.rc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.rc-lbl{font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+.rc-badge{border:2px solid var(--edge);font-size:9.5px;padding:3px 8px;font-weight:600;}
+.rc-text{font-size:15px;font-weight:500;line-height:1.45;}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;}
+.stat{border:2px solid var(--edge);padding:12px 14px;}
+.stat .n{font-family:'Anton';font-size:26px;line-height:1;}
+.stat .l{font-size:10.5px;color:var(--muted);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:5px;}
+.ledger{margin-top:14px;display:flex;flex-direction:column;gap:10px;}
+.lrow{display:flex;align-items:center;gap:10px;}
+.lrow .sw{width:12px;height:12px;flex:none;}
+.lrow .nm{font-weight:600;font-size:13.5px;}
+.lrow .bar{flex:1;height:8px;background:var(--track);}
+.lrow .bar i{display:block;height:100%;}
+.lrow .t{font-family:'Anton';font-size:13px;color:var(--muted);min-width:50px;text-align:right;}
+
+.strip{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;padding:16px 20px;border-bottom:3px solid var(--edge);background:var(--surface);}
+.strip span{font-weight:600;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
+.strip .d{color:var(--muted);opacity:.5;padding:0 18px;}
+
+/* feature rows showing more of the product */
+.row{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;padding:52px 40px;border-bottom:3px solid var(--edge);}
+.row.flip .txt{order:2;}
+.row h2{font-family:'Anton';text-transform:uppercase;font-size:34px;line-height:.96;margin-top:8px;}
+.row p{font-size:15.5px;color:var(--muted);font-weight:500;max-width:40ch;margin-top:14px;}
+.crop{border:3px solid var(--edge);background:var(--surface);padding:20px;}
+.weekstrip{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;}
+.weekstrip .cell{text-align:center;}
+.weekstrip .cell svg{width:100%;height:auto;overflow:visible;}
+.weekstrip .cell .dl{font-size:9.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:6px;}
+.tline{display:flex;flex-direction:column;}
+.tline .tr{display:grid;grid-template-columns:58px 1fr;gap:12px;padding:11px 0;border-bottom:1px solid var(--rule);}
+.tline .tr:last-child{border-bottom:none;}
+.tline .tm{font-family:'Anton';font-size:13px;color:var(--muted);}
+.tline .ct{display:flex;align-items:center;gap:9px;}
+.tline .ct .sw{width:10px;height:10px;flex:none;}
+.tline .ct .nm{font-weight:600;font-size:13.5px;}
+.tline .ct .ap{font-size:12px;color:var(--muted);margin-top:2px;}
+
+.privacy{background:var(--bar-bg);color:var(--bar-fg);padding:68px 40px;border-bottom:3px solid var(--edge);}
+.privacy .eyebrow{color:var(--bar-fg);opacity:.55;}
+.privacy h2{font-family:'Anton';text-transform:uppercase;font-size:52px;line-height:.93;margin-top:12px;max-width:16ch;}
+.privacy .cols{display:grid;grid-template-columns:1fr 1fr;gap:34px;margin-top:28px;}
+.privacy p{font-size:15.5px;opacity:.82;font-weight:500;line-height:1.55;}.privacy p b{opacity:1;font-weight:700;}
+.nums{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:3px solid var(--edge);}
+.nums .c{padding:38px 22px;border-right:3px solid var(--edge);}.nums .c:last-child{border-right:none;}
+.nums .c .n{font-family:'Anton';font-size:46px;line-height:.9;}.nums .c .n.ac{color:var(--blue);}
+.nums .c .l{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-top:10px;}
+.final{padding:74px 40px;text-align:center;border-bottom:3px solid var(--edge);}
+.final .wm{font-size:84px;justify-content:center;}
+.final h2{font-family:'Anton';text-transform:uppercase;font-size:28px;margin-top:22px;}
+.final .ctas{display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap;}.final .note{font-size:13px;color:var(--muted);margin-top:14px;}
+.foot{padding:30px 40px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
+.foot .wm{font-size:17px;}.foot .cp{font-size:12.5px;color:var(--muted);}
+.foot .lks{display:flex;gap:20px;font-size:13px;color:var(--muted);font-weight:500;}.foot .lks a:hover{color:var(--fg);}
+.arc{fill:none;stroke-linecap:butt;}
+.arc.draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:draw .8s cubic-bezier(.3,.9,.3,1) forwards;animation-delay:var(--d);}
+@keyframes draw{to{stroke-dashoffset:0;}}
+@media (prefers-reduced-motion: reduce){.arc.draw{animation:none;stroke-dashoffset:0;}}
+@media(max-width:880px){.aw-body{grid-template-columns:1fr;}.row,.privacy .cols{grid-template-columns:1fr;}.row.flip .txt{order:0;}.nums{grid-template-columns:1fr 1fr;}.nums .c:nth-child(2){border-right:none;}.hero h1{font-size:38px;}.final .wm{font-size:52px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="oDial" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="34" fill="none" stroke="var(--track)" stroke-width="13"/>
+    <path d="M55.90 16.52 A34 34 0 0 1 80.02 65.96" fill="none" stroke="var(--blue)" stroke-width="13"/>
+    <path d="M71.85 76.04 A34 34 0 0 1 27.25 75.27" fill="none" stroke="var(--red)" stroke-width="13"/>
+    <path d="M19.44 64.91 A34 34 0 0 1 44.10 16.52" fill="none" stroke="var(--gold)" stroke-width="13"/>
+  </symbol>
+</defs></svg>
+
+<nav class="nav">
+  <span class="wm">USAGE<span class="o"><svg><use href="#oDial"/></svg></span>S</span>
+  <div class="lks"><a href="#">How it works</a><a href="#">Privacy</a><a href="#">Open source</a></div>
+  <div class="right"><div class="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div><div class="btn btn-p">Download</div></div>
+</nav>
+
+<section class="hero">
+  <div class="eyebrow">A private time tracker for <span class="ac">Mac</span></div>
+  <h1>See where your <span class="u">screen time</span> actually goes.</h1>
+  <p class="sub">It watches your Mac quietly and shows the day back — every app, sorted by the kind of work it was. All of it on your machine.</p>
+  <div class="ctas"><div class="btn btn-p">↓ Download for Mac</div><div class="btn btn-s">See how it works</div></div>
+  <div class="pr">Free · open source · nothing leaves the machine.</div>
+</section>
+
+<div class="shotwrap">
+  <div class="appwin">
+    <div class="aw-bar"><div class="lights"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i></div>
+      <span class="w">Usageos</span><span class="trk"><span class="d"></span>Tracking</span></div>
+    <div class="aw-tabs"><a class="on">Day</a><a>Week</a><a>Timeline</a><a>Settings</a></div>
+    <div class="aw-date"><span class="arw">‹</span>Thursday, June 19<span class="arw">›</span></div>
+    <div class="aw-body">
+      <div class="dialcol"><svg id="appDial" viewBox="0 0 200 200"></svg></div>
+      <div>
+        <div class="recapcard">
+          <div class="rc-top"><span class="rc-lbl">Daily recap</span><span class="rc-badge">⌁ On-device</span></div>
+          <p class="rc-text">You spent most of the morning in Cursor on usage_os, broke for a bit of YouTube after lunch, and Slack picked up through the afternoon. Your longest stretch was just over two hours.</p>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="n">8h 12m</div><div class="l">On screen</div></div>
+          <div class="stat"><div class="n">5h 40m</div><div class="l">Deep work</div></div>
+        </div>
+        <div class="ledger">
+          <div class="lrow"><span class="sw" style="background:var(--blue)"></span><span class="nm">Cursor</span><span class="bar"><i style="background:var(--blue);width:100%"></i></span><span class="t">4h 10m</span></div>
+          <div class="lrow"><span class="sw" style="background:var(--gold)"></span><span class="nm">Slack</span><span class="bar"><i style="background:var(--gold);width:42%"></i></span><span class="t">1h 02m</span></div>
+          <div class="lrow"><span class="sw" style="background:var(--red)"></span><span class="nm">Chrome</span><span class="bar"><i style="background:var(--red);width:30%"></i></span><span class="t">48m</span></div>
+          <div class="lrow"><span class="sw" style="background:var(--breaks)"></span><span class="nm">YouTube</span><span class="bar"><i style="background:var(--breaks);width:20%"></i></span><span class="t">31m</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="strip"><span>On your Mac</span><span class="d">·</span><span>No cloud</span><span class="d">·</span><span>No telemetry</span><span class="d">·</span><span>Open source</span></div>
+
+<section class="row">
+  <div class="txt">
+    <div class="eyebrow"><span class="ac">The week</span></div>
+    <h2>Read the shape<br>of your week.</h2>
+    <p>Seven mini-dials on the same 24-hour scale. A heavy Wednesday and a light Sunday, side by side.</p>
+  </div>
+  <div class="crop"><div class="weekstrip" id="weekstrip"></div></div>
+</section>
+
+<section class="row flip">
+  <div class="txt">
+    <div class="eyebrow"><span class="ac">The timeline</span></div>
+    <h2>Find any moment<br>of the day.</h2>
+    <p>The same day as a plain list — what you were doing at 2pm, which app, which project. Click any run to expand it.</p>
+  </div>
+  <div class="crop"><div class="tline">
+    <div class="tr"><span class="tm">9:40a</span><div class="ct"><span class="sw" style="background:var(--blue)"></span><div><div class="nm">Deep work · usage_os</div><div class="ap">Cursor · Terminal</div></div></div></div>
+    <div class="tr"><span class="tm">12:32p</span><div class="ct"><span class="sw" style="background:var(--red)"></span><div><div class="nm">Browsing</div><div class="ap">Chrome · YouTube</div></div></div></div>
+    <div class="tr"><span class="tm">1:15p</span><div class="ct"><span class="sw" style="background:var(--blue)"></span><div><div class="nm">Deep work · usage_os</div><div class="ap">Cursor</div></div></div></div>
+    <div class="tr"><span class="tm">5:28p</span><div class="ct"><span class="sw" style="background:var(--gold)"></span><div><div class="nm">Messaging</div><div class="ap">Slack</div></div></div></div>
+  </div></div>
+</section>
+
+<section class="privacy">
+  <div class="eyebrow">Privacy</div>
+  <h2>Nothing leaves this machine.</h2>
+  <div class="cols">
+    <p>It reads your window titles and the current browser tab, and writes them to a database <b>on your Mac</b>. There is no network in the data path at all — and it’s open source, so you can read the code and confirm it.</p>
+    <p>It never uses Screen Recording. It skips incognito and private windows, ignores anything you mark private, and auto-excludes password managers and banking. No cloud, no account, no telemetry. <b>Ever.</b></p>
+  </div>
+</section>
+
+<section class="nums">
+  <div class="c"><div class="n ac">100%</div><div class="l">On your device</div></div>
+  <div class="c"><div class="n">0</div><div class="l">Servers</div></div>
+  <div class="c"><div class="n">0</div><div class="l">Trackers</div></div>
+  <div class="c"><div class="n">MIT</div><div class="l">Open source</div></div>
+</section>
+
+<section class="final">
+  <span class="wm">USAGE<span class="o"><svg><use href="#oDial"/></svg></span>S</span>
+  <h2>See where your day actually went.</h2>
+  <div class="ctas"><div class="btn btn-p">↓ Download for Mac</div><div class="btn btn-s">Star on GitHub</div></div>
+  <div class="note">Free and open source. It runs quietly and waits for you to look.</div>
+</section>
+
+<footer class="foot">
+  <span class="wm">USAGE<span class="o"><svg><use href="#oDial"/></svg></span>S</span>
+  <div class="cp">A calm, private look at your time. © 2026 · usageos.app</div>
+  <div class="lks"><a href="#">GitHub</a><a href="#">License (MIT)</a><a href="#">Sponsor</a></div>
+</footer>
+</div>
+<script>
+  const MPD=1440;
+  function polar(cx,cy,m,r){const a=m/MPD*2*Math.PI;return [cx+r*Math.sin(a),cy-r*Math.cos(a)];}
+  function arcPath(cx,cy,r,a,b){const lg=(b-a)>MPD/2?1:0;const[x0,y0]=polar(cx,cy,a,r);const[x1,y1]=polar(cx,cy,b,r);return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${lg} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;}
+  function buildDial(el,o){const cx=100,cy=100,r=o.r,sw=o.sw;
+    let h=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--track)" stroke-width="${sw}"/>`;
+    if(o.ticks)[0,6,12,18].forEach(t=>{const[xi,yi]=polar(cx,cy,t*60,r-sw/2-3);const[xo,yo]=polar(cx,cy,t*60,r+sw/2+3);h+=`<line x1="${xi.toFixed(1)}" y1="${yi.toFixed(1)}" x2="${xo.toFixed(1)}" y2="${yo.toFixed(1)}" stroke="var(--edge)" stroke-width="2"/>`;});
+    let i=0;o.day.forEach(([a,b,c])=>{const d=arcPath(cx,cy,r,a*60,b*60);const len=(b-a)*60/MPD*2*Math.PI*r;h+=`<path class="arc draw" d="${d}" stroke="var(--${c})" stroke-width="${sw}" style="--len:${len.toFixed(1)};--d:${(0.06*i).toFixed(2)}s"/>`;i++;});
+    if(o.now!=null){const[nx,ny]=polar(cx,cy,o.now,r+sw/2+2);h+=`<polygon points="${nx.toFixed(1)},${ny.toFixed(1)} ${(nx-5).toFixed(1)},${(ny-9).toFixed(1)} ${(nx+5).toFixed(1)},${(ny-9).toFixed(1)}" fill="var(--fg)"/>`;}
+    if(o.figure){h+=`<text x="100" y="98" text-anchor="middle" font-family="Anton" font-size="30" fill="var(--fg)">${o.figure}</text><text x="100" y="116" text-anchor="middle" font-family="Jost" font-weight="600" font-size="9.5" letter-spacing="2" fill="var(--muted)">ON SCREEN</text>`;}
+    el.innerHTML=h;}
+  const DAY=[[7.5,8.25,'gold'],[8.5,12.5,'blue'],[12.5,13.25,'red'],[13.25,17.5,'blue'],[17.5,18.5,'gold'],[18.5,19.25,'red'],[21,22.5,'breaks']];
+  buildDial(document.getElementById('appDial'),{r:72,sw:16,day:DAY,now:16.17*60,ticks:true,figure:'8h 12m'});
+  const WK=[
+    {dl:'M',day:[[8,12.5,'blue'],[13,17.5,'blue'],[18,19,'gold'],[21,22.5,'breaks']]},
+    {dl:'T',day:[[9,12,'blue'],[12.5,13.5,'red'],[14,18.5,'blue'],[19,20.5,'gold']]},
+    {dl:'W',day:[[7.5,12.5,'blue'],[13,18,'blue'],[18.5,19.5,'red'],[20,23,'blue']]},
+    {dl:'T',day:[[9,12.5,'blue'],[13.5,17,'blue'],[17.5,19,'gold'],[21,22,'breaks']]},
+    {dl:'F',day:[[9.5,12.5,'blue'],[12.5,14,'red'],[14.5,17.5,'gold'],[18,19,'red']]},
+    {dl:'S',day:[[11,12.5,'red'],[15,16.5,'breaks'],[20,22.5,'breaks']]},
+    {dl:'S',day:[[12,13,'red'],[18,19,'gold'],[20.5,22,'breaks']]},
+  ];
+  const ws=document.getElementById('weekstrip');
+  WK.forEach((w,idx)=>{const cell=document.createElement('div');cell.className='cell';
+    const s=document.createElementNS('http://www.w3.org/2000/svg','svg');s.setAttribute('viewBox','0 0 200 200');cell.appendChild(s);
+    const dl=document.createElement('div');dl.className='dl';dl.textContent=w.dl;cell.appendChild(dl);ws.appendChild(cell);
+    buildDial(s,{r:78,sw:20,day:w.day,now:(idx===3?16.17*60:null),ticks:false});});
+  document.querySelectorAll('.themesw button').forEach(b=>b.addEventListener('click',()=>{document.documentElement.setAttribute('data-theme',b.dataset.t);document.querySelectorAll('.themesw button').forEach(x=>x.classList.toggle('on',x===b));}));
+</script>
+</body>
+</html>

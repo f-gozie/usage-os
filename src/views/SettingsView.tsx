@@ -1,6 +1,7 @@
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useState } from "react";
 
+import { AboutModal } from "@/components/settings/AboutModal";
 import { CategoryEditorModal } from "@/components/settings/CategoryEditorModal";
 import { DeleteAllModal } from "@/components/settings/DeleteAllModal";
 import { ExclusionModal } from "@/components/settings/ExclusionModal";
@@ -61,6 +62,7 @@ export function SettingsView() {
   } | null>(null);
   const [exclusionOpen, setExclusionOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   // Auto-dismiss the action notice.
@@ -201,7 +203,7 @@ export function SettingsView() {
           <Tag>System</Tag>
           <span className="flex-1 text-sm font-semibold">
             Incognito / private windows
-            <span className="ml-1.5 text-xs font-medium text-muted">— never recorded</span>
+            <span className="ml-1.5 text-xs font-medium text-muted">— no title or URL stored</span>
           </span>
           <span className="flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted">
             🔒 Always on
@@ -290,6 +292,13 @@ export function SettingsView() {
         </SettingRow>
       </SettingGroup>
 
+      {/* About */}
+      <SettingGroup title="About">
+        <SettingRow label="About UsageOS" description="Version, links, and the privacy promise.">
+          <Pill onClick={() => setAboutOpen(true)}>About</Pill>
+        </SettingRow>
+      </SettingGroup>
+
       <CategoryEditorModal
         open={editing !== null}
         category={editing?.category ?? null}
@@ -312,6 +321,7 @@ export function SettingsView() {
           setNotice("All recorded activity deleted.");
         }}
       />
+      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </div>
   );
 }

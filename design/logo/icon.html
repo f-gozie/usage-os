@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Icon family lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{--bg:#EEEBE1;--surface:#F6F3EA;--fg:#161616;--muted:#6A6A66;--edge:#161616;--rule:rgba(22,22,22,.16);--blue:#1B45BE;--desk:#C9C4B6;}
+[data-theme="warm"]{--bg:#1A1916;--surface:#24221A;--fg:#EDE9DD;--muted:#938E81;--edge:#4A453B;--rule:rgba(237,233,221,.14);--blue:#5C82F0;--desk:#13120F;}
+[data-theme="black"]{--bg:#0E0E0E;--surface:#171719;--fg:#F4F4F2;--muted:#8C8C8A;--edge:#2F2F2F;--rule:rgba(244,244,242,.12);--blue:#5C8BFF;--desk:#000;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);min-height:100vh;}
+svg{display:block;}
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:13px 24px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.brand{font-family:'Anton';font-size:22px;letter-spacing:.05em;text-transform:uppercase;}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-family:'Jost';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+section{padding:30px 26px;border-bottom:3px solid var(--edge);}
+.eyebrow{font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;}
+.shead{font-family:'Anton';font-size:28px;line-height:.95;text-transform:uppercase;margin-bottom:8px;}
+.lead{font-size:14.5px;max-width:64ch;color:var(--muted);margin:0 0 18px;font-weight:500;}
+.lead b{color:var(--fg);}
+.cap{font-size:12px;color:var(--muted);margin-top:10px;}
+
+.squircle{border-radius:22.3%;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.squircle svg{width:100%;height:100%;}
+
+/* controls */
+.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 26px;border:2px solid var(--edge);padding:18px 20px;}
+.ctl label{display:flex;justify-content:space-between;font-size:12px;font-weight:600;letter-spacing:.04em;margin-bottom:6px;text-transform:uppercase;}
+.ctl label span{color:var(--blue);}
+.ctl input[type=range]{width:100%;accent-color:var(--blue);}
+.segwrap{display:flex;gap:18px;flex-wrap:wrap;margin-top:16px;align-items:center;}
+.seg{display:flex;border:2px solid var(--edge);}
+.seg button{font-family:'Jost';font-weight:600;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 13px;cursor:pointer;}
+.seg button+button{border-left:2px solid var(--edge);}
+.seg button.on{background:var(--edge);color:var(--bg);}
+.segl{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-right:-8px;}
+.readout{font-size:12.5px;color:var(--muted);margin-left:auto;}
+.readout code{color:var(--fg);font-weight:600;}
+
+.bigrow{display:grid;grid-template-columns:220px 1fr;gap:26px;align-items:center;margin-top:16px;}
+.bigtile{width:200px;height:200px;margin:0 auto;}
+.ladder{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;}
+.ladder .u{text-align:center;}
+.ladder .u .px{font-size:10.5px;color:var(--muted);margin-top:7px;}
+
+/* dock */
+.scene{border:2px solid var(--edge);overflow:hidden;background:var(--desk);}
+.deskpad{padding:34px 0 26px;display:flex;justify-content:center;}
+.dock{display:flex;align-items:flex-end;gap:12px;background:rgba(255,255,255,.18);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.22);border-radius:22px;padding:9px 12px;}
+[data-theme="paper"] .dock{background:rgba(255,255,255,.42);border-color:rgba(0,0,0,.1);}
+.dock .ic{width:52px;height:52px;}
+.dock .ours{width:58px;height:58px;}
+.dock .gen{border-radius:22.3%;}
+
+/* browser + favicon */
+.btabs{display:flex;align-items:flex-end;gap:4px;background:var(--bg);padding:8px 10px 0;border:2px solid var(--edge);border-bottom:none;}
+.btab{display:flex;align-items:center;gap:8px;padding:9px 15px;background:var(--surface);border:1px solid var(--rule);border-bottom:none;border-radius:8px 8px 0 0;font-size:12.5px;}
+.btab .fav{width:16px;height:16px;flex:none;}
+.bwin{height:54px;border:2px solid var(--edge);border-top:none;background:var(--surface);}
+
+/* menubar */
+.menubar{height:26px;display:flex;align-items:center;justify-content:flex-end;gap:15px;padding:0 12px;font-size:12.5px;}
+.menubar.light{background:rgba(245,243,237,.95);color:#1c1c1c;border:1px solid rgba(0,0,0,.12);}
+.menubar.dark{background:rgba(28,28,28,.95);color:#f2f2f2;border:1px solid rgba(255,255,255,.12);}
+.menubar .tray{width:17px;height:17px;}
+.menubar .tray svg{width:100%;height:100%;}
+.traycap{font-size:11px;color:var(--muted);margin-top:7px;}
+.trayset{display:flex;gap:18px;flex-wrap:wrap;}
+.trayset .grp{flex:1;min-width:240px;}
+
+.note{font-size:13px;color:var(--muted);margin-top:18px;border-left:3px solid var(--blue);padding-left:12px;max-width:74ch;}
+.note b{color:var(--fg);}
+.foot{padding:24px 26px;color:var(--muted);font-size:12.5px;}
+@media(max-width:760px){.controls{grid-template-columns:1fr;}.bigrow{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="top">
+  <div class="brand">Icon family lab</div>
+  <div class="themesw"><button data-t="paper" class="on">Paper</button><button data-t="warm">Warm</button><button data-t="black">Black</button></div>
+</div>
+
+<section>
+  <div class="eyebrow">App icon · favicon · tray · the 16px test</div>
+  <div class="shead">Tune the icon, watch every size</div>
+  <p class="lead">The mark is balanced for the tile (even arcs + gaps — icons want symmetry). Drag until it holds all the way down to <b>16px</b>; everything below updates live. The favicon and tray switch to the <b>mono template</b> automatically (color muddies that small). Read off the numbers when it’s right.</p>
+
+  <div class="controls" id="lab">
+    <div class="ctl"><label>Arc weight <span id="vSt">9</span></label><input type="range" id="st" min="5" max="14" step="0.5" value="9"></div>
+    <div class="ctl"><label>Padding <span id="vPd">15</span></label><input type="range" id="pd" min="8" max="24" step="1" value="15"></div>
+    <div class="ctl"><label>Gap <span id="vGp">18°</span></label><input type="range" id="gp" min="6" max="34" step="1" value="18"></div>
+  </div>
+  <div class="segwrap">
+    <span class="segl">Tile</span><div class="seg" id="tile"><button data-v="bone" class="on">Bone</button><button data-v="ink">Ink</button><button data-v="blue">Blue</button></div>
+    <span class="segl">Fill</span><div class="seg" id="fill"><button data-v="color" class="on">Color</button><button data-v="mono">Mono</button></div>
+    <span class="segl">Track</span><div class="seg" id="track"><button data-v="off" class="on">Off</button><button data-v="on">On</button></div>
+    <span class="segl">Now-hand</span><div class="seg" id="hand"><button data-v="off" class="on">Off</button><button data-v="on">On</button></div>
+    <span class="readout" id="readout"></span>
+  </div>
+
+  <div class="bigrow">
+    <div class="bigtile squircle" id="big"></div>
+    <div class="ladder">
+      <div class="u"><div class="squircle" id="l128" style="width:96px;height:96px"></div><div class="px">1024 / 128</div></div>
+      <div class="u"><div class="squircle" id="l64" style="width:64px;height:64px"></div><div class="px">64</div></div>
+      <div class="u"><div class="squircle" id="l32" style="width:36px;height:36px"></div><div class="px">32</div></div>
+      <div class="u"><div class="squircle" id="l16" style="width:20px;height:20px"></div><div class="px">16</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">In the dock</div>
+  <div class="shead">Among other icons</div>
+  <div class="scene"><div class="deskpad"><div class="dock">
+    <div class="ic gen" style="background:#2b2b2b"></div>
+    <div class="ic gen" style="background:#3a6;"></div>
+    <div class="ic gen" style="background:#444"></div>
+    <div class="ours squircle" id="dock"></div>
+    <div class="ic gen" style="background:#c54"></div>
+    <div class="ic gen" style="background:#258"></div>
+  </div></div></div>
+  <div class="cap">Our icon (the bigger one) sat among neighbours. Bone tile keeps it warm and legible in a busy dock.</div>
+</section>
+
+<section>
+  <div class="eyebrow">usageos.app</div>
+  <div class="shead">Favicon · 16px</div>
+  <div class="btabs">
+    <div class="btab"><span class="fav squircle" id="favC" style="border-radius:3px"></span>usageos — your day, privately</div>
+    <div class="btab" style="opacity:.6"><span class="fav squircle" id="favM" style="border-radius:3px"></span>mono fallback</div>
+  </div>
+  <div class="bwin"></div>
+  <div class="cap">Left: color favicon. Right: the mono template — what a cramped or pinned tab gets.</div>
+</section>
+
+<section>
+  <div class="eyebrow">Menubar · the live now-hand</div>
+  <div class="shead">Tray icon</div>
+  <p class="lead">Mono template (inverts with the system bar). The now-hand points at the real current time — a clock, not a stats HUD. Three times of day shown:</p>
+  <div class="trayset">
+    <div class="grp">
+      <div class="menubar light"><span>9:41</span><span class="tray" id="tL1"></span><span class="tray" id="tL2"></span><span class="tray" id="tL3"></span></div>
+      <div class="traycap">Light bar · 9am · 1pm · 6pm</div>
+    </div>
+    <div class="grp">
+      <div class="menubar dark"><span>9:41</span><span class="tray" id="tD1"></span><span class="tray" id="tD2"></span><span class="tray" id="tD3"></span></div>
+      <div class="traycap">Dark bar · 9am · 1pm · 6pm</div>
+    </div>
+  </div>
+  <p class="note"><b>Defaults I’d ship:</b> bone tile · track off · no now-hand on the app icon (it’s static) — the now-hand lives only on the tray, where it’s live. App icon &amp; favicon stay color down to ~24px; below that (favicon 16, tray) it’s the mono template. Tune the stroke/gap until the tray reads cleanly at 17px.</p>
+</section>
+
+<div class="foot">Give me the three numbers (arc weight · padding · gap) and the tile, and I’ll cut the 1024 master + favicon + tray template and regenerate the full <code>.icns/.ico/.png</code> set.</div>
+
+</div>
+<script>
+  const PRESETS={
+    bone:{bg:'#EEEBE1',ink:'#161616',track:'#D7D3C7'},
+    ink:{bg:'#161616',ink:'#EEEBE1',track:'#2C2C2C'},
+    blue:{bg:'#1B45BE',ink:'#EEEBE1',track:'rgba(255,255,255,.22)'},
+  };
+  const BR={blue:'#1B45BE',red:'#E0241B',gold:'#EAB308'};
+  function pol(d,r){const a=d*Math.PI/180;return [50+r*Math.sin(a),50-r*Math.cos(a)];}
+  function arc(r,a,b){const lg=(b-a)>180?1:0;const[x0,y0]=pol(a,r);const[x1,y1]=pol(b,r);return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${lg} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;}
+  // o: {stroke,pad,gap,track,now(deg|null),mono,arcInk,trackCol}
+  function dial(o){
+    const r=50-o.pad-o.stroke/2;
+    const g=o.gap, segs=[[g/2,120-g/2],[120+g/2,240-g/2],[240+g/2,360-g/2]];
+    const cols=o.mono?[o.arcInk,o.arcInk,o.arcInk]:[BR.blue,BR.red,BR.gold];
+    let h='';
+    if(o.track) h+=`<circle cx="50" cy="50" r="${r}" fill="none" stroke="${o.trackCol}" stroke-width="${o.stroke}"/>`;
+    segs.forEach((s,i)=>{h+=`<path d="${arc(r,s[0],s[1])}" fill="none" stroke="${cols[i]}" stroke-width="${o.stroke}"/>`;});
+    if(o.now!=null){const[hx,hy]=pol(o.now,r);const ang=o.now*Math.PI/180;
+      const px=50+ (r)*Math.sin(ang), py=50-(r)*Math.cos(ang);
+      // hand from center to inner edge of ring
+      const innr=r-o.stroke/2-1;const[ix,iy]=pol(o.now,innr);
+      h+=`<line x1="50" y1="50" x2="${ix.toFixed(2)}" y2="${iy.toFixed(2)}" stroke="${o.arcInk}" stroke-width="${Math.max(2,o.stroke*0.5)}"/>`;
+      h+=`<circle cx="50" cy="50" r="${Math.max(2,o.stroke*0.45)}" fill="${o.arcInk}"/>`;}
+    return `<svg viewBox="0 0 100 100">${h}</svg>`;
+  }
+  const $=id=>document.getElementById(id);
+  function seg(id){return $(id).querySelector('button.on').dataset.v;}
+  function render(){
+    const stroke=+$('st').value, pad=+$('pd').value, gap=+$('gp').value;
+    const tile=seg('tile'), fill=seg('fill'), track=seg('track')==='on', hand=seg('hand')==='on';
+    const P=PRESETS[tile];
+    $('vSt').textContent=stroke; $('vPd').textContent=pad; $('vGp').textContent=gap+'°';
+    $('readout').innerHTML=`arc <code>${stroke}</code> · pad <code>${pad}</code> · gap <code>${gap}°</code> · <code>${tile}</code>`;
+    const base={stroke,pad,gap,track,now:hand?255:null,mono:fill==='mono',arcInk:P.ink,trackCol:P.track};
+    const html=dial(base);
+    ['big','l128','l64','l32','l16','dock'].forEach(id=>{const el=$(id);el.style.background=P.bg;el.innerHTML=html;});
+    // favicon: color + mono, on a light tab (ink dark)
+    $('favC').style.background='transparent';
+    $('favC').innerHTML=dial({stroke:stroke+1,pad:Math.max(8,pad-4),gap:Math.max(gap,16),track:false,now:null,mono:false,arcInk:'#161616',trackCol:'#D7D3C7'});
+    $('favM').innerHTML=dial({stroke:stroke+1,pad:Math.max(8,pad-4),gap:Math.max(gap,16),track:false,now:null,mono:true,arcInk:'#161616',trackCol:'#D7D3C7'});
+    // tray: mono, now-hand, 3 times, light/dark
+    const times=[135,195,270]; // 9am,1pm,6pm
+    times.forEach((t,i)=>{
+      $('tL'+(i+1)).innerHTML=dial({stroke:stroke+1,pad:Math.max(8,pad-5),gap:Math.max(gap,18),track:false,now:t,mono:true,arcInk:'#1c1c1c',trackCol:'#ccc'});
+      $('tD'+(i+1)).innerHTML=dial({stroke:stroke+1,pad:Math.max(8,pad-5),gap:Math.max(gap,18),track:false,now:t,mono:true,arcInk:'#f2f2f2',trackCol:'#444'});
+    });
+  }
+  ['st','pd','gp'].forEach(id=>$(id).addEventListener('input',render));
+  ['tile','fill','track','hand'].forEach(id=>$(id).addEventListener('click',e=>{
+    if(e.target.tagName!=='BUTTON')return;
+    $(id).querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===e.target));render();
+  }));
+  document.querySelectorAll('.themesw button').forEach(b=>b.addEventListener('click',()=>{
+    document.documentElement.setAttribute('data-theme',b.dataset.t);
+    document.querySelectorAll('.themesw button').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+  render();
+</script>
+</body>
+</html>

@@ -1,0 +1,384 @@
+---
+// Fonts bundled locally (no CDN — parity with the app, and independence). The dial + theme
+// switcher are tiny client islands; everything else is pre-rendered.
+import "@fontsource/anton/400.css";
+import "@fontsource/jost/400.css";
+import "@fontsource/jost/500.css";
+import "@fontsource/jost/600.css";
+import "@fontsource/jost/700.css";
+import "../styles/landing.css";
+
+const title = "UsageOS — see where your screen time goes";
+const description =
+  "A private, on-device Mac time tracker. It shows the day back — every app, sorted by the kind of work it was. Nothing leaves your machine.";
+---
+
+<!doctype html>
+<html lang="en" data-theme="paper">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://usageos.app" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content="https://usageos.app/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content="https://usageos.app/og.png" />
+  </head>
+  <body>
+    <div class="wrap">
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true"
+        ><defs>
+          <symbol id="oDial" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="34" fill="none" stroke="var(--track)" stroke-width="13"></circle>
+            <path d="M55.90 16.52 A34 34 0 0 1 80.02 65.96" fill="none" stroke="var(--blue)" stroke-width="13"></path>
+            <path d="M71.85 76.04 A34 34 0 0 1 27.25 75.27" fill="none" stroke="var(--red)" stroke-width="13"></path>
+            <path d="M19.44 64.91 A34 34 0 0 1 44.10 16.52" fill="none" stroke="var(--gold)" stroke-width="13"></path>
+          </symbol>
+        </defs></svg
+      >
+
+      <nav class="nav">
+        <span class="wm">USAGE<span class="o"><svg><use href="#oDial"></use></svg></span>S</span>
+        <div class="lks"><a href="#how">What it shows</a><a href="#privacy">Privacy</a><a href="https://github.com/f-gozie/usage-os">Open source</a></div>
+        <div class="right">
+          <div class="themesw" role="group" aria-label="Theme"><button data-t="paper" aria-pressed="true">Paper</button><button data-t="warm" aria-pressed="false">Warm</button><button data-t="black" aria-pressed="false">Black</button></div>
+          <a class="btn btn-p" href="#download">Download</a>
+        </div>
+      </nav>
+
+      <section class="hero">
+        <div class="eyebrow">A private time tracker for <span class="ac">Mac</span></div>
+        <h1>See where your <span class="u">screen time</span> actually goes.</h1>
+        <p class="sub">It watches your Mac quietly and shows the day back — every app, sorted by the kind of work it was. All of it on your machine.</p>
+        <div class="ctas"><a class="btn btn-p" href="#download">↓ Download for Mac</a><a class="btn btn-s" href="#how">See what it shows</a></div>
+        <div class="pr">Free · open source · nothing leaves the machine.</div>
+      </section>
+
+      <div class="shotwrap">
+        <div class="appwin">
+          <div class="aw-bar">
+            <div class="lights"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i></div>
+            <span class="w">UsageOS</span><span class="trk"><span class="d"></span>Tracking</span>
+          </div>
+          <div class="aw-tabs"><a class="on">Day</a><a>Week</a><a>Timeline</a><a>Settings</a></div>
+          <div class="aw-date"><span class="arw">‹</span>Thursday, June 19<span class="arw">›</span></div>
+          <div class="aw-body">
+            <div class="dialcol"><svg id="appDial" viewBox="0 0 200 200" role="img" aria-label="A day on the dial — 6 hours 30 minutes on screen, mostly Work"></svg></div>
+            <div>
+              <div class="recapcard">
+                <div class="rc-top"><span class="rc-lbl">Daily recap</span><span class="rc-badge">⌁ On-device</span></div>
+                <p class="rc-text">You opened in Slack, then spent the morning heads-down in Cursor on usage_os — your longest stretch ran about two and a half hours. A YouTube break over lunch, some reading in Chrome, then back to Cursor for the afternoon.</p>
+              </div>
+              <div class="stats">
+                <div class="stat"><div class="n">6h 30m</div><div class="l">On screen</div></div>
+                <div class="stat"><div class="n">4h 10m</div><div class="l">Work</div></div>
+              </div>
+              <div class="ledger">
+                <div class="lrow"><span class="sw" style="background:var(--blue)"></span><span class="nm">Cursor</span><span class="bar"><i style="background:var(--blue);width:100%"></i></span><span class="t">4h 10m</span></div>
+                <div class="lrow"><span class="sw" style="background:var(--red)"></span><span class="nm">Chrome</span><span class="bar"><i style="background:var(--red);width:26%"></i></span><span class="t">1h 05m</span></div>
+                <div class="lrow"><span class="sw" style="background:var(--gold)"></span><span class="nm">Slack</span><span class="bar"><i style="background:var(--gold);width:18%"></i></span><span class="t">45m</span></div>
+                <div class="lrow"><span class="sw" style="background:var(--red)"></span><span class="nm">YouTube</span><span class="bar"><i style="background:var(--red);width:12%"></i></span><span class="t">30m</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="strip"><span>On your Mac</span><span class="d">·</span><span>No cloud</span><span class="d">·</span><span>No telemetry</span><span class="d">·</span><span>Open source</span></div>
+
+      <section class="row cat" id="rules">
+        <div class="txt">
+          <div class="eyebrow"><span class="ac">Your categories</span></div>
+          <h2>You decide what<br />counts as work.</h2>
+          <p>UsageOS sorts your apps with rules you own — by an app's name, or a word in the window title. Sorted something wrong? Fix it once, and every day you've already recorded re-sorts to match.</p>
+        </div>
+        <div class="crop">
+          <div class="cat-hd">Categories &amp; rules</div>
+          <div class="cat-rule"><span class="cat-pat">Cursor</span><span class="cat-tag">app</span><span class="cat-ar">→</span><span class="cat-cat">Work</span></div>
+          <div class="cat-rule"><span class="cat-pat">YouTube</span><span class="cat-tag">title</span><span class="cat-ar">→</span><span class="cat-cat">Browsing</span></div>
+          <div class="cat-rule"><span class="cat-pat">Slack</span><span class="cat-tag">app</span><span class="cat-ar">→</span><span class="cat-cat">Messaging</span></div>
+          <div class="cat-rule live"><span class="cat-pat">Reddit</span><span class="cat-tag">app</span><span class="cat-ar">→</span>
+            <span class="cat-seg" role="group" aria-label="Reddit category">
+              <button type="button" data-cat="research" aria-pressed="true">Browsing</button>
+              <button type="button" data-cat="deep" aria-pressed="false">Work</button>
+            </span>
+          </div>
+          <div class="cat-resort">
+            <div class="cat-cap">Same day, re-sorted live — <b>edit one rule and the past updates.</b></div>
+            <div class="cat-demo">
+              <svg id="catDial" viewBox="0 0 200 200" role="img" aria-label="The same day on the dial — 5 hours 30 minutes, re-sorting live as you change the rule"></svg>
+              <div class="cat-ledger">
+                <div class="cat-lrow"><span class="cat-sw" style="background:var(--blue)"></span><span class="cat-nm">Work</span><span class="cat-bar"><i id="czWork" style="background:var(--blue)"></i></span><span class="cat-t" id="czWorkT">4h</span></div>
+                <div class="cat-lrow"><span class="cat-sw" style="background:var(--red)"></span><span class="cat-nm">Browsing</span><span class="cat-bar"><i id="czBrow" style="background:var(--red)"></i></span><span class="cat-t" id="czBrowT">1h</span></div>
+                <div class="cat-lrow"><span class="cat-sw" style="background:var(--gold)"></span><span class="cat-nm">Messaging</span><span class="cat-bar"><i id="czMsg" style="background:var(--gold)"></i></span><span class="cat-t" id="czMsgT">30m</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="row" id="how">
+        <div class="txt">
+          <div class="eyebrow"><span class="ac">The week</span></div>
+          <h2>Read the shape<br />of your week.</h2>
+          <p>Seven mini-dials on the same 24-hour scale. A heavy Wednesday and a light Sunday, side by side.</p>
+        </div>
+        <div class="crop"><div class="weekstrip" id="weekstrip"></div></div>
+      </section>
+
+      <section class="row flip">
+        <div class="txt">
+          <div class="eyebrow"><span class="ac">The timeline</span></div>
+          <h2>Find any moment<br />of the day.</h2>
+          <p>The same day as a plain list — what you were doing at 2pm, which app, which project. Open any run to see every app-switch inside it.</p>
+        </div>
+        <div class="crop"><div class="tline">
+          <details class="tr">
+            <summary>
+              <span class="tm">3:25p</span>
+              <span class="ct"><span class="sw" style="background:var(--gold)"></span><span class="ci"><span class="nm">Messaging</span><span class="ap">Slack</span></span></span>
+              <span class="dur"><span class="dt">15m</span><span class="rg">3:25p–3:40p</span></span>
+              <span class="chev">›</span>
+            </summary>
+            <div class="segs">
+              <div class="sh">1 app stretch</div>
+              <div class="seg"><span class="st">3:25p</span><span class="sm"><span class="sa">Slack</span></span><span class="sd">15m</span></div>
+            </div>
+          </details>
+          <details class="tr">
+            <summary>
+              <span class="tm">1:50p</span>
+              <span class="ct"><span class="sw" style="background:var(--blue)"></span><span class="ci"><span class="nm">Work · usage_os</span><span class="ap">Cursor</span></span></span>
+              <span class="dur"><span class="dt">1h 35m</span><span class="rg">1:50p–3:25p</span></span>
+              <span class="chev">›</span>
+            </summary>
+            <div class="segs">
+              <div class="sh">1 app stretch</div>
+              <div class="seg"><span class="st">1:50p</span><span class="sm"><span class="sa">Cursor</span> <span class="sp">· usage_os</span></span><span class="sd">1h 35m</span></div>
+            </div>
+          </details>
+          <details class="tr">
+            <summary>
+              <span class="tm">12:15p</span>
+              <span class="ct"><span class="sw" style="background:var(--red)"></span><span class="ci"><span class="nm">Browsing</span><span class="ap">Chrome · YouTube · 1 switch</span></span></span>
+              <span class="dur"><span class="dt">1h 35m</span><span class="rg">12:15p–1:50p</span></span>
+              <span class="chev">›</span>
+            </summary>
+            <div class="segs">
+              <div class="sh">2 app stretches</div>
+              <div class="seg"><span class="st">12:45p</span><span class="sm"><span class="sa">Chrome</span></span><span class="sd">1h 05m</span></div>
+              <div class="seg"><span class="st">12:15p</span><span class="sm"><span class="sa">YouTube</span></span><span class="sd">30m</span></div>
+            </div>
+          </details>
+          <details class="tr" open>
+            <summary>
+              <span class="tm">9:40a</span>
+              <span class="ct"><span class="sw" style="background:var(--blue)"></span><span class="ci"><span class="nm">Work · usage_os</span><span class="ap">Cursor · Terminal · 2 switches</span></span></span>
+              <span class="dur"><span class="dt">2h 35m</span><span class="rg">9:40a–12:15p</span></span>
+              <span class="chev">›</span>
+            </summary>
+            <div class="segs">
+              <div class="sh">3 app stretches</div>
+              <div class="seg"><span class="st">11:55a</span><span class="sm"><span class="sa">Cursor</span> <span class="sp">· usage_os</span></span><span class="sd">20m</span></div>
+              <div class="seg"><span class="st">11:30a</span><span class="sm"><span class="sa">Terminal</span> <span class="sp">· usage_os</span></span><span class="sd">25m</span></div>
+              <div class="seg"><span class="st">9:40a</span><span class="sm"><span class="sa">Cursor</span> <span class="sp">· usage_os</span></span><span class="sd">1h 50m</span></div>
+            </div>
+          </details>
+        </div></div>
+      </section>
+
+      <section class="privacy" id="privacy">
+        <div class="eyebrow">Privacy</div>
+        <h2>Nothing leaves this machine.</h2>
+        <p class="pv-lead">It reads the frontmost window's title and the current browser tab, and writes them to <b>one file on your Mac</b>. There's no network in the data path — and it's open source, so you can read the code and confirm it. Here's exactly what it leaves alone:</p>
+        <div class="pv-list">
+          <div class="pv-row"><span class="pv-tag">System</span><span class="pv-pat">Incognito &amp; private windows<span class="pv-sub">no title or URL is ever stored</span></span><span class="pv-mode pv-m-on">🔒 Always on</span></div>
+          <div class="pv-row"><span class="pv-tag">App</span><span class="pv-pat">A password manager, your bank — anything you exclude<span class="pv-sub">dropped entirely, never stored</span></span><span class="pv-mode pv-m-excl">Excluded</span></div>
+          <div class="pv-row"><span class="pv-tag">Title</span><span class="pv-pat">Anything you mark private<span class="pv-sub">the time still counts, the title doesn't</span></span><span class="pv-mode pv-m-priv">Private</span></div>
+        </div>
+        <p class="pv-data">Your history is <b>one SQLite file</b> — reveal it in Finder, export it to CSV, set it to auto-delete after 30, 90 or 365 days, or wipe it. <b>It can't see your screen.</b></p>
+      </section>
+
+      <section class="final" id="download">
+        <span class="wm">USAGE<span class="o"><svg><use href="#oDial"></use></svg></span>S</span>
+        <h2>Look back on your day.</h2>
+        <div class="ctas"><a class="btn btn-p" href="#">↓ Download for Mac</a><a class="btn btn-s" href="https://github.com/f-gozie/usage-os">Star on GitHub</a></div>
+        <div class="note">Free and open source. It runs quietly and waits for you to look.</div>
+      </section>
+
+      <footer class="foot">
+        <span class="wm">USAGE<span class="o"><svg><use href="#oDial"></use></svg></span>S</span>
+        <div class="cp">A calm, private look at your time. © 2026 · usageos.app</div>
+        <div class="lks"><a href="https://github.com/f-gozie/usage-os">GitHub</a><a href="https://github.com/f-gozie/usage-os/blob/main/LICENSE">License (MIT)</a><a href="#">Sponsor</a></div>
+      </footer>
+    </div>
+
+    <script>
+      const MPD = 1440;
+      const polar = (m: number, r: number): [number, number] => {
+        const a = (m / MPD) * 2 * Math.PI;
+        return [100 + r * Math.sin(a), 100 - r * Math.cos(a)];
+      };
+      const arcPath = (r: number, a: number, b: number) => {
+        const lg = b - a > MPD / 2 ? 1 : 0;
+        const [x0, y0] = polar(a, r);
+        const [x1, y1] = polar(b, r);
+        return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${lg} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+      };
+      type Day = [number, number, string][];
+      type Opts = { r: number; sw: number; day: Day; now?: number | null; ticks?: boolean; figure?: string };
+      const buildDial = (svg: SVGElement, o: Opts) => {
+        const r = o.r;
+        const sw = o.sw;
+        let h = `<circle cx="100" cy="100" r="${r}" fill="none" stroke="var(--track)" stroke-width="${sw}"/>`;
+        if (o.ticks)
+          [0, 6, 12, 18].forEach((t) => {
+            const [xi, yi] = polar(t * 60, r - sw / 2 - 3);
+            const [xo, yo] = polar(t * 60, r + sw / 2 + 3);
+            h += `<line x1="${xi.toFixed(1)}" y1="${yi.toFixed(1)}" x2="${xo.toFixed(1)}" y2="${yo.toFixed(1)}" stroke="var(--edge)" stroke-width="2"/>`;
+          });
+        o.day.forEach(([a, b, c], i) => {
+          const d = arcPath(r, a * 60, b * 60);
+          const len = (((b - a) * 60) / MPD) * 2 * Math.PI * r;
+          h += `<path class="arc draw" d="${d}" stroke="var(--${c})" stroke-width="${sw}" style="--len:${len.toFixed(1)};--d:${(0.06 * i).toFixed(2)}s"/>`;
+        });
+        if (o.now != null) {
+          const [nx, ny] = polar(o.now, r + sw / 2 + 2);
+          h += `<polygon points="${nx.toFixed(1)},${ny.toFixed(1)} ${(nx - 5).toFixed(1)},${(ny - 9).toFixed(1)} ${(nx + 5).toFixed(1)},${(ny - 9).toFixed(1)}" fill="var(--fg)"/>`;
+        }
+        if (o.figure)
+          h += `<text x="100" y="98" text-anchor="middle" font-family="Anton" font-size="30" fill="var(--fg)">${o.figure}</text><text x="100" y="116" text-anchor="middle" font-family="Jost" font-weight="600" font-size="9.5" letter-spacing="2" fill="var(--muted)">ON SCREEN</text>`;
+        svg.innerHTML = h;
+      };
+
+      const DAY: Day = [
+        [9.17, 9.67, "gold"], [9.67, 12.25, "blue"], [12.25, 13.83, "red"],
+        [13.83, 15.42, "blue"], [15.42, 15.67, "gold"],
+      ];
+      const appDial = document.getElementById("appDial") as SVGElement | null;
+      if (appDial) buildDial(appDial, { r: 72, sw: 16, day: DAY, now: 15.83 * 60, ticks: true, figure: "6h 30m" });
+
+      const WK: { dl: string; day: Day }[] = [
+        { dl: "M", day: [[8, 12.5, "blue"], [13, 17.5, "blue"], [18, 19, "gold"], [21, 22.5, "breaks"]] },
+        { dl: "T", day: [[9, 12, "blue"], [12.5, 13.5, "red"], [14, 18.5, "blue"], [19, 20.5, "gold"]] },
+        { dl: "W", day: [[7.5, 12.5, "blue"], [13, 18, "blue"], [18.5, 19.5, "red"], [20, 23, "blue"]] },
+        { dl: "T", day: [[9, 12.5, "blue"], [13.5, 17, "blue"], [17.5, 19, "gold"], [21, 22, "breaks"]] },
+        { dl: "F", day: [[9.5, 12.5, "blue"], [12.5, 14, "red"], [14.5, 17.5, "gold"], [18, 19, "red"]] },
+        { dl: "S", day: [[11, 12.5, "red"], [15, 16.5, "breaks"], [20, 22.5, "breaks"]] },
+        { dl: "S", day: [[12, 13, "red"], [18, 19, "gold"], [20.5, 22, "breaks"]] },
+      ];
+      const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      const ws = document.getElementById("weekstrip");
+      if (ws)
+        WK.forEach((w, idx) => {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          s.setAttribute("viewBox", "0 0 200 200");
+          // Color is never the only cue: each mini-dial carries a text label for screen readers.
+          const hours = Math.round(w.day.reduce((sum, [a, b]) => sum + (b - a), 0));
+          s.setAttribute("role", "img");
+          s.setAttribute("aria-label", `${WEEKDAYS[idx]} — about ${hours} hours tracked`);
+          cell.appendChild(s);
+          const dl = document.createElement("div");
+          dl.className = "dl";
+          dl.textContent = w.dl;
+          cell.appendChild(dl);
+          ws.appendChild(cell);
+          buildDial(s, { r: 78, sw: 20, day: w.day, now: idx === 3 ? 16.17 * 60 : null });
+        });
+
+      const THEME_KEY = "usageos-theme";
+      const applyTheme = (t: string) => {
+        document.documentElement.setAttribute("data-theme", t);
+        document.querySelectorAll<HTMLButtonElement>(".themesw button").forEach((x) =>
+          x.setAttribute("aria-pressed", String(x.dataset.t === t)),
+        );
+      };
+      const savedTheme = localStorage.getItem(THEME_KEY);
+      applyTheme(
+        savedTheme ?? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "black" : "paper"),
+      );
+      document.querySelectorAll<HTMLButtonElement>(".themesw button").forEach((b) =>
+        b.addEventListener("click", () => {
+          const t = b.dataset.t || "paper";
+          applyTheme(t);
+          localStorage.setItem(THEME_KEY, t);
+        }),
+      );
+
+      // Categorization re-sort demo — flipping Reddit re-tints one arc and re-sorts the ledger,
+      // while the total ("5h 30m") stays put: recategorizing changes the meaning, not the time.
+      const catDial = document.getElementById("catDial");
+      if (catDial) {
+        const CSW = 20,
+          CR = 74;
+        const blocks: [number, number, string][] = [
+          [9, 12, "blue"],
+          [12, 12.75, "REDDIT"],
+          [13, 14, "blue"],
+          [14, 14.25, "red"],
+          [15, 15.5, "gold"],
+        ];
+        let redditCat = "research"; // research → Browsing (red) · deep → Work (blue)
+        const drawCat = () => {
+          let h = `<circle cx="100" cy="100" r="${CR}" fill="none" stroke="var(--track)" stroke-width="${CSW}"/>`;
+          [0, 6, 12, 18].forEach((t) => {
+            const [xi, yi] = polar(t * 60, CR - CSW / 2 - 3);
+            const [xo, yo] = polar(t * 60, CR + CSW / 2 + 3);
+            h += `<line x1="${xi.toFixed(1)}" y1="${yi.toFixed(1)}" x2="${xo.toFixed(1)}" y2="${yo.toFixed(1)}" stroke="var(--edge)" stroke-width="2"/>`;
+          });
+          blocks.forEach(([a, b, c]) => {
+            const col = c === "REDDIT" ? (redditCat === "deep" ? "blue" : "red") : c;
+            h += `<path class="cat-arc" data-reddit="${c === "REDDIT"}" d="${arcPath(CR, a * 60, b * 60)}" fill="none" stroke="var(--${col})" stroke-width="${CSW}"/>`;
+          });
+          h += `<text x="100" y="98" text-anchor="middle" font-family="Anton" font-size="26" fill="var(--fg)">5h 30m</text><text x="100" y="113" text-anchor="middle" font-family="Jost" font-weight="600" font-size="8" letter-spacing="1.5" fill="var(--muted)">ON SCREEN</text>`;
+          catDial.innerHTML = h;
+        };
+        const fmt = (m: number) => {
+          const hh = Math.floor(m / 60),
+            mm = m % 60;
+          return hh && mm ? `${hh}h ${mm}m` : hh ? `${hh}h` : `${mm}m`;
+        };
+        const renderCat = () => {
+          const arc = catDial.querySelector('[data-reddit="true"]');
+          if (arc) arc.setAttribute("stroke", redditCat === "deep" ? "var(--blue)" : "var(--red)");
+          const reddit = 45,
+            otherWork = 240,
+            otherBrow = 15,
+            msg = 30,
+            MAX = 300;
+          const work = otherWork + (redditCat === "deep" ? reddit : 0);
+          const brow = otherBrow + (redditCat === "research" ? reddit : 0);
+          const setRow = (barId: string, timeId: string, mins: number) => {
+            const bar = document.getElementById(barId);
+            const time = document.getElementById(timeId);
+            if (bar) bar.style.width = `${Math.round((mins / MAX) * 100)}%`;
+            if (time) time.textContent = fmt(mins);
+          };
+          setRow("czWork", "czWorkT", work);
+          setRow("czBrow", "czBrowT", brow);
+          setRow("czMsg", "czMsgT", msg);
+        };
+        document.querySelectorAll<HTMLButtonElement>(".cat-seg button").forEach((b) =>
+          b.addEventListener("click", () => {
+            redditCat = b.dataset.cat || "research";
+            document.querySelectorAll<HTMLButtonElement>(".cat-seg button").forEach((x) =>
+              x.setAttribute("aria-pressed", String(x === b)),
+            );
+            renderCat();
+          }),
+        );
+        drawCat();
+        renderCat();
+      }
+    </script>
+  </body>
+</html>

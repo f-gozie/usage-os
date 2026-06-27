@@ -33,3 +33,6 @@ storybook-static
 # Never committed (large, platform-specific); the .gitkeep preserves the externalBin slot.
 /src-tauri/binaries/*
 !/src-tauri/binaries/.gitkeep
+
+# Astro generated cache/types
+.astro/

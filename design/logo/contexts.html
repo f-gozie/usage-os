@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Brand around “Contexts”</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --blue:#1B45BE; --red:#E0241B; --gold:#EAB308; --green:#2E8B57; --ink:#161616;
+  --on-ink:#EEEBE1; --desk:#C9C4B6;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --blue:#3358E0; --red:#F0463C; --gold:#F2BC0C; --green:#46B97E; --ink:#EDE9DD;
+  --on-ink:#1A1916; --desk:#13120F;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --blue:#3A6BF0; --red:#FF4B40; --gold:#F5C518; --green:#4FCB8A; --ink:#F4F4F2;
+  --on-ink:#0E0E0E; --desk:#000000;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5;}
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);min-height:100vh;}
+svg{display:block;}
+
+/* topbar */
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+  padding:13px 24px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.brand{font-family:'Anton',sans-serif;font-size:24px;letter-spacing:.02em;text-transform:uppercase;display:flex;align-items:center;gap:11px;}
+.brand .mk{width:26px;height:26px;color:var(--fg);}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-family:'Jost';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+
+section{padding:40px 26px;border-bottom:3px solid var(--edge);}
+.eyebrow{font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;}
+.shead{font-family:'Anton',sans-serif;font-size:32px;line-height:.94;text-transform:uppercase;margin-bottom:12px;}
+.lead{font-size:15px;max-width:66ch;color:var(--muted);margin:0 0 24px;font-weight:500;}
+.lead b{color:var(--fg);font-weight:600;}
+.cap{font-size:12px;color:var(--muted);margin-top:10px;letter-spacing:.02em;}
+.note{font-size:13px;color:var(--muted);margin-top:18px;border-left:3px solid var(--gold);padding-left:12px;max-width:72ch;}
+
+/* ---------- mark system ---------- */
+.sysrow{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.syscard{border:2px solid var(--edge);padding:20px;text-align:center;}
+.syscard .holder{height:120px;display:flex;align-items:center;justify-content:center;}
+.syscard .holder svg{width:90px;height:90px;}
+.syscard.onink{background:var(--ink);color:var(--on-ink);}
+.syscard .t{font-family:'Anton',sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:.04em;margin-top:6px;}
+.syscard .s{font-size:11.5px;color:var(--muted);margin-top:3px;}
+.syscard.onink .s{color:var(--on-ink);opacity:.7;}
+
+.specrow{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px;}
+.spec{border:2px solid var(--edge);padding:18px 20px;}
+.spec h4{font-family:'Anton';font-size:13px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px;}
+.clearbox{position:relative;display:inline-block;padding:26px;border:1.5px dashed var(--muted);}
+.clearbox svg{width:74px;height:74px;color:var(--fg);}
+.sizes{display:flex;align-items:flex-end;gap:18px;}
+.sizes .u{text-align:center;color:var(--fg);}
+.sizes .u svg{display:block;margin:0 auto;}
+.sizes .u .px{font-size:10.5px;color:var(--muted);margin-top:6px;}
+
+/* anatomy */
+.anat{display:grid;grid-template-columns:200px 1fr;gap:26px;align-items:center;border:2px solid var(--edge);padding:22px;}
+.anat .big{width:180px;height:180px;margin:0 auto;}
+.anat ul{list-style:none;}
+.anat li{display:flex;align-items:center;gap:12px;padding:7px 0;font-size:14px;border-bottom:1px solid var(--rule);}
+.anat li:last-child{border-bottom:none;}
+.anat .sw{width:26px;height:10px;flex:none;}
+.anat li b{font-weight:600;}.anat li span{color:var(--muted);}
+
+/* ---------- generic mac chrome ---------- */
+.scene{border:2px solid var(--edge);overflow:hidden;background:var(--desk);}
+.squircle{border-radius:22.5%;display:flex;align-items:center;justify-content:center;}
+
+/* dock */
+.deskpad{padding:40px 0 0;display:flex;flex-direction:column;align-items:center;min-height:240px;justify-content:flex-end;}
+.dock{display:flex;align-items:flex-end;gap:12px;background:rgba(255,255,255,.16);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.22);border-radius:22px;padding:9px 12px;margin-bottom:18px;}
+[data-theme="paper"] .dock{background:rgba(255,255,255,.42);border-color:rgba(0,0,0,.10);}
+.dock .ic{width:54px;height:54px;}
+.dock .ours{width:60px;height:60px;position:relative;}
+.dock .ours::after{content:"";position:absolute;bottom:-11px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.85);}
+[data-theme="paper"] .dock .ours::after{background:rgba(0,0,0,.5);}
+
+/* menubar */
+.menubar{height:26px;background:rgba(245,243,237,.92);backdrop-filter:blur(8px);display:flex;align-items:center;
+  justify-content:space-between;padding:0 12px;font-size:12.5px;color:#1c1c1c;border-bottom:1px solid rgba(0,0,0,.12);}
+.menubar.dark{background:rgba(28,28,28,.86);color:#f2f2f2;border-bottom-color:rgba(255,255,255,.12);}
+.menubar .l,.menubar .r{display:flex;align-items:center;gap:15px;}
+.menubar .appname{font-weight:700;}
+.menubar .tray{width:16px;height:16px;color:#1c1c1c;}
+.menubar.dark .tray{color:#f2f2f2;}
+.menubar .ap{font-size:13px;}
+
+/* browser */
+.browser{border:2px solid var(--edge);background:var(--surface);}
+.btabs{display:flex;align-items:flex-end;gap:2px;background:var(--bg);padding:8px 10px 0;border-bottom:1px solid var(--rule);}
+.btab{display:flex;align-items:center;gap:8px;padding:9px 16px;background:var(--surface);border:1px solid var(--rule);border-bottom:none;
+  border-radius:8px 8px 0 0;font-size:12.5px;max-width:220px;}
+.btab.off{background:transparent;color:var(--muted);}
+.btab .fav{width:15px;height:15px;flex:none;}
+.btab .x{margin-left:6px;color:var(--muted);font-size:13px;}
+.burl{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--rule);}
+.burl .pill{flex:1;background:var(--bg);border:1px solid var(--rule);border-radius:20px;padding:6px 14px;font-size:12.5px;color:var(--muted);}
+
+/* landing nav + hero */
+.lnav{display:flex;align-items:center;justify-content:space-between;padding:16px 26px;border:2px solid var(--edge);border-bottom:none;background:var(--bg);}
+.lnav .lb{display:flex;align-items:center;gap:11px;font-family:'Jost';font-weight:600;font-size:18px;}
+.lnav .lb .mk{width:26px;height:26px;color:var(--fg);}
+.lnav .lks{display:flex;gap:24px;font-size:13.5px;color:var(--muted);font-weight:500;}
+.lnav .btn{background:var(--edge);color:var(--bg);font-weight:600;font-size:13px;padding:9px 16px;}
+.hero{border:2px solid var(--edge);padding:54px 40px;display:grid;grid-template-columns:1.2fr .8fr;gap:30px;align-items:center;background:var(--surface);}
+.hero h1{font-family:'Anton';font-size:52px;line-height:.92;text-transform:uppercase;letter-spacing:.01em;}
+.hero h1 .o{color:var(--red);}
+.hero p{font-size:16px;color:var(--muted);margin-top:16px;max-width:42ch;font-weight:500;}
+.hero .ctas{display:flex;gap:12px;margin-top:24px;}
+.hero .ctas .p{background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:12px 20px;}
+.hero .ctas .s{border:2px solid var(--edge);color:var(--fg);font-weight:600;font-size:14px;padding:10px 20px;}
+.hero .herodial{width:230px;height:230px;margin:0 auto;}
+
+/* app titlebar */
+.appwin{border:2px solid var(--edge);border-radius:6px;overflow:hidden;}
+.tbar{display:flex;align-items:center;padding:11px 14px;background:var(--ink);color:var(--on-ink);position:relative;}
+.tbar .lights{display:flex;gap:7px;}
+.tbar .lights i{width:11px;height:11px;border-radius:50%;display:block;}
+.tbar .wm{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;}
+.tbar .wm .mk{width:18px;height:18px;color:var(--on-ink);}
+.tbar .wm .nm{font-weight:600;font-size:12px;letter-spacing:.34em;text-transform:uppercase;}
+.tbar .track{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.85;}
+.tbar .track .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.appbody{height:120px;background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;}
+
+/* dmg */
+.dmg{border:2px solid var(--edge);border-radius:6px;overflow:hidden;}
+.dmgbar{background:var(--ink);color:var(--on-ink);padding:10px 14px;display:flex;align-items:center;gap:8px;}
+.dmgbar .lights{display:flex;gap:7px;}.dmgbar .lights i{width:11px;height:11px;border-radius:50%;}
+.dmgbar .ti{margin-left:auto;margin-right:auto;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;}
+.dmgbody{background:var(--surface);padding:44px 40px;display:flex;align-items:center;justify-content:center;gap:38px;}
+.dmgbody .slot{text-align:center;}
+.dmgbody .slot .ic{width:96px;height:96px;margin:0 auto;}
+.dmgbody .slot .lab{font-size:12px;font-weight:600;margin-top:10px;}
+.dmgbody .arrow{font-family:'Anton';font-size:40px;color:var(--muted);}
+.appsfolder{width:96px;height:96px;border-radius:22.5%;background:var(--bg);border:2px solid var(--edge);display:flex;align-items:center;justify-content:center;
+  font-family:'Anton';font-size:13px;color:var(--muted);text-align:center;line-height:1;}
+.dmgcap{text-align:center;font-size:12px;color:var(--muted);padding:0 0 18px;}
+
+/* notification */
+.noti{display:flex;gap:13px;background:var(--surface);border:2px solid var(--edge);border-radius:12px;padding:14px 16px;max-width:380px;box-shadow:none;}
+.noti .ic{width:42px;height:42px;flex:none;}
+.noti .body .src{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600;}
+.noti .body .h{font-weight:600;font-size:14px;margin-top:2px;}
+.noti .body .m{font-size:13px;color:var(--muted);margin-top:2px;}
+
+/* OG card */
+.og{aspect-ratio:1200/630;border:2px solid var(--edge);background:var(--bg);position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:46px 48px;}
+.og .bar{position:absolute;top:0;left:0;right:0;height:12px;display:flex;}
+.og .bar span{flex:1;}
+.og .ogwm{display:flex;align-items:center;gap:16px;}
+.og .ogwm .mk{width:62px;height:62px;color:var(--fg);}
+.og .ogwm .w{font-family:'Anton';font-size:46px;text-transform:uppercase;letter-spacing:.02em;}
+.og .ogwm .w .o{color:var(--red);}
+.og .tagline{font-family:'Anton';font-size:40px;line-height:.98;text-transform:uppercase;max-width:18ch;}
+.og .url{font-size:15px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600;}
+
+/* readme banner */
+.readme{border:2px solid var(--edge);background:var(--ink);color:var(--on-ink);padding:40px 44px;display:flex;align-items:center;gap:26px;}
+.readme .mk{width:84px;height:84px;flex:none;}
+.readme h2{font-family:'Anton';font-size:40px;text-transform:uppercase;letter-spacing:.02em;}
+.readme h2 .o{color:var(--red);}
+.readme p{font-size:15px;opacity:.78;margin-top:6px;max-width:48ch;}
+.readme .badges{display:flex;gap:8px;margin-top:12px;}
+.readme .badges span{font-size:11px;border:1.5px solid var(--on-ink);opacity:.85;padding:3px 9px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;}
+
+/* wordmark lockups */
+.locks{display:flex;flex-direction:column;border:2px solid var(--edge);}
+.lock{display:flex;align-items:center;gap:18px;padding:24px 26px;border-bottom:1px solid var(--rule);flex-wrap:wrap;}
+.lock:last-child{border-bottom:none;}
+.lock .wm{display:flex;align-items:center;gap:13px;color:var(--fg);}
+.lock .wm .mk{width:38px;height:38px;}
+.wm-jost{font-family:'Jost';font-weight:600;font-size:28px;letter-spacing:-.01em;}
+.wm-jost .os{color:var(--muted);}
+.wm-anton{font-family:'Anton';font-size:32px;text-transform:uppercase;letter-spacing:.04em;}
+.wm-anton .o{color:var(--red);}
+.oinline{display:inline-block;vertical-align:-.16em;width:.9em;height:.9em;}
+.lock .tag{margin-left:auto;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600;}
+.lock.dark{background:var(--ink);}
+.lock.dark .wm{color:var(--on-ink);} .lock.dark .wm-jost .os{color:rgba(255,255,255,.55);}
+
+.foot{padding:26px;color:var(--muted);font-size:12.5px;}
+@media(max-width:820px){.sysrow{grid-template-columns:repeat(2,1fr);}.hero{grid-template-columns:1fr;}.specrow{grid-template-columns:1fr;}.anat{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ===== symbol defs ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <!-- canonical Contexts mark: faint track + 3 category arcs, midnight gap at top -->
+  <symbol id="ctx" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="33" fill="none" stroke="var(--track)" stroke-width="8"/>
+    <path d="M53.45 17.18 A33 33 0 0 1 76.70 69.40" fill="none" stroke="var(--blue)" stroke-width="8"/>
+    <path d="M71.21 75.28 A33 33 0 0 1 26.26 72.92" fill="none" stroke="var(--red)" stroke-width="8"/>
+    <path d="M21.42 66.50 A33 33 0 0 1 46.55 17.18" fill="none" stroke="var(--gold)" stroke-width="8"/>
+  </symbol>
+  <!-- with the now-triangle in the midnight gap (accent variant) -->
+  <symbol id="ctxN" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="33" fill="none" stroke="var(--track)" stroke-width="8"/>
+    <path d="M53.45 17.18 A33 33 0 0 1 76.70 69.40" fill="none" stroke="var(--blue)" stroke-width="8"/>
+    <path d="M71.21 75.28 A33 33 0 0 1 26.26 72.92" fill="none" stroke="var(--red)" stroke-width="8"/>
+    <path d="M21.42 66.50 A33 33 0 0 1 46.55 17.18" fill="none" stroke="var(--gold)" stroke-width="8"/>
+    <path d="M50 34 L44.4 19 L55.6 19 Z" fill="currentColor"/>
+  </symbol>
+  <!-- mono template: same arcs, gaps preserved, one ink (menubar / favicon / etch) -->
+  <symbol id="ctxm" viewBox="0 0 100 100">
+    <path d="M53.45 17.18 A33 33 0 0 1 76.70 69.40" fill="none" stroke="currentColor" stroke-width="8"/>
+    <path d="M71.21 75.28 A33 33 0 0 1 26.26 72.92" fill="none" stroke="currentColor" stroke-width="8"/>
+    <path d="M21.42 66.50 A33 33 0 0 1 46.55 17.18" fill="none" stroke="currentColor" stroke-width="8"/>
+  </symbol>
+  <!-- the O-as-Contexts-dial for the wordmark -->
+  <symbol id="oCtx" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="34" fill="none" stroke="var(--track)" stroke-width="13"/>
+    <path d="M55.90 16.52 A34 34 0 0 1 80.02 65.96" fill="none" stroke="var(--blue)" stroke-width="13"/>
+    <path d="M71.85 76.04 A34 34 0 0 1 27.25 75.27" fill="none" stroke="var(--red)" stroke-width="13"/>
+    <path d="M19.44 64.91 A34 34 0 0 1 44.10 16.52" fill="none" stroke="var(--gold)" stroke-width="13"/>
+  </symbol>
+  <symbol id="oCtxm" viewBox="0 0 100 100">
+    <path d="M55.90 16.52 A34 34 0 0 1 80.02 65.96" fill="none" stroke="currentColor" stroke-width="13"/>
+    <path d="M71.85 76.04 A34 34 0 0 1 27.25 75.27" fill="none" stroke="currentColor" stroke-width="13"/>
+    <path d="M19.44 64.91 A34 34 0 0 1 44.10 16.52" fill="none" stroke="currentColor" stroke-width="13"/>
+  </symbol>
+  <!-- generic neighbour dock icons -->
+  <symbol id="g1" viewBox="0 0 100 100"><rect width="100" height="100" fill="#3a3a3a"/><circle cx="50" cy="50" r="26" fill="#9a9a9a"/></symbol>
+  <symbol id="g2" viewBox="0 0 100 100"><rect width="100" height="100" fill="#2b2b2b"/><rect x="28" y="28" width="44" height="44" fill="#c7c2b6"/></symbol>
+  <symbol id="g3" viewBox="0 0 100 100"><rect width="100" height="100" fill="#1d1d1d"/><path d="M50 26 L72 70 L28 70 Z" fill="#7d7d7d"/></symbol>
+</defs></svg>
+
+<!-- ===== topbar ===== -->
+<div class="top">
+  <div class="brand"><svg class="mk"><use href="#ctxm"/></svg>USAGEOS</div>
+  <div class="themesw">
+    <button data-t="paper" class="on">Paper</button>
+    <button data-t="warm">Warm</button>
+    <button data-t="black">Black</button>
+  </div>
+</div>
+
+<!-- ===== intro ===== -->
+<section>
+  <div class="eyebrow">Brand system · the chosen mark</div>
+  <div class="shead">Branding around “Contexts”</div>
+  <p class="lead">The logo is the dial itself — a day inked in its categories (<b>Work</b> blue, <b>Browsing</b> red, <b>Messaging</b> gold) over a faint idle track, with a clean gap at midnight up top. It’s the only mark that <i>is</i> the product. Below: the system, then it dropped onto every surface the app ships through. Switch themes (top-right) to see it hold on paper / warm / black.</p>
+</section>
+
+<!-- ===== the mark system ===== -->
+<section>
+  <div class="eyebrow">01 · The mark</div>
+  <div class="shead">One mark, four states</div>
+  <div class="sysrow">
+    <div class="syscard"><div class="holder"><svg><use href="#ctx"/></svg></div><div class="t">Primary</div><div class="s">Color, on light. The default.</div></div>
+    <div class="syscard onink"><div class="holder" style="color:var(--on-ink)"><svg><use href="#ctx"/></svg></div><div class="t">On ink</div><div class="s">Color holds on dark too.</div></div>
+    <div class="syscard"><div class="holder" style="color:var(--fg)"><svg><use href="#ctxm"/></svg></div><div class="t">Mono</div><div class="s">One ink — menubar, favicon, etch.</div></div>
+    <div class="syscard"><div class="holder" style="color:var(--fg)"><svg><use href="#ctxN"/></svg></div><div class="t">+ Now-hand</div><div class="s">Accent: the triangle at midnight.</div></div>
+  </div>
+
+  <div class="anat" style="margin-top:16px">
+    <div class="big"><svg style="width:100%;height:100%"><use href="#ctxN"/></svg></div>
+    <ul>
+      <li><span class="sw" style="background:var(--track)"></span><b>Idle track</b> <span>— the faint full ring; the day not yet spent.</span></li>
+      <li><span class="sw" style="background:var(--blue)"></span><b>Work</b> <span>— the longest block, just past midnight.</span></li>
+      <li><span class="sw" style="background:var(--red)"></span><b>Browsing</b> <span>— the afternoon arc.</span></li>
+      <li><span class="sw" style="background:var(--gold)"></span><b>Messaging</b> <span>— the evening arc, back toward midnight.</span></li>
+      <li><span class="sw" style="background:var(--fg);height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-top:11px solid var(--fg);width:0"></span><b>Now-hand</b> <span>— optional triangle at the midnight gap.</span></li>
+    </ul>
+  </div>
+
+  <div class="specrow">
+    <div class="spec">
+      <h4>Clear space</h4>
+      <div class="clearbox"><svg><use href="#ctx"/></svg></div>
+      <div class="cap">Keep clear space ≥ the arc-stroke weight on every side. Don’t crowd it.</div>
+    </div>
+    <div class="spec">
+      <h4>Minimum size</h4>
+      <div class="sizes">
+        <div class="u"><svg width="56" height="56"><use href="#ctx"/></svg><div class="px">56 · color ok</div></div>
+        <div class="u"><svg width="28" height="28"><use href="#ctx"/></svg><div class="px">28 · color floor</div></div>
+        <div class="u" style="color:var(--fg)"><svg width="18" height="18"><use href="#ctxm"/></svg><div class="px">18 · mono only</div></div>
+        <div class="u" style="color:var(--fg)"><svg width="14" height="14"><use href="#ctxm"/></svg><div class="px">14 · mono</div></div>
+      </div>
+      <div class="cap">Below ~24px the three colors muddy — switch to the mono template. The gaps still read as “a dial.”</div>
+    </div>
+  </div>
+  <p class="note">The honest caveat with a multi-color mark: it can’t carry color into a 16px menubar slot. Solved — the <b>mono template</b> keeps the three gaps, so it still reads as the segmented dial in a single ink.</p>
+</section>
+
+<!-- ===== app icon ===== -->
+<section>
+  <div class="eyebrow">02 · macOS app icon</div>
+  <div class="shead">In the dock</div>
+  <p class="lead">On a bone squircle the color mark sits cleanest — it’s the product’s own paper, and the arcs pop against it. Here it is in a dock, then the size ladder Tauri exports.</p>
+  <div class="scene">
+    <div class="deskpad">
+      <div class="dock">
+        <svg class="ic squircle"><use href="#g2"/></svg>
+        <svg class="ic squircle"><use href="#g3"/></svg>
+        <svg class="ic squircle"><use href="#g1"/></svg>
+        <div class="ours squircle" style="background:#EEEBE1"><svg style="width:42px;height:42px"><use href="#ctx"/></svg></div>
+        <svg class="ic squircle"><use href="#g3"/></svg>
+        <svg class="ic squircle"><use href="#g2"/></svg>
+      </div>
+    </div>
+  </div>
+  <div class="sizes" style="margin-top:18px;justify-content:center">
+    <div class="u"><div class="squircle" style="width:104px;height:104px;background:#EEEBE1"><svg style="width:62px;height:62px"><use href="#ctx"/></svg></div><div class="px">1024</div></div>
+    <div class="u"><div class="squircle" style="width:64px;height:64px;background:#EEEBE1"><svg style="width:40px;height:40px"><use href="#ctx"/></svg></div><div class="px">128</div></div>
+    <div class="u"><div class="squircle" style="width:44px;height:44px;background:#EEEBE1"><svg style="width:28px;height:28px"><use href="#ctx"/></svg></div><div class="px">64</div></div>
+    <div class="u"><div class="squircle" style="width:32px;height:32px;background:#EEEBE1;color:#161616"><svg style="width:21px;height:21px"><use href="#ctxm"/></svg></div><div class="px">32 · mono</div></div>
+  </div>
+  <p class="note">Alt tiles to weigh later: an <b>ink</b> tile with the mark in bone, or a <b>blue</b> tile — bolder in a crowded dock, but loses the “paper” warmth. Bone is the recommendation.</p>
+</section>
+
+<!-- ===== menubar ===== -->
+<section>
+  <div class="eyebrow">03 · Menubar</div>
+  <div class="shead">The tray icon</div>
+  <p class="lead">The entrance to the menubar popover. A monochrome template that inverts with the system bar — light desktop, dark desktop.</p>
+  <div class="scene" style="background:var(--desk)">
+    <div class="menubar">
+      <div class="l"><span class="ap"></span><span class="appname">usageos</span><span>File</span><span>View</span><span>Help</span></div>
+      <div class="r"><span>􀙏</span><span>􀛨</span><svg class="tray"><use href="#ctxm"/></svg><span>9:41</span></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="menubar dark">
+      <div class="l"><span class="ap"></span><span class="appname">usageos</span><span>File</span><span>View</span><span>Help</span></div>
+      <div class="r"><span>􀙏</span><span>􀛨</span><svg class="tray"><use href="#ctxm"/></svg><span>9:41</span></div>
+    </div>
+    <div style="height:18px"></div>
+  </div>
+  <div class="cap">Tray icon = mono Contexts. Clicking it opens the popover (see <code>design/menubar.html</code>).</div>
+</section>
+
+<!-- ===== browser / favicon ===== -->
+<section>
+  <div class="eyebrow">04 · usageos.app · browser</div>
+  <div class="shead">Favicon &amp; tab</div>
+  <div class="browser">
+    <div class="btabs">
+      <div class="btab"><svg class="fav"><use href="#ctx"/></svg>usageos — your day, privately<span class="x">×</span></div>
+      <div class="btab off"><svg class="fav" style="opacity:.5"><use href="#g1"/></svg>GitHub<span class="x">×</span></div>
+      <div class="btab off">New Tab<span class="x">×</span></div>
+    </div>
+    <div class="burl"><span style="color:var(--muted)">←  →  ⟳</span><div class="pill">usageos.app</div></div>
+    <div style="height:70px;background:var(--bg)"></div>
+  </div>
+  <div class="cap">At favicon scale the color mark still survives on a light tab; the 16px mono is the fallback for cramped chrome.</div>
+</section>
+
+<!-- ===== landing ===== -->
+<section>
+  <div class="eyebrow">05 · usageos.app · landing</div>
+  <div class="shead">Site nav &amp; hero</div>
+  <p class="lead">Replacing the old glowing ◈. Mark + lowercase name in the nav (calm, our voice); the wordmark goes loud in the hero with the red O.</p>
+  <div class="lnav">
+    <div class="lb"><svg class="mk"><use href="#ctx"/></svg>usageos</div>
+    <div class="lks"><span>How it works</span><span>Privacy</span><span>Open source</span></div>
+    <div class="btn">Get usageos</div>
+  </div>
+  <div class="hero">
+    <div>
+      <h1>Your day,<br>privately</h1>
+      <p>Your Mac already knows how you spent today. UsageOS tells you — and nothing ever leaves the machine.</p>
+      <div class="ctas"><div class="p">Download for Mac</div><div class="s">See how it works</div></div>
+    </div>
+    <div class="herodial"><svg style="width:100%;height:100%"><use href="#ctxN"/></svg></div>
+  </div>
+</section>
+
+<!-- ===== app titlebar ===== -->
+<section>
+  <div class="eyebrow">06 · In the app</div>
+  <div class="shead">Window titlebar</div>
+  <p class="lead">The mark joins the centered wordmark; the category-colored traffic lights and the pulsing “Tracking” dot stay.</p>
+  <div class="appwin">
+    <div class="tbar">
+      <div class="lights"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i></div>
+      <div class="wm"><svg class="mk"><use href="#ctxm"/></svg><span class="nm">Usageos</span></div>
+      <div class="track"><span class="dot"></span>Tracking</div>
+    </div>
+    <div class="appbody">— the day view lives here —</div>
+  </div>
+</section>
+
+<!-- ===== dmg ===== -->
+<section>
+  <div class="eyebrow">07 · Distribution</div>
+  <div class="shead">The DMG installer</div>
+  <p class="lead">The first thing anyone sees after download. Drag the icon to Applications.</p>
+  <div class="dmg">
+    <div class="dmgbar">
+      <div class="lights"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i></div>
+      <div class="ti">usageos</div>
+    </div>
+    <div class="dmgbody">
+      <div class="slot"><div class="ic squircle" style="background:#EEEBE1"><svg style="width:60px;height:60px"><use href="#ctx"/></svg></div><div class="lab">usageos</div></div>
+      <div class="arrow">→</div>
+      <div class="slot"><div class="appsfolder">APPLI&shy;CATIONS</div><div class="lab">Applications</div></div>
+    </div>
+    <div class="dmgcap">Drag usageos into your Applications folder.</div>
+  </div>
+</section>
+
+<!-- ===== notification ===== -->
+<section>
+  <div class="eyebrow">08 · The one sanctioned interruption</div>
+  <div class="shead">Notification</div>
+  <p class="lead">The single opt-in “your day is ready” nudge. App icon + a calm line.</p>
+  <div class="noti">
+    <div class="ic squircle" style="background:#EEEBE1"><svg style="width:28px;height:28px"><use href="#ctx"/></svg></div>
+    <div class="body">
+      <div class="src">usageos</div>
+      <div class="h">Your day is ready</div>
+      <div class="m">Eight hours tracked. Want to see where they went?</div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== OG card ===== -->
+<section>
+  <div class="eyebrow">09 · When the link is shared</div>
+  <div class="shead">Social / OG card</div>
+  <div class="og">
+    <div class="bar"><span style="background:var(--blue)"></span><span style="background:var(--red)"></span><span style="background:var(--gold)"></span></div>
+    <div class="ogwm"><svg class="mk"><use href="#ctx"/></svg><span class="w">USAGE<span class="o">O</span>S</span></div>
+    <div class="tagline">Your Mac knows how you spent today.</div>
+    <div style="display:flex;align-items:center;justify-content:space-between"><span class="url">usageos.app</span><span class="url" style="color:var(--blue)">private · on-device · open source</span></div>
+  </div>
+</section>
+
+<!-- ===== readme ===== -->
+<section>
+  <div class="eyebrow">10 · GitHub</div>
+  <div class="shead">README banner</div>
+  <div class="readme">
+    <svg class="mk"><use href="#ctx"/></svg>
+    <div>
+      <h2>USAGE<span class="o">O</span>S</h2>
+      <p>A private, on-device Mac app that tells you where your time went. Nothing leaves the machine.</p>
+      <div class="badges"><span>MIT</span><span>macOS</span><span>Tauri + Rust</span><span>100% local</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== wordmark lockups ===== -->
+<section>
+  <div class="eyebrow">11 · Mark + word</div>
+  <div class="shead">Wordmark lockups</div>
+  <p class="lead">Two systems: the mark <i>beside</i> the name (nav, titlebar), and the mark <i>as the O</i> (hero, merch) — where the Contexts dial replaces the letter and the wordmark becomes the logo.</p>
+  <div class="locks">
+    <div class="lock">
+      <div class="wm"><svg class="mk"><use href="#ctx"/></svg><span class="wm-jost">usage<span class="os">os</span></span></div>
+      <span class="tag">A · mark + Jost lowercase (calm / default)</span>
+    </div>
+    <div class="lock">
+      <div class="wm"><svg class="mk"><use href="#ctx"/></svg><span class="wm-anton">USAGE<span class="o">O</span>S</span></div>
+      <span class="tag">B · mark + Anton, red O</span>
+    </div>
+    <div class="lock">
+      <div class="wm"><span class="wm-anton">USAGE<span class="oinline"><svg style="width:100%;height:100%"><use href="#oCtx"/></svg></span>S</span></div>
+      <span class="tag">C · the O <i>is</i> the Contexts dial (hero lockup)</span>
+    </div>
+    <div class="lock">
+      <div class="wm"><span class="wm-jost">usage<span class="oinline" style="vertical-align:-.14em"><svg style="width:100%;height:100%"><use href="#oCtx"/></svg></span>s</span></div>
+      <span class="tag">D · dial-O, lowercase</span>
+    </div>
+    <div class="lock dark">
+      <div class="wm"><svg class="mk" style="color:var(--on-ink)"><use href="#ctx"/></svg><span class="wm-anton" style="color:var(--on-ink)">USAGE<span class="o">O</span>S</span></div>
+      <span class="tag">B · on ink</span>
+    </div>
+    <div class="lock">
+      <div class="wm" style="color:var(--fg)"><svg class="mk"><use href="#ctxm"/></svg><span class="wm-anton" style="color:var(--fg)">USAGEOS</span></div>
+      <span class="tag">E · full mono (etch / stamp / 1-color print)</span>
+    </div>
+  </div>
+  <p class="note"><b>C / D</b> are the prize: the dial replaces the O, so there’s no separate glyph to carry — the name <i>is</i> the logo, and it’s unmistakably us. Use the beside-the-word lockups (A/B) anywhere the O can’t be big enough to read as a dial.</p>
+</section>
+
+<div class="foot">
+  Brand exploration around <b>Contexts</b>. Fonts loaded from Google for the gallery only — the app bundles them locally (hard rule 1).
+  Tell me which surfaces to tighten and which wordmark (beside-word vs dial-O) to make the primary, and I’ll spec it for export (SVG masters + the Tauri icon set).
+</div>
+
+</div>
+<script>
+  document.querySelectorAll('.themesw button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.documentElement.setAttribute('data-theme',b.dataset.t);
+      document.querySelectorAll('.themesw button').forEach(x=>x.classList.toggle('on',x===b));
+    });
+  });
+</script>
+</body>
+</html>

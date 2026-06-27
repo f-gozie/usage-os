@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Landing hero directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --blue:#1B45BE; --red:#E0241B; --gold:#EAB308; --green:#2E8B57; --ink:#161616;
+  --breaks:#161616; --on-ink:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --blue:#3358E0; --red:#F0463C; --gold:#F2BC0C; --green:#46B97E; --ink:#EDE9DD;
+  --breaks:#CFC9B8; --on-ink:#1A1916;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --blue:#3A6BF0; --red:#FF4B40; --gold:#F5C518; --green:#4FCB8A; --ink:#F4F4F2;
+  --breaks:#C6C6C4; --on-ink:#0E0E0E;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);color:var(--fg);transition:background .25s,color .25s;}
+body{font-family:'Jost',system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:1080px;margin:0 auto;border-left:3px solid var(--edge);border-right:3px solid var(--edge);min-height:100vh;}
+svg{display:block;}
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+  padding:13px 24px;background:var(--bg);border-bottom:3px solid var(--edge);}
+.brand{font-family:'Anton',sans-serif;font-size:22px;letter-spacing:.05em;text-transform:uppercase;}
+.row{display:flex;gap:12px;align-items:center;}
+.themesw{display:flex;border:2px solid var(--edge);}
+.themesw button{font-family:'Jost';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:8px 13px;cursor:pointer;}
+.themesw button+button{border-left:2px solid var(--edge);}
+.themesw button.on{background:var(--edge);color:var(--bg);}
+.replay{font-family:'Jost';font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;border:2px solid var(--edge);background:transparent;color:var(--fg);padding:8px 13px;cursor:pointer;}
+
+.tag{padding:14px 26px;border-bottom:3px solid var(--edge);}
+.tag .eyebrow{font-weight:600;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);}
+.tag .nm{font-family:'Anton';font-size:20px;text-transform:uppercase;margin-top:2px;}
+.tag .ds{font-size:13px;color:var(--muted);margin-top:3px;max-width:70ch;}
+
+/* fake site nav atop each hero */
+.lnav{display:flex;align-items:center;justify-content:space-between;padding:15px 30px;border-bottom:1px solid var(--rule);}
+.lnav .lb{display:flex;align-items:center;gap:10px;font-family:'Anton';font-size:19px;text-transform:uppercase;letter-spacing:.03em;}
+.lnav .lb .mk{width:23px;height:23px;}
+.lnav .lks{display:flex;gap:22px;font-size:13px;color:var(--muted);font-weight:500;}
+.lnav .dl{background:var(--blue);color:#fff;font-weight:600;font-size:12.5px;padding:8px 15px;}
+
+.hero{padding:60px 40px 64px;}
+.btnrow{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap;}
+.btn-p{background:var(--blue);color:#fff;font-weight:600;font-size:14px;padding:13px 22px;display:inline-flex;gap:9px;align-items:center;}
+.btn-s{border:2px solid var(--edge);color:var(--fg);font-weight:600;font-size:14px;padding:11px 20px;}
+.eyebrow2{font-weight:600;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+.eyebrow2 b{color:var(--blue);}
+.sub{font-size:16.5px;color:var(--muted);margin-top:16px;max-width:46ch;font-weight:500;line-height:1.5;}
+.priv{margin-top:18px;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:8px;}
+.priv .dot{width:7px;height:7px;border-radius:50%;background:var(--green);}
+
+/* ===== A — live dial, split ===== */
+.A{display:grid;grid-template-columns:1.05fr .95fr;gap:30px;align-items:center;}
+.A h1{font-family:'Anton';font-size:54px;line-height:.94;text-transform:uppercase;letter-spacing:.005em;margin-top:14px;}
+.A .dialwrap{display:flex;align-items:center;justify-content:center;}
+.A .dialwrap svg{width:330px;height:330px;overflow:visible;}
+
+/* ===== B — typographic dial-O ===== */
+.B{text-align:center;}
+.B .big{font-family:'Anton';font-size:108px;line-height:.9;text-transform:uppercase;letter-spacing:.02em;display:inline-flex;align-items:baseline;justify-content:center;}
+.B .big .oSlot{display:inline-block;width:.84em;height:.84em;transform:translateY(.06em);margin:0 .01em;}
+.B .big .oSlot svg{width:100%;height:100%;overflow:visible;}
+.B h2{font-family:'Anton';font-size:30px;text-transform:uppercase;margin-top:24px;letter-spacing:.01em;}
+.B .sub{margin:14px auto 0;}
+.B .btnrow{justify-content:center;}
+.B .priv{justify-content:center;}
+
+/* ===== C — screenshot-led ===== */
+.C{display:grid;grid-template-columns:.9fr 1.1fr;gap:30px;align-items:center;}
+.C h1{font-family:'Anton';font-size:46px;line-height:.95;text-transform:uppercase;margin-top:12px;}
+.appshot{border:2px solid var(--edge);border-radius:6px;overflow:hidden;background:var(--bg);box-shadow:none;}
+.appshot .bar{background:var(--ink);height:30px;display:flex;align-items:center;padding:0 11px;gap:7px;position:relative;}
+.appshot .bar i{width:10px;height:10px;border-radius:50%;}
+.appshot .bar .wm{position:absolute;left:50%;transform:translateX(-50%);font-family:'Anton';font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--on-ink);}
+.appshot .body{display:grid;grid-template-columns:160px 1fr;gap:18px;padding:20px;}
+.appshot .body svg.mini{width:150px;height:150px;overflow:visible;}
+.recap{border:2px solid var(--edge);padding:11px 13px;font-size:12.5px;line-height:1.4;background:var(--surface);}
+.recap .lbl{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;display:block;margin-bottom:5px;}
+.ledger{margin-top:12px;display:flex;flex-direction:column;gap:7px;}
+.lrow{display:flex;align-items:center;gap:9px;font-size:12.5px;}
+.lrow .sw{width:11px;height:11px;flex:none;}
+.lrow .nm{font-weight:600;}
+.lrow .t{margin-left:auto;font-family:'Anton';font-size:13px;color:var(--muted);}
+
+/* arc draw-in */
+.arc{fill:none;stroke-width:13;stroke-linecap:butt;}
+.arc.draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:draw .7s cubic-bezier(.3,.9,.3,1) forwards;animation-delay:var(--d);}
+@keyframes draw{to{stroke-dashoffset:0;}}
+.mini .arc{stroke-width:15;}
+.center-fig{font-family:'Anton';}
+@media (prefers-reduced-motion: reduce){.arc.draw{animation:none;stroke-dashoffset:0;}}
+.foot{padding:24px 26px;color:var(--muted);font-size:12.5px;border-top:3px solid var(--edge);}
+@media(max-width:860px){.A,.C{grid-template-columns:1fr;}.B .big{font-size:74px;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="ctxMini" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="33" fill="none" stroke="var(--track)" stroke-width="8"/>
+    <path d="M53.45 17.18 A33 33 0 0 1 76.70 69.40" fill="none" stroke="var(--blue)" stroke-width="8"/>
+    <path d="M71.21 75.28 A33 33 0 0 1 26.26 72.92" fill="none" stroke="var(--red)" stroke-width="8"/>
+    <path d="M21.42 66.50 A33 33 0 0 1 46.55 17.18" fill="none" stroke="var(--gold)" stroke-width="8"/>
+  </symbol>
+  <symbol id="oDial" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="34" fill="none" stroke="var(--track)" stroke-width="13"/>
+    <path d="M55.90 16.52 A34 34 0 0 1 80.02 65.96" fill="none" stroke="var(--blue)" stroke-width="13"/>
+    <path d="M71.85 76.04 A34 34 0 0 1 27.25 75.27" fill="none" stroke="var(--red)" stroke-width="13"/>
+    <path d="M19.44 64.91 A34 34 0 0 1 44.10 16.52" fill="none" stroke="var(--gold)" stroke-width="13"/>
+  </symbol>
+</defs></svg>
+
+<div class="top">
+  <div class="brand">Landing hero · 3 directions</div>
+  <div class="row">
+    <button class="replay" id="replay">↻ Replay draw</button>
+    <div class="themesw">
+      <button data-t="paper" class="on">Paper</button>
+      <button data-t="warm">Warm</button>
+      <button data-t="black">Black</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ A ============ -->
+<div class="tag">
+  <div class="eyebrow">Direction A</div>
+  <div class="nm">Live dial, split</div>
+  <div class="ds">The dial is the hero — a believable tracked day drawing itself in on the right, the pitch + working download on the left. Most ownable; nobody else has this.</div>
+</div>
+<div class="lnav">
+  <div class="lb"><svg class="mk"><use href="#ctxMini"/></svg>USAGEOS</div>
+  <div class="lks"><span>How it works</span><span>Privacy</span><span>Open source</span></div>
+  <div class="dl">Download</div>
+</div>
+<div class="hero">
+  <div class="A">
+    <div>
+      <div class="eyebrow2">A private time tracker for <b>Mac</b></div>
+      <h1>See where your screen time actually goes.</h1>
+      <p class="sub">UsageOS watches your Mac quietly and shows you the day back — by the hour, in plain colors. No guessing, no spreadsheet.</p>
+      <div class="btnrow"><a class="btn-p">↓ Download for Mac</a><a class="btn-s">See how it works</a></div>
+      <div class="priv"><span class="dot"></span>It all stays on your Mac. Nothing leaves the machine.</div>
+    </div>
+    <div class="dialwrap"><svg id="heroA" viewBox="0 0 200 200" aria-label="A day"></svg></div>
+  </div>
+</div>
+
+<!-- ============ B ============ -->
+<div class="tag">
+  <div class="eyebrow">Direction B</div>
+  <div class="nm">Typographic dial-O</div>
+  <div class="ds">The wordmark is the hero — the dial *is* the O. Boldest brand statement; leans on the name being the logo. Screenshots live below the fold.</div>
+</div>
+<div class="lnav">
+  <div class="lb"><svg class="mk"><use href="#ctxMini"/></svg>USAGEOS</div>
+  <div class="lks"><span>How it works</span><span>Privacy</span><span>Open source</span></div>
+  <div class="dl">Download</div>
+</div>
+<div class="hero">
+  <div class="B">
+    <div class="big">USAGE<span class="oSlot"><svg><use href="#oDial"/></svg></span>S</div>
+    <h2>Honest screen time for your Mac.</h2>
+    <p class="sub">It quietly records where your hours go and shows you the day — privately, on your machine.</p>
+    <div class="btnrow"><a class="btn-p">↓ Download for Mac</a><a class="btn-s">Star on GitHub</a></div>
+    <div class="priv"><span class="dot"></span>On-device · no cloud · open source</div>
+  </div>
+</div>
+
+<!-- ============ C ============ -->
+<div class="tag">
+  <div class="eyebrow">Direction C</div>
+  <div class="nm">Screenshot-led</div>
+  <div class="ds">Show the real thing — a framed app window (dial + recap + real app names). Most honest and self-explanatory; the product sells itself.</div>
+</div>
+<div class="lnav">
+  <div class="lb"><svg class="mk"><use href="#ctxMini"/></svg>USAGEOS</div>
+  <div class="lks"><span>How it works</span><span>Privacy</span><span>Open source</span></div>
+  <div class="dl">Download</div>
+</div>
+<div class="hero">
+  <div class="C">
+    <div>
+      <div class="eyebrow2">Private. On-device. <b>Open source.</b></div>
+      <h1>Your screen time, in plain sight.</h1>
+      <p class="sub">Every app, sorted into the kind of work it was — and a few honest sentences about your day, written on your Mac.</p>
+      <div class="btnrow"><a class="btn-p">↓ Download for Mac</a><a class="btn-s">How it works</a></div>
+      <div class="priv"><span class="dot"></span>Nothing leaves the machine.</div>
+    </div>
+    <div class="appshot">
+      <div class="bar"><i style="background:var(--red)"></i><i style="background:var(--gold)"></i><i style="background:var(--blue)"></i><span class="wm">Usageos</span></div>
+      <div class="body">
+        <svg id="heroC" class="mini" viewBox="0 0 200 200" aria-label="A day"></svg>
+        <div>
+          <div class="recap"><span class="lbl">Daily recap · ⌁ on-device</span>You spent most of the morning in Cursor on usage_os, broke for a bit of YouTube after lunch, and Slack picked up in the afternoon.</div>
+          <div class="ledger">
+            <div class="lrow"><span class="sw" style="background:var(--blue)"></span><span class="nm">Cursor</span><span class="t">4h 10m</span></div>
+            <div class="lrow"><span class="sw" style="background:var(--gold)"></span><span class="nm">Slack</span><span class="t">1h 02m</span></div>
+            <div class="lrow"><span class="sw" style="background:var(--red)"></span><span class="nm">Chrome</span><span class="t">48m</span></div>
+            <div class="lrow"><span class="sw" style="background:var(--breaks)"></span><span class="nm">YouTube</span><span class="t">31m</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="foot">
+  Same dial geometry as the app — the marketing image and the product are the same mark. Copy here is a first pass at the <b>screen-time-led</b> voice; we’ll tighten the exact headline. Pick a direction (or a hybrid) and I’ll build the full hero into the Astro landing.
+</div>
+
+</div>
+<script>
+  const C=100, MPD=1440;
+  function polar(cx,cy,min,r){const a=min/MPD*2*Math.PI;return [cx+r*Math.sin(a), cy-r*Math.cos(a)];}
+  function arcPath(cx,cy,r,a,b){const large=(b-a)>MPD/2?1:0;const[x0,y0]=polar(cx,cy,a,r);const[x1,y1]=polar(cx,cy,b,r);
+    return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;}
+  // a believable Mac day (h:m → minutes), category color var
+  const DAY=[
+    [7.5,8.25,'gold'],   // morning messages
+    [8.5,12.5,'blue'],   // deep morning
+    [12.5,13.25,'red'],  // lunch browse
+    [13.25,17.5,'blue'], // afternoon work
+    [17.5,18.5,'gold'],  // slack
+    [18.5,19.25,'red'],  // browse
+    [21,22.5,'breaks'],  // evening youtube
+  ];
+  function build(id,r,sw){
+    const svg=document.getElementById(id); if(!svg) return;
+    const cx=100,cy=100;
+    let html=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--track)" stroke-width="${sw}"/>`;
+    // hour ticks 0/6/12/18
+    [0,6,12,18].forEach(h=>{const[xi,yi]=polar(cx,cy,h*60,r-sw/2-3);const[xo,yo]=polar(cx,cy,h*60,r+sw/2+3);
+      html+=`<line x1="${xi.toFixed(1)}" y1="${yi.toFixed(1)}" x2="${xo.toFixed(1)}" y2="${yo.toFixed(1)}" stroke="var(--edge)" stroke-width="2"/>`;});
+    let i=0;
+    DAY.forEach(([a,b,c])=>{
+      const d=arcPath(cx,cy,r,a*60,b*60);
+      const len=(b-a)*60/MPD*2*Math.PI*r;
+      html+=`<path class="arc draw" d="${d}" stroke="var(--${c})" stroke-width="${sw}" style="--len:${len.toFixed(1)};--d:${(0.08*i).toFixed(2)}s"/>`;
+      i++;
+    });
+    // now-hand at ~16:10
+    const[nx,ny]=polar(cx,cy,16.17*60,r+sw/2+2);
+    html+=`<polygon points="${nx.toFixed(1)},${ny.toFixed(1)} ${(nx-5).toFixed(1)},${(ny-9).toFixed(1)} ${(nx+5).toFixed(1)},${(ny-9).toFixed(1)}" fill="var(--fg)"/>`;
+    // centre figure
+    if(id==='heroA') html+=`<text x="100" y="96" text-anchor="middle" class="center-fig" font-size="34" fill="var(--fg)">8h 12m</text><text x="100" y="116" text-anchor="middle" font-size="10" fill="var(--muted)" font-weight="600" letter-spacing="2" style="text-transform:uppercase;font-family:Jost">ON SCREEN</text>`;
+    svg.innerHTML=html;
+  }
+  function buildAll(){build('heroA',72,16);build('heroC',74,15);}
+  buildAll();
+  document.getElementById('replay').addEventListener('click',buildAll);
+  document.querySelectorAll('.themesw button').forEach(b=>b.addEventListener('click',()=>{
+    document.documentElement.setAttribute('data-theme',b.dataset.t);
+    document.querySelectorAll('.themesw button').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+</script>
+</body>
+</html>

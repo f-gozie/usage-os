@@ -35,7 +35,7 @@ vi.mock("@/providers/ThemeProvider", () => ({
   useTheme: () => ({ theme: "paper", setTheme: vi.fn() }),
 }));
 
-vi.mock("@tauri-apps/plugin-opener", () => ({ revealItemInDir: vi.fn() }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ revealItemInDir: vi.fn(), openUrl: vi.fn() }));
 
 // Action commands the view/modals import — present so interactions don't hit a real backend.
 vi.mock("@/lib/tauri", () => ({
