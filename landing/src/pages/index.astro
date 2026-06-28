@@ -208,14 +208,14 @@ const description =
       <section class="final" id="download">
         <span class="wm">USAGE<span class="o"><svg><use href="#oDial"></use></svg></span>S</span>
         <h2>Look back on your day.</h2>
-        <div class="ctas"><a class="btn btn-p" href="#">↓ Download for Mac</a><a class="btn btn-s" href="https://github.com/f-gozie/usage-os">Star on GitHub</a></div>
+        <div class="ctas"><a class="btn btn-p" href="https://github.com/f-gozie/usage-os/releases/latest">↓ Download for Mac</a><a class="btn btn-s" href="https://github.com/f-gozie/usage-os">Star on GitHub</a></div>
         <div class="note">Free and open source. It runs quietly and waits for you to look.</div>
       </section>
 
       <footer class="foot">
         <span class="wm">USAGE<span class="o"><svg><use href="#oDial"></use></svg></span>S</span>
         <div class="cp">A calm, private look at your time. © 2026 · usageos.app</div>
-        <div class="lks"><a href="https://github.com/f-gozie/usage-os">GitHub</a><a href="https://github.com/f-gozie/usage-os/blob/main/LICENSE">License (MIT)</a><a href="#">Sponsor</a></div>
+        <div class="lks"><a href="https://github.com/f-gozie/usage-os">GitHub</a><a href="https://github.com/f-gozie/usage-os/blob/main/LICENSE">License (MIT)</a><a href="https://github.com/sponsors/f-gozie">Sponsor</a></div>
       </footer>
     </div>
 
@@ -366,8 +366,14 @@ const description =
           setRow("czBrow", "czBrowT", brow);
           setRow("czMsg", "czMsgT", msg);
         };
+        // The cue animations (border pulse + arrow nudge) retire once you engage the toggle:
+        // hovering or clicking adds `.touched` to the row, which the CSS uses to stop them.
+        const catRow = document.querySelector<HTMLElement>(".cat-rule.live");
+        const retireCatCues = () => catRow?.classList.add("touched");
+        catRow?.querySelector(".cat-seg")?.addEventListener("pointerenter", retireCatCues);
         document.querySelectorAll<HTMLButtonElement>(".cat-seg button").forEach((b) =>
           b.addEventListener("click", () => {
+            retireCatCues();
             redditCat = b.dataset.cat || "research";
             document.querySelectorAll<HTMLButtonElement>(".cat-seg button").forEach((x) =>
               x.setAttribute("aria-pressed", String(x === b)),
