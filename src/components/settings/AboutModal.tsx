@@ -30,7 +30,7 @@ export function AboutModal({ open, onClose }: { open: boolean; onClose: () => vo
         </div>
         <p className="max-w-[34ch] text-[14.5px] font-medium leading-relaxed">
           A calm, private look at where your time goes.{" "}
-          <span className="font-semibold">Everything stays on your Mac.</span>
+          <span className="font-semibold">Everything stays on your machine.</span>
         </p>
         <div className="mt-1 flex flex-wrap justify-center gap-2">
           {LINKS.map((l) => (

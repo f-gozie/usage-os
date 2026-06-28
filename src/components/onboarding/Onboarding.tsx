@@ -59,12 +59,12 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               <>
                 <BuildingWordmark />
                 <div className="ob-copy">
-                  <Eyebrow>A private time tracker for Mac</Eyebrow>
+                  <Eyebrow>A private, on-device time tracker</Eyebrow>
                   <H>
                     Where did your <span className="text-c-research">day</span> go?
                   </H>
                   <Lead>
-                    Your Mac already knows how you spent today. UsageOS quietly keeps track, then
+                    Your computer already knows how you spent today. UsageOS quietly keeps track, then
                     tells you the story — where you focused, what pulled you away, and where the
                     hours actually went.
                   </Lead>
@@ -82,7 +82,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                 </H>
                 <Lead>
                   No cloud, no account, no telemetry. There is no server at all — your data is one
-                  file on your Mac, and the code is open for anyone to read.
+                  file on your machine, and the code is open for anyone to read.
                 </Lead>
                 <div className="mt-2 flex border-2 border-edge">
                   <Num value="100%" valueClass="text-c-comms" label="On device" />
@@ -104,7 +104,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                   items={[
                     ["var(--c-deep)", "It reads the title of the window you’re using — so it can tell what you were working on, not just which app was open."],
                     ["var(--c-comms)", "That’s all it reads. It never sees what’s actually on your screen."],
-                    ["var(--c-research)", "Titles stay on this Mac, and you can hide any app you don’t want tracked."],
+                    ["var(--c-research)", "Titles stay on this machine, and you can hide any app you don’t want tracked."],
                   ]}
                 />
                 <GrantBox

@@ -171,6 +171,8 @@ Append as each locks (append-only, don't relitigate):
   - **Owner ~1 click:** set the GitHub social preview to `landing/public/og.png`.
   - *(Then the tail: auto-update (Tauri updater/Sparkle) · Homebrew cask · Sponsor link.)*
 
+- [x] **Cross-cutting — de-Mac the brand positioning** *(branch `claude/mac-branding-review-xzbzi5`, 2026-06-28, [D60](../../decisions.md))*: owner flagged the product was over-branded as a "Mac tool" — Mac is the *first* OS, not the identity. Reworded every **public** surface to a platform-agnostic identity ("a private, on-device time tracker"; "your Mac" → "your machine/computer/device"): landing (eyebrow/sub/trust-strip/privacy/meta-description), README intro (now "macOS is the first platform it runs on"), in-app onboarding/About/Settings/CategoryEditor copy, `Cargo.toml` description, + `CLAUDE.md`/`vision.md` one-liners/thesis/who-it's-for. **Kept honest & Mac-specific (current truth, not branding):** "Download for Mac" CTAs, README platform badge + Requirements, Permissions section, "Show in Finder" action, all technical macOS refs. **v1 scope unchanged** (still macOS-only). Gates green: tsc, 32 TS tests, `astro build`. _(No logic/IPC touched; Rust unchanged.)_
+
 **All of Phase 5 ships as one branch/PR** (`phase5/identity`) — the milestones are work-order, not separate PRs (owner's call 2026-06-26). One `/usageos-review` + reconcile (this plan + decisions.md + a handoff) before the PR (Definition of Done).
 
 ---

@@ -1,7 +1,7 @@
 [package]
 name = "usage-os"
 version = "0.1.0"
-description = "UsageOS — a private, on-device Mac app that records where your time goes and tells you the story of your day."
+description = "UsageOS — a private, on-device app that records where your time goes and tells you the story of your day."
 authors = ["Favour Agozie"]
 edition = "2021"
 license = "MIT"

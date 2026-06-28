@@ -8,12 +8,12 @@
   <img src="https://img.shields.io/badge/platform-macOS-161616.svg" alt="Platform: macOS">
 </p>
 
-UsageOS is a time tracker for macOS. It runs quietly in the background, keeps track of which app and window you're using, and shows you where your time actually went — by the hour, and by the kind of work it was. Everything stays on your Mac.
+UsageOS is a private, on-device time tracker. It runs quietly in the background, keeps track of which app and window you're using, and shows you where your time actually went — by the hour, and by the kind of work it was. Everything stays on your machine — macOS is the first platform it runs on.
 
 ## What it shows
 
 - **A day dial.** Your whole day on a 24-hour clock, with each stretch coloured by the kind of work it was.
-- **A daily recap.** A few plain sentences about your day, written on your Mac.
+- **A daily recap.** A few plain sentences about your day, written on your machine.
 - **A week and a timeline.** Seven days side by side, and a scrollable list when you want the detail.
 - **Two ways to read it.** By category — work, browsing, messaging, breaks, personal — and by project, picked up from your window titles.
 
@@ -27,8 +27,8 @@ UsageOS is a time tracker for macOS. It runs quietly in the background, keeps tr
 
 ## Privacy
 
-- **Nothing leaves your Mac.** No cloud, no account, no telemetry, and no network calls in the data path. It's open source, so you can read the code and check for yourself.
-- **Your data is one file** — a local SQLite database on your Mac. Export it or delete it whenever you want.
+- **Nothing leaves your machine.** No cloud, no account, no telemetry, and no network calls in the data path. It's open source, so you can read the code and check for yourself.
+- **Your data is one file** — a local SQLite database on your machine. Export it or delete it whenever you want.
 - **It never uses screen recording.** It reads window titles and, if you allow it, the address of the page open in your browser. That's all it reads.
 - **You stay in control.** For incognito and private windows, no title or URL is ever stored. You can leave any app or site out completely, or mark one private so it still counts the time but hides the title — your password manager or bank included.
 
