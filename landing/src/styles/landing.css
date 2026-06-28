@@ -174,9 +174,9 @@ a{color:inherit;text-decoration:none;}
    it nudges toward the switcher. Both stop once the row is touched (.touched, added in JS). */
 .cat-rule.live:not(.touched) .cat-seg{animation:seg-border 1.9s ease-in-out infinite;}
 @keyframes seg-border{0%,100%{border-color:var(--edge);}50%{border-color:var(--blue);}}
-.cat-rule.live:not(.touched) .cat-ar{display:inline-block;color:var(--blue);animation:ar-nudge 1.9s ease-in-out infinite;}
+.cat-rule.live:not(.touched) .cat-ar{display:inline-block;animation:ar-nudge 1.9s ease-in-out infinite;}
 @keyframes ar-nudge{0%,100%{transform:translateX(0);}50%{transform:translateX(3px);}}
-@media (prefers-reduced-motion: reduce){.arc.draw{animation:none;stroke-dashoffset:0;}.cat-arc,.cat-bar i{transition:none;}.tline .tr:not([open]) .chev{animation:none;}.cat-rule.live .cat-seg{animation:none;border-color:var(--blue);}.cat-rule.live .cat-ar{display:inline-block;animation:none;color:var(--blue);}}
+@media (prefers-reduced-motion: reduce){.arc.draw{animation:none;stroke-dashoffset:0;}.cat-arc,.cat-bar i{transition:none;}.tline .tr:not([open]) .chev{animation:none;}.cat-rule.live .cat-seg{animation:none;border-color:var(--blue);}}
 @media(max-width:880px){.aw-body{grid-template-columns:1fr;}.row{grid-template-columns:1fr;}.row.flip .txt{order:0;}.cat-demo{grid-template-columns:1fr;}#catDial{margin:0 auto;}.hero h1{font-size:38px;}.hero h1 .u{text-decoration-thickness:3px;}.final .wm{font-size:52px;}}
 @media(max-width:560px){
   .nav{flex-wrap:wrap;gap:10px;padding:12px 18px;}
