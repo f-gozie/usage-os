@@ -4,7 +4,9 @@ _Last updated: 2026-06-22. Evolves the shipped v0.1.0 + its Tier-1 OSS-hygiene f
 
 ## Thesis
 
-> Your Mac already knows how you spent today. UsageOS tells you — privately.
+> Your computer already knows how you spent today. UsageOS tells you — privately.
+
+_(Positioning is platform-agnostic — **macOS is the first platform UsageOS ships on, not the brand**; D60. The v1 build remains macOS-only — see "Distribution" and "Out of scope (v1)".)_
 
 Existing trackers (ActivityWatch, Screen Time, RescueTime, Rize) give you **raw data** — "VS Code 4h, Chrome 3h" — but never **understanding**: VS Code on *what project*, Chrome *researching what vs. doom-scrolling*. The signal is sitting in window titles and URLs; nobody turns it into meaning. UsageOS closes that gap, on-device.
 
@@ -12,7 +14,7 @@ It is a **calm rear-view mirror, not a coach.** It records quietly and waits for
 
 ## Who it's for
 
-Initially the developer (dogfood), then people who (a) spend their day on a Mac, (b) want to understand their own time, and (c) refuse to hand that data to a cloud. The privacy-conscious, the quantified-self crowd, developers — but the experience must be calm and legible, not a science project.
+Initially the developer (dogfood), then people who (a) spend their day at a computer (macOS first), (b) want to understand their own time, and (c) refuse to hand that data to a cloud. The privacy-conscious, the quantified-self crowd, developers — but the experience must be calm and legible, not a science project.
 
 ## The core experience
 

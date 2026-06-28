@@ -263,7 +263,7 @@ export function SettingsView() {
       <SettingGroup title="Your data">
         <SettingRow
           label="Where your data lives"
-          description="One file on your Mac. Nothing is stored anywhere else."
+          description="One file on your machine. Nothing is stored anywhere else."
         >
           <Pill onClick={() => void revealDb()}>Show in Finder</Pill>
         </SettingRow>

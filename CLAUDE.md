@@ -1,6 +1,6 @@
 # UsageOS
 
-A private, on-device Mac app that records where your time goes and tells you the story of your day — a calm rear-view mirror, not a productivity coach. All data stays on the machine.
+A private, on-device app that records where your time goes and tells you the story of your day — a calm rear-view mirror, not a productivity coach. All data stays on the machine. _(Positioning is platform-agnostic — **macOS is the first platform, not the brand**, D60. v1 still ships macOS-only; see "Stack" and "What this product is NOT".)_
 
 > **Working name:** UsageOS · **domain:** usageos.app (leaning) · **license:** MIT (public from day one)
 

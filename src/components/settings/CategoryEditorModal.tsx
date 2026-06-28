@@ -282,7 +282,7 @@ export function CategoryEditorModal({
           Apps
         </span>
         <p className="mb-2 text-xs text-muted">
-          Pick from the apps on your Mac — each one sorts into this category automatically.
+          Pick from the apps on your machine — each one sorts into this category automatically.
         </p>
         <AppPicker apps={apps} selected={selected} onToggle={toggleApp} conflictFor={conflictFor} />
 

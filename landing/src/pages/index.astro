@@ -6,7 +6,7 @@ import "../styles/landing.css";
 
 const title = "UsageOS — see where your screen time goes";
 const description =
-  "A private, on-device Mac time tracker. It shows the day back — every app, sorted by the kind of work it was. Nothing leaves your machine.";
+  "A private, on-device time tracker. It shows the day back — every app, sorted by the kind of work it was. Nothing leaves your machine.";
 ---
 
 <!doctype html>
@@ -47,15 +47,15 @@ const description =
         <span class="wm">USAGE<span class="o"><svg><use href="#oDial"></use></svg></span>S</span>
         <div class="lks"><a href="#how">What it shows</a><a href="#privacy">Privacy</a><a href="https://github.com/f-gozie/usage-os">Open source</a></div>
         <div class="right">
-          <div class="themesw" role="group" aria-label="Theme"><button data-t="paper" aria-pressed="true">Paper</button><button data-t="warm" aria-pressed="false">Warm</button><button data-t="black" aria-pressed="false">Black</button></div>
+          <div class="themesw" role="group" aria-label="Theme"><button class="sw" data-t="paper" aria-label="Paper theme" title="Paper" aria-pressed="true"></button><button class="sw" data-t="warm" aria-label="Warm theme" title="Warm" aria-pressed="false"></button><button class="sw" data-t="black" aria-label="Black theme" title="Black" aria-pressed="false"></button></div>
           <a class="btn btn-p" href="#download">Download</a>
         </div>
       </nav>
 
       <section class="hero">
-        <div class="eyebrow">A private time tracker for <span class="ac">Mac</span></div>
+        <div class="eyebrow">A private, on-device <span class="ac">time tracker</span></div>
         <h1>See where your <span class="u">screen time</span> actually goes.</h1>
-        <p class="sub">It watches your Mac quietly and shows the day back — every app, sorted by the kind of work it was. All of it on your machine.</p>
+        <p class="sub">It watches quietly and shows the day back — every app, sorted by the kind of work it was. All of it on your machine.</p>
         <div class="ctas"><a class="btn btn-p" href="#download">↓ Download for Mac</a><a class="btn btn-s" href="#how">See what it shows</a></div>
         <div class="pr">Free · open source · nothing leaves the machine.</div>
       </section>
@@ -90,7 +90,7 @@ const description =
         </div>
       </div>
 
-      <div class="strip"><span>On your Mac</span><span class="d">·</span><span>No cloud</span><span class="d">·</span><span>No telemetry</span><span class="d">·</span><span>Open source</span></div>
+      <div class="strip"><span>On your machine</span><span class="d">·</span><span>No cloud</span><span class="d">·</span><span>No telemetry</span><span class="d">·</span><span>Open source</span></div>
 
       <section class="row cat" id="rules">
         <div class="txt">
@@ -196,13 +196,13 @@ const description =
       <section class="privacy" id="privacy">
         <div class="eyebrow">Privacy</div>
         <h2>Nothing leaves this machine.</h2>
-        <p class="pv-lead">It reads the frontmost window's title and the current browser tab, and writes them to <b>one file on your Mac</b>. There's no network in the data path — and it's open source, so you can read the code and confirm it. Here's exactly what it leaves alone:</p>
+        <p class="pv-lead">It reads the frontmost window's title and the current browser tab, and writes them to <b>one file on your machine</b>. There's no network in the data path — and it's open source, so you can read the code and confirm it. Here's exactly what it leaves alone:</p>
         <div class="pv-list">
           <div class="pv-row"><span class="pv-tag">System</span><span class="pv-pat">Incognito &amp; private windows<span class="pv-sub">no title or URL is ever stored</span></span><span class="pv-mode pv-m-on">🔒 Always on</span></div>
           <div class="pv-row"><span class="pv-tag">App</span><span class="pv-pat">A password manager, your bank — anything you exclude<span class="pv-sub">dropped entirely, never stored</span></span><span class="pv-mode pv-m-excl">Excluded</span></div>
           <div class="pv-row"><span class="pv-tag">Title</span><span class="pv-pat">Anything you mark private<span class="pv-sub">the time still counts, the title doesn't</span></span><span class="pv-mode pv-m-priv">Private</span></div>
         </div>
-        <p class="pv-data">Your history is <b>one SQLite file</b> — reveal it in Finder, export it to CSV, set it to auto-delete after 30, 90 or 365 days, or wipe it. <b>It can't see your screen.</b></p>
+        <p class="pv-data">Your history is <b>one SQLite file</b> — reveal it on disk, export it to CSV, set it to auto-delete after 30, 90 or 365 days, or wipe it. <b>It can't see your screen.</b></p>
       </section>
 
       <section class="final" id="download">
