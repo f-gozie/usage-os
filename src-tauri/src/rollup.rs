@@ -128,8 +128,11 @@ pub struct TimelineSegment {
     pub category_name: String,
     /// Hex colour for a user-created category segment; `None` for canonical / uncategorized.
     pub category_color: Option<String>,
-    /// Resolved project name, or `None` when none was inferred (the UI shows "—").
+    /// Resolved project name, or `None` when none was inferred.
     pub project: Option<String>,
+    /// The focused-window title for this stretch — `None` when empty or blanked for a private
+    /// window (D8). Shown in the Timeline expand so a non-project stretch still says what it was.
+    pub title: Option<String>,
     pub secs: i64,
 }
 
@@ -359,6 +362,7 @@ impl RawRunBuilder {
             category_name: self.name.clone(),
             category_color: self.color.clone(),
             project,
+            title: Some(event.window_title.clone()).filter(|t| !t.is_empty()),
             secs: duration(event),
         });
     }

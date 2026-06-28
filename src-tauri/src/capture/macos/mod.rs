@@ -20,7 +20,7 @@ use block2::RcBlock;
 use objc2_app_kit::{NSWorkspace, NSWorkspaceDidActivateApplicationNotification};
 use objc2_application_services::{AXError, AXObserver, AXUIElement};
 use objc2_core_foundation::{
-    kCFRunLoopCommonModes, CFRetained, CFRunLoop, CFRunLoopSource, CFString, CFType,
+    kCFBooleanTrue, kCFRunLoopCommonModes, CFRetained, CFRunLoop, CFRunLoopSource, CFString, CFType,
 };
 use objc2_foundation::NSNotification;
 
@@ -30,6 +30,10 @@ use crate::db::now_unix;
 // AX attribute + notification names (the kAX* constants are NOT re-exported).
 const ATTR_FOCUSED_WINDOW: &str = "AXFocusedWindow";
 const ATTR_TITLE: &str = "AXTitle";
+// Chromium/Electron apps (Chrome, Brave, Edge, Arc, Slack, the Claude app …) keep their
+// accessibility tree OFF until an assistive tool asks — so AXFocusedWindow/AXTitle read empty.
+// Setting this on the app element flips it on; a no-op on native apps that don't know it.
+const ATTR_MANUAL_ACCESSIBILITY: &str = "AXManualAccessibility";
 const NOTIF_FOCUSED_WINDOW_CHANGED: &str = "AXFocusedWindowChanged";
 const NOTIF_TITLE_CHANGED: &str = "AXTitleChanged";
 const NOTIF_MAIN_WINDOW_CHANGED: &str = "AXMainWindowChanged";
@@ -222,6 +226,8 @@ fn install_observer(
 ) -> Option<AppObserver> {
     // SAFETY: plain FFI; pid comes from a live NSRunningApplication.
     let app_element = unsafe { AXUIElement::new_application(app.pid) };
+    // Turn on Chromium/Electron accessibility so their window titles become readable (best-effort).
+    enable_manual_accessibility(&app_element);
 
     let mut raw: *mut AXObserver = ptr::null_mut();
     let out: NonNull<*mut AXObserver> = NonNull::from(&mut raw);
@@ -355,6 +361,19 @@ fn focused_window_title(app_el: &AXUIElement) -> Option<String> {
     } else {
         Some(s)
     }
+}
+
+/// Ask a Chromium/Electron app to expose its accessibility tree by setting
+/// `AXManualAccessibility = true` on its app element (see the constant). Best-effort: native
+/// apps reject the attribute (ignored), and we never let a failure interrupt capture (hard rule 3).
+fn enable_manual_accessibility(app_el: &AXUIElement) {
+    // SAFETY: extern static; always `Some` on macOS — guard anyway (no unwrap).
+    let Some(flag) = (unsafe { kCFBooleanTrue }) else {
+        return;
+    };
+    let attr = CFString::from_str(ATTR_MANUAL_ACCESSIBILITY);
+    // SAFETY: `app_el` is a live AXApplication element; `attr` + `flag` are valid CF objects.
+    let _ = unsafe { app_el.set_attribute_value(&attr, flag) };
 }
 
 /// Copy `AXFocusedWindow` as an owned AXUIElement.

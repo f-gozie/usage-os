@@ -1,10 +1,10 @@
 //! Dev CLI — seed a real on-disk WAL `usage.db` with a synthetic history for the Phase-6
 //! perf/soak harness (the webview-render feel test + the later release soak). Built only with
-//! `--features perf` (see `[[bin]] required-features` in Cargo.toml), so a normal
+//! `--features perf` (a cargo example with `required-features` in Cargo.toml), so a normal
 //! build/`tauri build` never sees it.
 //!
 //! Usage:
-//!   cargo run --features perf --bin seed_db -- --months 24 --out /tmp/usage-24mo.db
+//!   cargo run --features perf --example seed_db -- --months 24 --out /tmp/usage-24mo.db
 //!
 //! Flags: --months N (default 24) | --days N (overrides --months) | --out PATH
 //!        (default ./usageos-seed.db) | --seed N | --max N (spans/day cap) | --force
