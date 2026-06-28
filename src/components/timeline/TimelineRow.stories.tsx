@@ -30,11 +30,11 @@ const MULTI: TimelineRun = {
   ],
   apps: ["Cursor", "iTerm", "Claude"],
   segments: [
-    { start: 1_000_000_000, end: 1_000_001_800, app: "Cursor", ...deep, project: "usageos", secs: 1800 },
-    { start: 1_000_001_800, end: 1_000_003_400, app: "iTerm", ...deep, project: "usageos", secs: 1600 },
-    { start: 1_000_003_400, end: 1_000_003_940, app: "Slack", category_slug: "comms", category_name: "Comms", category_color: null, project: null, secs: 540 },
-    { start: 1_000_003_940, end: 1_000_005_140, app: "Cursor", ...deep, project: "nudge", secs: 1200 },
-    { start: 1_000_005_140, end: 1_000_006_120, app: "Claude", ...deep, project: null, secs: 980 },
+    { start: 1_000_000_000, end: 1_000_001_800, app: "Cursor", ...deep, project: "usageos", title: "rollup.rs — usage_os", secs: 1800 },
+    { start: 1_000_001_800, end: 1_000_003_400, app: "iTerm", ...deep, project: "usageos", title: "favour@mac: ~/Documents/projects/usage_os — a long title that should ellipsize", secs: 1600 },
+    { start: 1_000_003_400, end: 1_000_003_940, app: "Slack", category_slug: "comms", category_name: "Comms", category_color: null, project: null, title: "general", secs: 540 },
+    { start: 1_000_003_940, end: 1_000_005_140, app: "Cursor", ...deep, project: "nudge", title: "useRecap.ts — nudge", secs: 1200 },
+    { start: 1_000_005_140, end: 1_000_006_120, app: "Claude", ...deep, project: null, title: null, secs: 980 },
   ],
 };
 
@@ -56,6 +56,7 @@ const SINGLE: TimelineRun = {
       category_name: "Comms",
       category_color: null,
       project: null,
+      title: "general",
       secs: 540,
     },
   ],

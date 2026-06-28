@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>UsageOS — Third-Party Software Notices</title>
+    <style>
+      body { font: 14px/1.6 -apple-system, system-ui, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+      h1 { font-size: 1.6rem; } h2 { font-size: 1.05rem; margin-top: 2rem; border-top: 1px solid #ddd; padding-top: 1rem; }
+      .crates { color: #555; font-size: 0.85rem; }
+      pre { white-space: pre-wrap; background: #f6f5f1; padding: 1rem; border-radius: 6px; font-size: 0.8rem; overflow-x: auto; }
+      .intro { color: #444; }
+    </style>
+  </head>
+  <body>
+    <h1>Third-party software notices</h1>
+    <p class="intro">
+      UsageOS is open source under the MIT license. It bundles the following third-party
+      components, each under its own permissive license, reproduced below as required.
+      This list covers the Rust crates compiled into the app; see the accompanying notes
+      for the bundled fonts and frontend packages.
+    </p>
+
+    {{#each licenses}}
+    <h2>{{name}}</h2>
+    <p class="crates">Applies to: {{#each used_by}}{{crate.name}} {{crate.version}}{{#unless @last}}, {{/unless}}{{/each}}</p>
+    <pre>{{text}}</pre>
+    {{/each}}
+  </body>
+</html>

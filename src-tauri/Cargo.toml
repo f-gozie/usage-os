@@ -5,8 +5,10 @@ description = "UsageOS — a private, on-device app that records where your time
 authors = ["Favour Agozie"]
 edition = "2021"
 license = "MIT"
-# The app binary. Required because the dev-only `seed_db` bin (perf feature) makes this a
-# multi-binary package, and `tauri dev`'s bare `cargo run` needs to know which one to launch.
+# The app's default binary (src/main.rs). Kept explicit so any bare `cargo run` (e.g.
+# `tauri dev`) is unambiguous. The dev-only `seed_db` perf harness is a cargo *example*,
+# not a bin — so Tauri's bundler, which copies every package binary into the .app, never
+# tries to ship it (see the [[example]] block).
 default-run = "usage-os"
 
 [lib]
@@ -14,16 +16,19 @@ name = "usage_os_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 # Dev-only perf/stress harness (Phase 6). Gates the synthetic-history generator + the
-# read-path timing tests + the `seed_db` bin so none of it ships in the default binary or
-# touches the CI default lanes. Enable with `--features perf`.
+# read-path timing tests + the `seed_db` example so none of it ships in the default binary
+# or touches the CI default lanes. Enable with `--features perf`.
 [features]
 perf = []
 
-# The synthetic-history seeder CLI — only built when `perf` is on (`required-features`),
-# so a plain `cargo build`/`tauri build` skips it and never sees the feature-gated module.
-[[bin]]
+# The synthetic-history seeder CLI. A cargo *example* (not a [[bin]]) so `tauri build`'s
+# bundler — which copies every package binary into the .app — never tries to ship it.
+# Gated to `--features perf` (`required-features`), so a plain `cargo build`/`tauri build`
+# skips it and never sees the feature-gated module.
+#   cargo run --example seed_db --features perf -- --demo ...
+[[example]]
 name = "seed_db"
-path = "src/bin/seed_db.rs"
+path = "examples/seed_db.rs"
 required-features = ["perf"]
 
 [build-dependencies]

@@ -506,9 +506,14 @@ category_slug: string; category_name: string;
  */
 category_color: string | null; 
 /**
- * Resolved project name, or `None` when none was inferred (the UI shows "—").
+ * Resolved project name, or `None` when none was inferred.
  */
-project: string | null; secs: number }
+project: string | null; 
+/**
+ * The focused-window title for this stretch — `None` when empty or blanked for a private
+ * window (D8). Shown in the Timeline expand so a non-project stretch still says what it was.
+ */
+title: string | null; secs: number }
 /**
  * Everything the Timeline view needs: the day's category-runs, each with its segments.
  * The "Away" idle gaps and the now-marker are derived on the frontend from run bounds.

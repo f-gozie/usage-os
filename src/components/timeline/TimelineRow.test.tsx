@@ -19,10 +19,10 @@ const RUN: TimelineRun = {
   projects: [{ name: "usageos", secs: 4600 }],
   apps: ["Cursor", "iTerm"],
   segments: [
-    { start: 1_000_000_000, end: 1_000_001_800, app: "Cursor", ...deep, project: "usageos", secs: 1800 },
-    { start: 1_000_001_800, end: 1_000_003_400, app: "iTerm", ...deep, project: "usageos", secs: 1600 },
-    { start: 1_000_003_400, end: 1_000_003_940, app: "Slack", category_slug: "comms", category_name: "Comms", category_color: null, project: null, secs: 540 },
-    { start: 1_000_003_940, end: 1_000_006_120, app: "Cursor", ...deep, project: "usageos", secs: 1200 },
+    { start: 1_000_000_000, end: 1_000_001_800, app: "Cursor", ...deep, project: "usageos", title: "rollup.rs", secs: 1800 },
+    { start: 1_000_001_800, end: 1_000_003_400, app: "iTerm", ...deep, project: "usageos", title: "~/usage_os", secs: 1600 },
+    { start: 1_000_003_400, end: 1_000_003_940, app: "Slack", category_slug: "comms", category_name: "Comms", category_color: null, project: null, title: null, secs: 540 },
+    { start: 1_000_003_940, end: 1_000_006_120, app: "Cursor", ...deep, project: "usageos", title: "TimelineRow.tsx", secs: 1200 },
   ],
 };
 
@@ -39,6 +39,8 @@ describe("TimelineRow", () => {
     fireEvent.click(getByRole("button"));
     expect(getByRole("button")).toHaveAttribute("aria-expanded", "true");
     expect(getByText(/4 app stretches/i)).toBeInTheDocument();
+    // each stretch shows its window title (what the stretch actually was)
+    expect(getByText("rollup.rs")).toBeInTheDocument();
     // the absorbed Comms detour carries its own category marker
     expect(getByTitle("Comms")).toBeInTheDocument();
   });

@@ -94,7 +94,7 @@ export function TimelineRow({ run, defaultOpen = false }: TimelineRowProps) {
             return (
               <div
                 key={`${seg.start}-${i}`}
-                className="grid grid-cols-[54px_150px_1fr_auto] items-center gap-3.5 border-t border-rule py-1.5 text-[12.5px] first:border-t-0"
+                className="grid grid-cols-[54px_150px_minmax(0,1fr)_auto] items-center gap-3.5 border-t border-rule py-1.5 text-[12.5px] first:border-t-0"
               >
                 <span className="tabular-nums text-muted">{formatClock(seg.start)}</span>
                 <span className="flex items-center gap-2 truncate font-semibold">
@@ -108,7 +108,9 @@ export function TimelineRow({ run, defaultOpen = false }: TimelineRowProps) {
                     />
                   )}
                 </span>
-                <span className="truncate text-muted">{seg.project ?? "—"}</span>
+                <span className="truncate text-muted" title={seg.title ?? undefined}>
+                  {seg.title ?? "—"}
+                </span>
                 <span className="text-right tabular-nums text-muted">{formatDuration(seg.secs)}</span>
               </div>
             );
