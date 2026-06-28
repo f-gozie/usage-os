@@ -24,10 +24,16 @@ a{color:inherit;text-decoration:none;}
 .nav .lks{display:flex;gap:26px;font-size:13.5px;color:var(--muted);font-weight:500;margin-left:auto;margin-right:24px;}
 .nav .lks a:hover{color:var(--fg);}
 .nav .right{display:flex;align-items:center;gap:13px;}
-.themesw{display:flex;border:2px solid var(--edge);}
-.themesw button{font-family:'Jost',system-ui,sans-serif;font-weight:600;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;background:transparent;color:var(--muted);border:none;padding:7px 10px;cursor:pointer;}
-.themesw button+button{border-left:2px solid var(--edge);}
-.themesw button[aria-pressed="true"]{background:var(--edge);color:var(--bg);}
+/* Three subtle colour swatches (was a PAPER|WARM|BLACK text control) — each dot is the
+   theme's own paper/ink, the active one ringed. Labels live in aria-label/title. */
+.themesw{display:flex;align-items:center;gap:9px;}
+.themesw .sw{width:16px;height:16px;padding:0;border-radius:50%;cursor:pointer;border:1.5px solid var(--edge);transition:transform .12s ease,box-shadow .12s ease;}
+.themesw .sw[data-t="paper"]{background:#EEEBE1;}
+.themesw .sw[data-t="warm"]{background:#24221A;}
+.themesw .sw[data-t="black"]{background:#0E0E0E;}
+.themesw .sw:hover{transform:scale(1.14);}
+.themesw .sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--fg);}
+.themesw .sw:focus-visible{outline:2px solid var(--blue);outline-offset:3px;}
 .btn{font-weight:600;font-size:13px;padding:9px 17px;cursor:pointer;display:inline-flex;gap:8px;align-items:center;}
 .btn-p{background:var(--blue);color:#fff;}.btn-s{border:2px solid var(--edge);color:var(--fg);}
 .eyebrow{font-weight:600;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
