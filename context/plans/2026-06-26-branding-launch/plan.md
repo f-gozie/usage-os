@@ -175,6 +175,8 @@ Append as each locks (append-only, don't relitigate):
 
 - [x] **Landing polish — subtler theme switcher** *(2026-06-28)*: the nav's `PAPER | WARM | BLACK` text segmented control was loud/odd for what it is; replaced with **three subtle colour-swatch dots** (paper cream / warm `#24221A` / black) — active one ringed, labels in `aria-label`/`title`, focus-visible kept. Echoes the dial's Bauhaus dots; still one click to each theme. CSS/markup only (`landing/src/styles/landing.css` + `index.astro`); the existing theme JS (keys off `data-t`/`aria-pressed`) is unchanged. Also regenerated `docs/banner.png` (dropped "for macOS" subtitle); `og.png` needed no change. **GitHub repo "About" blurb still says "for macOS"** — owner-only Settings field (no API tool); suggested replacement handed to owner.
 
+- [x] **Landing polish — hero headline** *(2026-06-28, branch `landing/hero-headline-refine`)*: the `20ch` cap was wrapping the headline mid-phrase ("SEE WHERE YOUR SCREEN / TIME ACTUALLY GOES."), splitting the underlined "screen time" across two lines so its blue underline collided with the line below. Fixed with deliberate breaks ("SEE WHERE YOUR / **screen time** / actually goes.") + `white-space:nowrap` on the accent so the phrase stays whole, looser leading (`line-height` .95→1.12) and a larger underline offset (3→5px) so the rule sits in clear space. CSS/markup only (`index.astro` + `landing.css`); verified desktop + mobile via screenshot.
+
 **All of Phase 5 ships as one branch/PR** (`phase5/identity`) — the milestones are work-order, not separate PRs (owner's call 2026-06-26). One `/usageos-review` + reconcile (this plan + decisions.md + a handoff) before the PR (Definition of Done).
 
 ---
