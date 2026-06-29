@@ -8,19 +8,15 @@ html,body{width:660px;height:400px;overflow:hidden;}
 :root{--bg:#EEEBE1;--ink:#161616;--muted:#6A6A66;--track:#D7D3C7;--blue:#1B45BE;--red:#E0241B;--gold:#EAB308;--rule:rgba(22,22,22,.14);}
 .stage{position:relative;width:660px;height:400px;background:var(--bg);
   font-family:"Jost",system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:var(--ink);}
-/* hairline inner frame — quiet brand border */
 .frame{position:absolute;inset:14px;border:1.5px solid var(--rule);pointer-events:none;}
-/* top lockup */
 .lockup{position:absolute;top:34px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:14px;}
 .lockup .mk{width:38px;height:38px;display:block;}
 .lockup .wm{font-family:"Anton",sans-serif;font-size:40px;line-height:1;letter-spacing:.045em;text-transform:uppercase;}
 .tagline{position:absolute;top:92px;left:0;right:0;text-align:center;font-weight:500;font-size:13px;
   letter-spacing:.02em;color:var(--muted);}
-/* the drag cue, centered in the gap between the two icons (icon centers at x=180 & x=480, y=180) */
 .cue{position:absolute;top:163px;left:248px;width:164px;height:34px;}
 .cuelabel{position:absolute;top:138px;left:0;right:0;text-align:center;
   font-weight:600;font-size:10.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--blue);}
-/* bottom instruction + version */
 .howto{position:absolute;bottom:46px;left:0;right:0;text-align:center;font-weight:500;font-size:13px;color:var(--muted);}
 .howto b{color:var(--ink);font-weight:600;}
 .ver{position:absolute;bottom:24px;left:0;right:0;text-align:center;
@@ -48,6 +44,6 @@ html,body{width:660px;height:400px;overflow:hidden;}
   </svg>
 
   <div class="howto">Drag <b>UsageOS</b> onto the <b>Applications</b> folder</div>
-  <div class="ver">v0.1.0 · universal · notarized</div>
+  <div class="ver">v0.1.0 · universal</div>
 </div>
 </body></html>
