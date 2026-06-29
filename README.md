@@ -85,6 +85,10 @@ A Rust backend watches macOS for window and app changes through the native Acces
 
 More detail is in [`context/architecture.md`](context/architecture.md).
 
+## How this was built
+
+UsageOS was built with [Claude Code](https://claude.com/claude-code) as a hands-on collaborator — I set the direction and reviewed the changes; a lot of the implementation is Claude's. The commit history, the [decision log](context/decisions.md), and the [plans and handoffs](context/plans/) are kept as the real, unedited trail of how it actually came together — some commits are Claude-authored, all under review. The way it was made is part of what this repo is for.
+
 ## Project docs
 
 - **What it is and why** → [`context/vision.md`](context/vision.md)

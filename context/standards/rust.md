@@ -177,7 +177,7 @@ pub struct FakeCapture(pub WindowInfo); // used in tests + non-macOS CI
 
 **Rules**
 
-- The `objc2` capture impl is gated `#[cfg(target_os = "macos")]`; a `Fake` is compiled elsewhere. _Rationale: CI builds Linux/macOS/Windows; an ungated objc2 import breaks the non-mac jobs._
+- The `objc2` capture impl is gated `#[cfg(target_os = "macos")]`; a `Fake` is compiled elsewhere. _Rationale: CI builds Linux + macOS; an ungated objc2 import breaks the non-mac (Linux) job._
 - Native callbacks (NSWorkspace notifications, AX reads) run on the **main thread / live run loop**; results are marshaled into plain `Send` structs (like the existing `WindowInfo`) and handed to the async core over a channel. Never move `!Send` objc2 objects into the async layer. _Rationale: objc2 types wrap Obj-C pointers and are `!Send`/`!Sync`; the watcher runs on a Tokio worker._
 - AX reads are gated on `AXIsProcessTrusted()`. _Rationale: architecture.md native layer._
 - The `Ai` trait has two impls — `FoundationModelsAi` (Swift sidecar over stdio) and `TemplateRecap` (deterministic, always available) — selected at runtime. _Rationale: architecture.md + hard rule 6 ("a deterministic template recap is always available as fallback")._

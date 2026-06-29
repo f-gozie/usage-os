@@ -7,7 +7,7 @@ Then, depending on the task:
 - Why a decision is the way it is → `context/decisions.md`
 - System shape, layers, data model → `context/architecture.md`
 - Visual contract → `context/design-system.md`
-- Detailed code conventions → `context/standards/` (generated in Phase 0)
-- What's in flight → `context/plans/` (latest dated plan)
+- Detailed code conventions → `context/standards/`
+- What's in flight → start at [`context/plans/README.md`](./context/plans/README.md) (the registry — it points to the active plan and its newest handoff)
 
 Do not relitigate locked decisions without a stated reason. Do not weaken the hard rules in `CLAUDE.md`.

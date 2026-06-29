@@ -119,7 +119,7 @@ pub struct FakeCapture { frames: Vec<Option<WindowInfo>>, /* cursor */ }
 pub struct Objc2Capture { /* NSWorkspace + AX */ }
 ```
 
-The objc2 impl and its dependencies live behind `#[cfg(target_os = "macos")]` **and** under `[target.'cfg(target_os = "macos")'.dependencies]` in `Cargo.toml`. If either gate is missing, the Linux/Windows `cargo build` legs fail to compile. The rest of the app imports the trait, never objc2.
+The objc2 impl and its dependencies live behind `#[cfg(target_os = "macos")]` **and** under `[target.'cfg(target_os = "macos")'.dependencies]` in `Cargo.toml`. If either gate is missing, the Linux `cargo build` leg fails to compile. The rest of the app imports the trait, never objc2.
 
 ### 3.2 AI
 
@@ -288,7 +288,7 @@ Everything in this section is **provisional** — asserted by the research summa
 
 **Behaviors the spike must prove (from the research `spikeMustProve` items):**
 1. **Temp-file + WAL test**: file DB in WAL, spawn a writer thread + concurrent reader, assert reads aren't blocked during a write and no "database is locked" escapes. Also decide: keep the current `Arc<Mutex<Connection>>` (serializes everything — **not** the "dedicated writer thread" the arch doc describes) or move to a real writer thread + channel **before** writing this test.
-2. **Capture trait gating**: `cargo build` + `cargo test` pass on Linux/Windows with the objc2 impl cfg-gated out; domain tests run against `FakeCapture` with zero permission prompts; the objc2 impl compiles on macOS runners.
+2. **Capture trait gating**: `cargo build` + `cargo test` pass on Linux with the objc2 impl cfg-gated out; domain tests run against `FakeCapture` with zero permission prompts; the objc2 impl compiles on macOS runners.
 3. **AX symbols exist**: a macOS-only spike that actually links `objc2-application-services` 0.3.1 + `objc2-app-kit` and calls `AXIsProcessTrusted()`, `AXUIElementCreateSystemWide()`, `AXUIElementCopyAttributeValue(_, kAXFocusedWindowAttribute/kAXTitleAttribute)`, and an `NSWorkspace` `didActivateApplicationNotification` observer — on the main thread, with minimal/wrapped unsafe. Fall back to a thin `extern` block or `core-foundation-sys` if symbols are missing.
 4. **AI fallback**: Rust `Ai` trait test with `FakeAi` + a deterministic `TemplateRecap` test; confirm the availability check routes absent-model → `TemplateRecap` via simulated unavailability or an injected flag; confirm `swift build` of the sidecar succeeds on a macOS-26 runner **or document that no such hosted runner exists yet** and the Swift leg is compile-on-device-only.
 5. **Matrix stays green**: full 3-OS run green with objc2 present-but-gated; AX-dependent tests `#[ignore]`/feature-gated so unattended CI never hits a permission prompt.

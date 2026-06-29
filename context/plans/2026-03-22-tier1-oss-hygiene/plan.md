@@ -1,11 +1,11 @@
-# Usage OS — Tier 1: OSS Hygiene & Foundation
+# UsageOS — Tier 1: OSS Hygiene & Foundation
 **Task:** TASK-023 | **Workflow:** WF-026
 **Branch:** `feat/tier1-oss-hygiene`
 **Created:** 2026-03-22
 **Status:** ✅ Complete
 
 ## Goal
-Make Usage OS credible for open-source release: tests, CI, data retention, proper migrations, and cross-platform documentation.
+Make UsageOS credible for open-source release: tests, CI, data retention, proper migrations, and cross-platform documentation.
 
 ## Constraints
 - Server is headless Linux — can build and test Rust/TS but cannot launch the Tauri desktop GUI
