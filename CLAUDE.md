@@ -24,12 +24,12 @@ This file is the contract every agent (and human) reads first. If something here
 ## Stack
 
 - **Shell:** Tauri v2 (Rust backend + web frontend), macOS-first.
-- **Backend:** Rust. Native macOS access via `objc2` (NSWorkspace activation events, Accessibility/AX window titles; on-device embeddings via `objc2-natural-language`/NaturalLanguage stay in Rust, keeping Swift = Foundation-Models-only — D26). SQLite via `rusqlite` behind a typed repository. _(WAL + a dedicated writer thread are the Phase-1 target — R57; the current code uses `Arc<Mutex<Connection>>` with `foreign_keys` only.)_
+- **Backend:** Rust. Native macOS access via `objc2` (NSWorkspace activation events, Accessibility/AX window titles). Categorization is a deterministic rules engine in Rust — on-device embeddings were trialled and shelved (measured below the rules baseline, D47) — which keeps Swift = Foundation-Models-only (D26). SQLite via `rusqlite` behind a typed repository. _(WAL is enabled today; a dedicated writer thread is the remaining Phase-1 target — R57/D58; the connection is `Arc<Mutex<Connection>>`.)_
 - **AI sidecar:** a small Swift helper binary — **Foundation Models only** (a Swift-only framework). Talks to Rust over stdio. This is the only Swift in the project.
 - **IPC:** `tauri-specta` generates the TypeScript client + types from Rust commands. The frontend cannot call a command with the wrong shape.
 - **Frontend:** React + TypeScript + Vite + Tailwind. Custom SVG for the dial (no chart library). Bauhaus design system.
 
-**Already in place** (shipped v0.1.0 + Tier-1 hygiene — keep, don't rebuild): rusqlite + versioned migrations (`schema_migrations`), ~25 Rust + 28 TS tests (the TS suite is pure-logic; React Testing Library is net-new for the redesign UI), GitHub Actions CI (Linux + macOS; Windows dropped — macOS-only product, and the specta IPC stack won't link there), data retention, the category rules engine. **New in the redesign:** tauri-specta IPC, objc2 event-driven capture, the Swift Foundation Models sidecar, the Bauhaus dial UI. **We evolve this codebase — we do not restart it.**
+**Already in place** (shipped v0.1.0 + Tier-1 hygiene — keep, don't rebuild): rusqlite + versioned migrations (`schema_migrations`), the v0.1.0 test baseline of ~25 Rust + 28 TS tests (the suite is much larger now; the TS suite is pure-logic, React Testing Library is net-new for the redesign UI), GitHub Actions CI (Linux + macOS; Windows dropped — macOS-only product, and the specta IPC stack won't link there), data retention, the category rules engine. **New in the redesign:** tauri-specta IPC, objc2 event-driven capture, the Swift Foundation Models sidecar, the Bauhaus dial UI. **We evolve this codebase — we do not restart it.**
 
 ## Hard rules (non-negotiable — drift here is a build failure, not a judgment call)
 

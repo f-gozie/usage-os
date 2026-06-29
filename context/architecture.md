@@ -1,6 +1,6 @@
 # Architecture
 
-_Last updated: 2026-06-22. Detailed code conventions live in `context/standards/` (drafted in Phase 0 from grounded desk research; native/version claims are provisional until the spike confirms them — see `context/feasibility/2026-06-22-feasibility-audit.md`). This doc is the shape + boundaries._
+_Last updated: 2026-06-29. Detailed code conventions live in `context/standards/`. This doc is the shape + boundaries. **A few sections below describe the Phase-1 *plan* rather than the as-built code** — the schema kept `activity_logs`/`categories` (the `events`/`contexts` renames are deferred, D31) and on-device embeddings were trialled then shelved (D47); both are flagged inline._
 
 ## Layer map
 
@@ -28,6 +28,8 @@ _Last updated: 2026-06-22. Detailed code conventions live in `context/standards/
                     └──────────────────────────────┘
 ```
 
+_(The folder names above are conceptual groupings; the as-built Rust modules are `lib.rs` (commands), `capture/`, `enrich/`, `rollup.rs`, `db/` (the repository + migrations), `ai/`, and `permissions/`.)_
+
 ## Boundaries (enforced)
 
 - **Frontend → Rust:** only via the generated client. No fetch, no direct DB, no business logic in the UI.
@@ -52,16 +54,16 @@ Schema is already managed by the versioned migration system (`schema_migrations`
 - `contexts` — `id, name, color` _(still the `categories` table for now; rename deferred — D31)_. `projects` — keyed on `canonical_key` (git remote `owner/repo`) with `display_name, remote_url`; folder/title/url aliases resolve to it via `project_aliases` (D30).
 - `sites` — `id, host, display_name, kind` registry (`general`/`dashboard`/`project-host`); `exclusions` — `match_type, pattern, mode (exclude|private)` (D8).
 - `rules` — app/title/site → context (smart defaults, user-editable).
-- `corrections` — user reclassifications (feed the embedding matcher).
+- `corrections` — user reclassifications; reprocessing re-sorts past days to match.
 - `recaps` — `date, facts_json, text, generated_by (template|fm)`.
-- `embeddings` — vector per labeled exemplar (categorization memory).
+- ~~`embeddings`~~ — **not built.** On-device embeddings were trialled and shelved (D47, below the rules baseline); no embeddings table ships.
 - `settings` — permissions state, exclusions, day-start offset, recap-ping time, theme.
 
-Storage: SQLite. **WAL + a dedicated writer thread are the Phase-1 target (R57); the current code uses `Arc<Mutex<Connection>>` with `foreign_keys` only.** Titles raw-local; excluded/private apps store no title (omit at write time, never store-then-filter — R58). No network columns, no sync state — there is no server.
+Storage: SQLite. **WAL is enabled today; a dedicated writer thread is the remaining Phase-1 target (R57/D58) — the connection is `Arc<Mutex<Connection>>`.** Titles raw-local; excluded/private apps store no title (omit at write time, never store-then-filter — R58). No network columns, no sync state — there is no server.
 
 ## The smart pipeline (batch enrichment, off the hot path)
 
-Capture (real-time, cheap) → coalesce into `events` → **periodic enrichment pass**: project inference, site parsing, embedding-based context assignment (embeddings computed **in Rust** via `objc2-natural-language` — D26) → on open / on schedule, build `RecapFacts` in Rust → AI sidecar (or template) phrases it. The model never runs on the capture tick.
+Capture (real-time, cheap) → coalesce into spans → **enrichment**: project inference, site parsing, and rules-based category assignment (deterministic, in Rust — embeddings were trialled and shelved, D47) → on open / on schedule, build `RecapFacts` in Rust → AI sidecar (or template) phrases it. The model never runs on the capture tick, and never assigns a category.
 
 ## Frontend
 
@@ -69,4 +71,4 @@ Lean: generated tauri-specta client, local component state (small store only if 
 
 ## Build & gates
 
-**CI already exists** (GitHub Actions across Linux/macOS/Windows) running the Rust + TS suites. **Extend it, don't replace it**, with: `cargo clippy -D warnings` (if not already enforced), `cargo fmt --check`, the tauri-specta **binding-freshness check** (regenerate → assert no diff), and tests for the new `capture`/`ai` trait fakes + new repository functions. All merge-blocking.
+**CI exists** (GitHub Actions on Linux + macOS — Windows was dropped; it's a macOS-only product and the specta IPC stack won't link there) running the Rust + TS suites with `cargo clippy -D warnings`, `cargo fmt --check`, the tauri-specta **binding-freshness check** (regenerate → assert no diff), and the `capture`/`ai` trait-fake + repository tests. All merge-blocking.
