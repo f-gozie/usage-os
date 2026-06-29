@@ -54,25 +54,25 @@ echo "    ✓ toolchain present"
 
 # ---------------------------------------------------------------------------
 say "3/6  Build the real Foundation Models sidecar"
-./sidecar/build.sh
-TRIPLE="$(rustc --print host-tuple 2>/dev/null || rustc -vV | sed -n 's/^host: //p')"
-SIDECAR="src-tauri/binaries/usageos-ai-$TRIPLE"
-[ -s "$SIDECAR" ] || die "sidecar not built: $SIDECAR"
+./sidecar/build.sh --universal
+SIDECAR="src-tauri/binaries/usageos-ai-universal-apple-darwin"
+[ -s "$SIDECAR" ] || die "universal sidecar not built: $SIDECAR"
 file "$SIDECAR" | grep -q "Mach-O" || die "sidecar is not a Mach-O binary (placeholder stub?): $SIDECAR"
-echo "    ✓ $SIDECAR"
+lipo -info "$SIDECAR" | grep -q "x86_64 arm64\|arm64 x86_64" || die "sidecar is not universal: $SIDECAR"
+echo "    ✓ $SIDECAR (universal)"
 
 # ---------------------------------------------------------------------------
 say "4/6  Regenerate third-party license notices"
 ./scripts/gen-licenses.sh
 
 # ---------------------------------------------------------------------------
-say "5/6  tauri build  (sign · DMG · notarize · staple)"
-tauri build
+say "5/6  tauri build --target universal-apple-darwin  (sign · DMG · notarize · staple)"
+tauri build --target universal-apple-darwin
 
 # ---------------------------------------------------------------------------
 say "6/6  Verify"
-APP="$(ls -d src-tauri/target/release/bundle/macos/*.app 2>/dev/null | head -1)"
-DMG="$(ls -t src-tauri/target/release/bundle/dmg/*.dmg 2>/dev/null | head -1)"
+APP="$(ls -d src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app 2>/dev/null | head -1)"
+DMG="$(ls -t src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg 2>/dev/null | head -1)"
 [ -n "$APP" ] || die "no .app produced"
 [ -n "$DMG" ] || die "no .dmg produced"
 echo "    app: $APP"

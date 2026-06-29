@@ -3,7 +3,7 @@
   "productName": "UsageOS",
   "mainBinaryName": "usage-os",
   "version": "0.1.0",
-  "identifier": "com.favour.usage-os",
+  "identifier": "com.usageos.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
