@@ -15,7 +15,7 @@ UsageOS is a private, on-device time tracker. It runs quietly in the background,
 - **A day dial.** Your whole day on a 24-hour clock, with each stretch coloured by the kind of work it was.
 - **A daily recap.** A few plain sentences about your day, written on your machine.
 - **A week and a timeline.** Seven days side by side, and a scrollable list when you want the detail.
-- **Two ways to read it.** By category — work, browsing, messaging, breaks, personal — and by project, picked up from your window titles.
+- **Two ways to read it.** By category — work, browsing, messaging, entertainment, personal — and by project, recognised from the repo you're working in, so the same work doesn't fragment across your editor, terminal, and browser.
 
 <p align="center">
   <img src="docs/screenshots/day.png" alt="The day view — your day on a 24-hour dial, with a written recap" width="820">
@@ -43,7 +43,7 @@ It never asks for Screen Recording.
 
 ## Install
 
-A signed, notarised download is on the way. Until then, you can build it from source — it's a normal Tauri app.
+Download the latest signed, notarized DMG from the [Releases page](https://github.com/f-gozie/usage-os/releases/latest), open it, and drag UsageOS into Applications. Or build it from source below — it's a normal Tauri app.
 
 ## Build from source
 
@@ -85,12 +85,18 @@ A Rust backend watches macOS for window and app changes through the native Acces
 
 More detail is in [`context/architecture.md`](context/architecture.md).
 
+## How this was built
+
+UsageOS was built with [Claude Code](https://claude.com/claude-code) as a hands-on collaborator — I set the direction and reviewed the changes; a lot of the implementation is Claude's. The commit history, the [decision log](context/decisions.md), and the [plans and handoffs](context/plans/) are kept as the real, unedited trail of how it actually came together — some commits are Claude-authored, all under review. The way it was made is part of what this repo is for.
+
 ## Project docs
 
 - **What it is and why** → [`context/vision.md`](context/vision.md)
 - **Decisions** → [`context/decisions.md`](context/decisions.md)
 - **Architecture** → [`context/architecture.md`](context/architecture.md)
 - **Design system** → [`context/design-system.md`](context/design-system.md)
+- **Engineering standards** → [`context/standards/`](context/standards/)
+- **Feasibility & risk audit** → [`context/feasibility/`](context/feasibility/)
 - **Plans** → [`context/plans/`](context/plans/)
 - **Contributor &amp; agent guide** → [`CLAUDE.md`](CLAUDE.md)
 

@@ -23,6 +23,7 @@ _Status ∈ `active` · `paused` · `done`. Add a row when a plan starts; update
   impl-plans/      # the approved plan-mode plan for each task/PR (the detailed how):  YYYY-MM-DD-<task>.md
   reviews/         # the /usageos-review report for each task/PR, paired to its impl-plan:     YYYY-MM-DD-<task>.md
   handoffs/        # one file PER SESSION, append-only, NEVER overwritten:             YYYY-MM-DD-NN-slug.md
+  explorations/    # optional — scratch research / option-studies behind a decision (not every plan has one)
 ```
 
 - **plan.md** — the durable roadmap + checkboxes. Living.

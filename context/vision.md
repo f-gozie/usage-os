@@ -1,6 +1,6 @@
 # UsageOS — Vision & Product Spec
 
-_Last updated: 2026-06-22. Evolves the shipped v0.1.0 + its Tier-1 OSS-hygiene foundation (tests, CI, migrations, retention) — kept, not rebuilt. Supersedes the root `00-PRD-MVP.md` / `02-FUTURE-IDEAS.md` (gamification-era; left in place for history)._
+_Last updated: 2026-06-29. Evolves the shipped v0.1.0 + its Tier-1 OSS-hygiene foundation (tests, CI, migrations, retention) — kept, not rebuilt. Supersedes the original gamification-era specs (now archived in [`context/history/`](history/): `00-PRD-MVP.md`, `01-TECH-CONTEXT.md`, `02-FUTURE-IDEAS.md`), kept for the pivot story._
 
 ## Thesis
 
@@ -25,13 +25,13 @@ Initially the developer (dogfood), then people who (a) spend their day at a comp
 
 ## The data model: two axes
 
-- **Context** — the *kind* of work: Deep work, Research, Comms, Breaks (extensible). Assigned by smart default rules (editable), refined later by embeddings + your corrections.
+- **Category** — the *kind* of work: Work, Browsing, Messaging, Entertainment, Personal (editable). Assigned by rules you own (by app name or a word in the window title), refined by your corrections.
 - **Project** — the *what*: `usage_os`, `nudge`, etc. Auto-inferred from window titles (`auth.rs — usage_os`), terminal cwd / git repo, GitHub titles — and correctable. (Inference quality is a Phase-0 spike.)
 
 ## The smart layer (optional, on-device, never required)
 
 - **Runtime:** Apple Foundation Models (built into macOS 26, free, private) via a thin Swift sidecar. On older Macs / when disabled, the template recap covers it silently.
-- **Categorization:** on-device embeddings (NaturalLanguage) match new activity to your past labels; every correction is remembered. No nightly LLM drift.
+- **Categorization:** deterministic rules you own — by app name or a word in the window title — and every correction is remembered (fix one rule and the past re-sorts). On-device embeddings were trialled and shelved (D47, below the rules baseline), so categorization stays out of the smart layer entirely.
 - **Recap:** computed lazily when you open the app; optionally one gentle "your day is ready" notification at a wind-down time you set (off by default — the single sanctioned interruption). The model only phrases pre-computed facts.
 - **Cloud:** none in v1. A bring-your-own-key cloud option is a possible future toggle behind loud warnings — it would break "nothing leaves," so it is opt-in only, never default.
 
