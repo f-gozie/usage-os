@@ -56,7 +56,7 @@ Initially the developer (dogfood), then people who (a) spend their day at a comp
 
 ## Naming
 
-Working name **UsageOS** (zero migration; bundle id `com.favour.usage-os`). Strongest alternative considered: **Daybook** (warmer, less "OS-trope"). Domain: `usageos.app`. Revisit before public launch; cheap to change.
+Working name **UsageOS** (zero migration; bundle id `com.usageos.app`). Strongest alternative considered: **Daybook** (warmer, less "OS-trope"). Domain: `usageos.app`. Revisit before public launch; cheap to change.
 
 ## Out of scope (v1)
 

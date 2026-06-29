@@ -4,7 +4,7 @@
 - **Project:** UsageOS — the private, on-device macOS time tracker. **Phase 5 (branding + launch).**
 - **M5 (notarized DMG) pipeline is DONE and merged** — [PR #26](https://github.com/f-gozie/usage-os/pull/26) merged to `main` (`e80bfc4`). Signing, notarization credentials, the release script, license notices, and the bundle config all work and are verified. **The only thing missing is the notarized DMG itself, blocked by an extraordinary Apple Notary Service outage (>24h).**
 - Two capture/UI fixes also landed this session (found dogfooding the signed build): **Timeline shows window titles** ([D62]) and **Chromium/Electron apps capture titles+URLs** ([D63]).
-- Reviewed via `/usageos-review` (0 Critical; report `reviews/2026-06-28-m5-notarization.md`). ADRs **D60–D63** appended.
+- Reviewed via `/usageos-review` (0 Critical; report `reviews/2026-06-28-m5-notarization.md`). ADRs **D61, D62, D63, D64** appended.
 
 ## 2. What landed this session
 **Signing/notarization credentials (the real prior blocker — all OUTSIDE the repo in `~/.appstoreconnect/`):**
@@ -12,7 +12,7 @@
 - **App Store Connect API key** "UsageOS Notarization" (Developer role) → `notarytool` keychain profile **`usageos-notarytool`**. Issuer `cdbb6905-…`, Key `TAWUQ7F26N`.
 - Reference (gitignored): `~/.appstoreconnect/usageos-signing.txt` (facts) + `usageos-signing.env` (the env the release script sources) + `private_keys/` (`.p8`, `usageos-devid.{key,cer,csr.pem}`). **These are the only copies — back them up; the `.p8` can't be re-downloaded.**
 
-**M5 pipeline (D60):** `scripts/release-macos.sh` (preflight → real sidecar → license notices → sign app + nested `usageos-ai` w/ hardened runtime → notarize → staple → DMG → verify). `scripts/gen-licenses.sh` + `gen-licenses-extra.mjs` + `src-tauri/about.{toml,hbs}` → committed `THIRD-PARTY-LICENSES.html` (bundled resource). `tauri.conf.json`: `mainBinaryName`, `minimumSystemVersion 13.0` *(confirm)*, DMG layout, license resource. **`seed_db` bin → cargo `example`** (Tauri's bundler copies every package bin into the `.app`; `mainBinaryName` alone didn't fix it).
+**M5 pipeline (D64):** `scripts/release-macos.sh` (preflight → real sidecar → license notices → sign app + nested `usageos-ai` w/ hardened runtime → notarize → staple → DMG → verify). `scripts/gen-licenses.sh` + `gen-licenses-extra.mjs` + `src-tauri/about.{toml,hbs}` → committed `THIRD-PARTY-LICENSES.html` (bundled resource). `tauri.conf.json`: `mainBinaryName`, `minimumSystemVersion 13.0` *(confirm)*, DMG layout, license resource. **`seed_db` bin → cargo `example`** (Tauri's bundler copies every package bin into the `.app`; `mainBinaryName` alone didn't fix it).
 
 **Capture/UI fixes:** **D62** — `rollup::TimelineSegment.title` (+ regenerated bindings) so the Timeline expand shows the window title (`truncate`/`minmax(0,1fr)` ellipsis), not the always-"—" project. **D63** — `capture/macos/mod.rs` sets `AXManualAccessibility` on each focused app so Chromium/Electron (Chrome, the Claude app, Slack, …) expose their window title + URL; **verified on-device** (Chrome now records full titles + front-tab URLs).
 

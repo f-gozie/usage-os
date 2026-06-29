@@ -62,7 +62,7 @@
 
 ## Definition of Done
 - [x] plan.md ticked for what landed (M5 → `[~]`, sub-items checked; the two dogfood fixes noted)
-- [x] decisions.md ADRs appended — D60 (distribution), D61 (telemetry/update), D62 (title display), D63 (Chromium AX)
+- [x] decisions.md ADRs appended — D64 (distribution), D61 (telemetry/update), D62 (title display), D63 (Chromium AX)
 - [~] no impl-plan (M5 was direct work, not a plan-mode task) · handoff to follow at session end
 - [x] docs move with code — the pre-push tripwire would NOT fire (this diff touches `context/plans/` + `decisions.md`)
 
