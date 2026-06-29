@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Shown in the macOS "UsageOS wants to control <browser>" Automation prompt. -->
+	<key>NSAppleEventsUsageDescription</key>
+	<string>UsageOS reads the address of your active browser tab, so browsing shows the actual site instead of just "browsing." Private windows are never read, and nothing leaves your machine.</string>
+</dict>
+</plist>
