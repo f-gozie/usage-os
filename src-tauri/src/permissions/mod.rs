@@ -38,6 +38,20 @@ pub enum SettingsPane {
     Automation,
 }
 
+/// Outcome of [`request_automation`], so the UI can guide the one case it can't resolve itself.
+/// macOS only adds an app to the Automation list once it sends a real Apple Event to a *running*
+/// browser — so if none is running, no prompt can be raised and the UI must say so.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum AutomationRequest {
+    /// A supported browser is running — the consent prompt was raised (or the grant was already
+    /// decided) and the Automation pane was opened. The UI just re-reads the grant.
+    Prompted,
+    /// No supported browser is running, so no prompt could be raised. The grant will appear the
+    /// first time a browser is used while tracking; the UI should tell the user to open one.
+    NoBrowserRunning,
+}
+
 // OSStatus codes from `AEDeterminePermissionToAutomateTarget` that we classify (the rest —
 // -1744 undetermined, -600 not-running — are inconclusive). Kept here so the reduction below is
 // unit-tested without the AppleEvents FFI.
@@ -94,9 +108,16 @@ pub(crate) fn request_accessibility() {
 }
 
 /// Trigger the Automation consent prompt for running browsers and open its Privacy pane.
-pub(crate) fn request_automation() {
+/// Reports whether a browser was running to prompt (see [`AutomationRequest`]).
+pub(crate) fn request_automation() -> AutomationRequest {
     #[cfg(target_os = "macos")]
-    macos::request_automation();
+    {
+        macos::request_automation()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        AutomationRequest::Prompted
+    }
 }
 
 /// Open a System Settings → Privacy pane directly.

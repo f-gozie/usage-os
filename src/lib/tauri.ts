@@ -5,6 +5,7 @@ import { commands } from '../bindings';
 import type {
   ActivityLog,
   AppError,
+  AutomationRequest,
   Category,
   DayView,
   Exclusion,
@@ -24,6 +25,7 @@ import type {
 export type {
   ActivityLog,
   AppError,
+  AutomationRequest,
   Category,
   CategoryRun,
   CategorySlice,
@@ -208,9 +210,13 @@ export async function requestAccessibility(): Promise<void> {
   unwrap(await commands.requestAccessibility());
 }
 
-/** Trigger the Automation consent prompt for running browsers and open its Privacy pane. */
-export async function requestAutomation(): Promise<void> {
-  unwrap(await commands.requestAutomation());
+/**
+ * Trigger the Automation consent prompt for running browsers and open its Privacy pane.
+ * Returns whether a browser was running to prompt — `"no_browser_running"` means the UI should
+ * tell the user to open their browser (macOS can't list the app until it scripts a running one).
+ */
+export async function requestAutomation(): Promise<AutomationRequest> {
+  return unwrap(await commands.requestAutomation());
 }
 
 /** Open a System Settings → Privacy pane directly (Accessibility or Automation). */

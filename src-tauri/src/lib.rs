@@ -444,12 +444,12 @@ fn request_accessibility() -> Result<(), AppError> {
     Ok(())
 }
 
-/// Trigger the Automation consent prompt for running browsers and open its Privacy pane.
+/// Trigger the Automation consent prompt for running browsers and open its Privacy pane. Returns
+/// whether a browser was running to prompt, so the UI can guide the "open a browser first" case.
 #[tauri::command]
 #[specta::specta]
-fn request_automation() -> Result<(), AppError> {
-    permissions::request_automation();
-    Ok(())
+fn request_automation() -> Result<permissions::AutomationRequest, AppError> {
+    Ok(permissions::request_automation())
 }
 
 /// Open a specific System Settings → Privacy pane (Accessibility or Automation).

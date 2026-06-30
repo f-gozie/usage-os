@@ -1,9 +1,11 @@
 //! macOS-native permission queries/requests.
 //!
 //! - **Accessibility** via the AX trust API (`AXIsProcessTrusted` / `…WithOptions`).
-//! - **Automation** via `AEDeterminePermissionToAutomateTarget` — the only API that reads the
-//!   TCC-Automation grant WITHOUT sending a real Apple Event: `ask_user = false` queries
-//!   silently, `true` shows the system consent prompt without launching the target.
+//! - **Automation** via `AEDeterminePermissionToAutomateTarget` (`ask_user = false`) — reads the
+//!   TCC-Automation grant silently, without sending a real Apple Event. The consent *prompt* is
+//!   raised separately, by sending an actual Apple Event to a running browser: the wildcard
+//!   determination call does not reliably surface the dialog (notably on macOS 26). See
+//!   [`request_automation`].
 //!
 //! Verified on-device (D32/D33); CI compiles this but never runs it.
 
@@ -14,7 +16,10 @@ use objc2_application_services::{
 };
 use objc2_core_foundation::{kCFBooleanTrue, CFBoolean, CFDictionary, CFRetained, CFString};
 
-use super::{aggregate_automation, PermissionState, SettingsPane};
+use super::{
+    aggregate_automation, AutomationRequest, PermissionState, SettingsPane, AE_AUTHORIZED,
+    AE_NOT_PERMITTED,
+};
 
 // ── Accessibility (AX trust) ─────────────────────────────────────────────────
 
@@ -89,9 +94,14 @@ const CHROMIUM_BUNDLES: &[&str] = &[
     "com.operasoftware.Opera",
 ];
 
-/// Query (`ask_user = false`) or request (`true`) Automation permission for one bundle id.
+/// `procNotFound` from `AEDeterminePermissionToAutomateTarget` — the target browser isn't running.
+const AE_PROC_NOT_FOUND: i32 = -600;
+
+/// Read the Automation grant for one bundle id, silently (`ask_user = false` — never prompts).
 /// Returns the raw OSStatus (0 authorized, -1743 denied, -1744 undetermined, -600 not running).
-fn automate_status(bundle_id: &str, ask_user: bool) -> i32 {
+/// The consent *prompt* is raised separately by [`prompt_automation_consent`]; the wildcard
+/// determination call here does not reliably surface the dialog (notably on macOS 26).
+fn automate_status(bundle_id: &str) -> i32 {
     let bytes = bundle_id.as_bytes();
     let mut target = AEDesc {
         descriptor_type: 0,
@@ -110,26 +120,55 @@ fn automate_status(bundle_id: &str, ask_user: bool) -> i32 {
         return created as i32;
     }
     // SAFETY: `target` is a descriptor we just created; the wildcards ask about automation in
-    // general; ask_user=false never prompts, =true shows the consent prompt without launching.
-    let status = unsafe {
-        AEDeterminePermissionToAutomateTarget(&target, TYPE_WILDCARD, TYPE_WILDCARD, ask_user as u8)
-    };
+    // general; ask_user = 0 so this only reads the grant and never prompts.
+    let status =
+        unsafe { AEDeterminePermissionToAutomateTarget(&target, TYPE_WILDCARD, TYPE_WILDCARD, 0) };
     // SAFETY: dispose the descriptor created above.
     unsafe { AEDisposeDesc(&mut target) };
     status
 }
 
-pub(crate) fn automation_state() -> PermissionState {
-    aggregate_automation(CHROMIUM_BUNDLES.iter().map(|b| automate_status(b, false)))
+/// Send a real, benign Apple Event to a *running* Chromium browser to raise the macOS Automation
+/// consent prompt — the only dependable trigger (the wildcard determination above does not surface
+/// the dialog). Targets by bundle id (`application id`) so no display-name map is needed, and
+/// `count windows` is the smallest scriptable event that still requires the grant and reads
+/// nothing we keep. The caller only invokes this for browsers it has already confirmed running, so
+/// the `tell` never auto-launches one.
+fn prompt_automation_consent(bundle_id: &str) {
+    let script = format!("tell application id \"{bundle_id}\" to count windows");
+    let _ = std::process::Command::new("/usr/bin/osascript")
+        .arg("-e")
+        .arg(&script)
+        .output();
 }
 
-pub(crate) fn request_automation() {
-    // Prompts each browser whose grant is still undetermined; already-decided ones are a no-op,
-    // and a not-running browser simply isn't prompted here (it asks naturally on first read).
+pub(crate) fn automation_state() -> PermissionState {
+    aggregate_automation(CHROMIUM_BUNDLES.iter().map(|&b| automate_status(b)))
+}
+
+pub(crate) fn request_automation() -> AutomationRequest {
+    // The Automation list row appears only once we send a real Apple Event to a *running* browser,
+    // so poke each running, not-yet-decided one — that raises the "UsageOS wants to control
+    // <browser>" prompt. The silent query tells us which are running (procNotFound for the rest) so
+    // we never auto-launch one; already-granted / already-denied browsers are left to the Settings
+    // pane. If none is running there is nothing to prompt — the caller surfaces that to the user.
+    let mut any_running = false;
     for bundle in CHROMIUM_BUNDLES {
-        let _ = automate_status(bundle, true);
+        match automate_status(bundle) {
+            AE_PROC_NOT_FOUND => {}
+            AE_AUTHORIZED | AE_NOT_PERMITTED => any_running = true,
+            _ => {
+                any_running = true;
+                prompt_automation_consent(bundle);
+            }
+        }
     }
     open_settings(SettingsPane::Automation);
+    if any_running {
+        AutomationRequest::Prompted
+    } else {
+        AutomationRequest::NoBrowserRunning
+    }
 }
 
 // ── System Settings deep-link ────────────────────────────────────────────────

@@ -293,9 +293,10 @@ async requestAccessibility() : Promise<Result<null, AppError>> {
 }
 },
 /**
- * Trigger the Automation consent prompt for running browsers and open its Privacy pane.
+ * Trigger the Automation consent prompt for running browsers and open its Privacy pane. Returns
+ * whether a browser was running to prompt, so the UI can guide the "open a browser first" case.
  */
-async requestAutomation() : Promise<Result<null, AppError>> {
+async requestAutomation() : Promise<Result<AutomationRequest, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("request_automation") };
 } catch (e) {
@@ -383,6 +384,22 @@ is_private: boolean }
  * Crosses to TS as a discriminated union the frontend can `switch` on `kind`.
  */
 export type AppError = { kind: "Db"; message: string } | { kind: "LockPoisoned" }
+/**
+ * Outcome of [`request_automation`], so the UI can guide the one case it can't resolve itself.
+ * macOS only adds an app to the Automation list once it sends a real Apple Event to a *running*
+ * browser — so if none is running, no prompt can be raised and the UI must say so.
+ */
+export type AutomationRequest = 
+/**
+ * A supported browser is running — the consent prompt was raised (or the grant was already
+ * decided) and the Automation pane was opened. The UI just re-reads the grant.
+ */
+"prompted" | 
+/**
+ * No supported browser is running, so no prompt could be raised. The grant will appear the
+ * first time a browser is used while tracking; the UI should tell the user to open one.
+ */
+"no_browser_running"
 /**
  * A category (the redesign's noun for the legacy `categories` table — the SQL table
  * and column names stay `categories`/`category_id` per D31; only the IPC surface is
