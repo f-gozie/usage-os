@@ -1,0 +1,6 @@
+# GitHub language stats (Linguist). This is a Rust + TypeScript/React app with a Swift sidecar.
+# The HTML in the repo is design mockups, the old prototype, and the bundler entry point — not
+# the codebase's language — so exclude it from the language bar.
+design/** linguist-documentation
+prototype/** linguist-documentation
+*.html linguist-documentation
