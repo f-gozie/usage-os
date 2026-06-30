@@ -7,6 +7,13 @@ import "../styles/landing.css";
 const title = "UsageOS — see where your screen time goes";
 const description =
   "A private, on-device time tracker. It shows the day back — every app, sorted by the kind of work it was. Nothing leaves your machine.";
+
+// Direct download of the universal DMG from the latest GitHub release. `latest/download/<asset>`
+// always redirects to the newest release's asset of that name — so this keeps working across
+// versions as long as the release asset keeps this filename (the release flow uploads it as such).
+const DMG_URL =
+  "https://github.com/f-gozie/usage-os/releases/latest/download/UsageOS-0.1.0-universal.dmg";
+const DMG_DETAIL = "Universal · macOS 13+ · ~11 MB";
 ---
 
 <!doctype html>
@@ -48,16 +55,16 @@ const description =
         <div class="lks"><a href="#how">What it shows</a><a href="#privacy">Privacy</a><a href="https://github.com/f-gozie/usage-os">Open source</a></div>
         <div class="right">
           <div class="themesw" role="group" aria-label="Theme"><button class="sw" data-t="paper" aria-label="Paper theme" title="Paper" aria-pressed="true"></button><button class="sw" data-t="warm" aria-label="Warm theme" title="Warm" aria-pressed="false"></button><button class="sw" data-t="black" aria-label="Black theme" title="Black" aria-pressed="false"></button></div>
-          <a class="btn btn-p" href="#download">Download</a>
+          <a class="btn btn-p" href={DMG_URL}>Download</a>
         </div>
       </nav>
 
       <section class="hero">
         <div class="eyebrow">A private, on-device <span class="ac">time tracker</span></div>
         <h1>See where your<br /><span class="u">screen time</span><br />actually goes.</h1>
-        <p class="sub">It watches quietly and shows the day back — every app, sorted by the kind of work it was. All of it on your machine.</p>
-        <div class="ctas"><a class="btn btn-p" href="#download">↓ Download for Mac</a><a class="btn btn-s" href="#how">See what it shows</a></div>
-        <div class="pr">Free · open source · nothing leaves the machine.</div>
+        <p class="sub">UsageOS keeps track of your screen time, sorted into your own categories. See which apps and sites you spend the most time on. 100% on your machine. Nothing ever leaves.</p>
+        <div class="ctas"><a class="btn btn-p" href={DMG_URL}>↓ Download for Mac</a><a class="btn btn-s" href="#how">See what it shows</a></div>
+        <div class="pr">{DMG_DETAIL} · free · open source</div>
       </section>
 
       <div class="shotwrap">
@@ -208,7 +215,8 @@ const description =
       <section class="final" id="download">
         <span class="wm">USAGE<span class="o"><svg><use href="#oDial"></use></svg></span>S</span>
         <h2>Look back on your day.</h2>
-        <div class="ctas"><a class="btn btn-p" href="https://github.com/f-gozie/usage-os/releases/latest">↓ Download for Mac</a><a class="btn btn-s" href="https://github.com/f-gozie/usage-os">Star on GitHub</a></div>
+        <div class="ctas"><a class="btn btn-p" href={DMG_URL}>↓ Download for Mac</a><a class="btn btn-s" href="https://github.com/f-gozie/usage-os">Star on GitHub</a></div>
+        <div class="dl-detail">{DMG_DETAIL}</div>
         <div class="note">Free and open source. It runs quietly and waits for you to look.</div>
       </section>
 
