@@ -32,7 +32,7 @@
       "endpoints": [
         "https://github.com/f-gozie/usage-os/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU2NzlCQTc4QzU1QzI4NTIKUldSU0tGekZlTHA1Vm9nWEdWQzdBNnBYVlp0VzdoLzJtM1RuaWFEV3VhOUh0U0hnRU5sZUUrMUcK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIxMjJDRjFDOTU2Q0MzQkMKUldTOHcyeVZITThpc1RjSG5sTEU0emVwT3AzZi9hQVV2OStpcHFyU3FkQTdlbE9nQS9qczRzeVQK"
     }
   },
   "bundle": {
