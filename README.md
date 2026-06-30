@@ -43,7 +43,15 @@ It never asks for Screen Recording.
 
 ## Install
 
-Download the latest signed, notarized DMG from the [Releases page](https://github.com/f-gozie/usage-os/releases/latest), open it, and drag UsageOS into Applications. Or build it from source below — it's a normal Tauri app.
+**Homebrew:**
+
+```sh
+brew install --cask f-gozie/tap/usageos
+```
+
+**Or download directly:** grab the latest signed, notarized Universal DMG from the [Releases page](https://github.com/f-gozie/usage-os/releases/latest), open it, and drag UsageOS into Applications. Universal · macOS 13+ · ~15 MB.
+
+Either way, UsageOS can keep itself up to date — automatic checks are opt-in (off by default; enable them in onboarding or Settings), and every update is signed. Or build it from source below — it's a normal Tauri app.
 
 ## Build from source
 
