@@ -168,7 +168,9 @@ a{color:inherit;text-decoration:none;}
 .final h2{font-family:'Anton',Impact,'Arial Narrow',sans-serif;text-transform:uppercase;font-size:28px;margin-top:22px;}
 .final .ctas{display:flex;gap:12px;justify-content:center;margin-top:24px;flex-wrap:wrap;}
 .final .dl-detail{margin-top:16px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
-.final .note{font-size:13px;color:var(--muted);margin-top:9px;}
+.final .brew{margin-top:12px;font-size:13px;color:var(--muted);}
+.final .brew code{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:12.5px;color:var(--fg);background:var(--surface);border:1px solid var(--rule);padding:3px 9px;margin-left:4px;}
+.final .note{font-size:13px;color:var(--muted);margin-top:14px;}
 .foot{padding:30px 40px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
 .foot .wm{font-size:17px;}.foot .cp{font-size:12.5px;color:var(--muted);}
 .foot .lks{display:flex;gap:20px;font-size:13px;color:var(--muted);font-weight:500;}.foot .lks a:hover{color:var(--fg);}
