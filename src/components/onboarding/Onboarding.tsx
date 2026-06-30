@@ -22,8 +22,16 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
   const next = () => setStep((s) => Math.min(s + 1, STEPS.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
+  const [noBrowser, setNoBrowser] = useState(false);
+
   const grantAccessibility = () => void requestAccessibility().then(refetch).catch(() => undefined);
-  const grantAutomation = () => void requestAutomation().then(refetch).catch(() => undefined);
+  const grantAutomation = () =>
+    void requestAutomation()
+      .then((outcome) => {
+        setNoBrowser(outcome === "no_browser_running");
+        refetch();
+      })
+      .catch(() => undefined);
 
   return (
     <div className="flex min-h-screen items-center justify-center overflow-hidden bg-bg px-[18px] py-[30px]">
@@ -137,6 +145,13 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                   granted={automation}
                   onGrant={grantAutomation}
                 />
+                {noBrowser && !automation && (
+                  <p className="mt-3 text-xs font-medium leading-normal text-muted">
+                    No browser is open, so there’s nothing to ask yet. Open your browser — UsageOS
+                    will request access the first time you use it, or grant it here once it’s
+                    running.
+                  </p>
+                )}
               </>
             )}
 
