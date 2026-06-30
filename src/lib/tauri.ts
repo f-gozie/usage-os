@@ -235,3 +235,8 @@ export async function showMainWindow(): Promise<void> {
 export async function quitApp(): Promise<void> {
   unwrap(await commands.quitApp());
 }
+
+/** Relaunch the app — used after an update installs so the new binary takes over. Never returns. */
+export async function restartApp(): Promise<void> {
+  await commands.restartApp();
+}

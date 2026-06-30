@@ -652,6 +652,14 @@ fn spawn_tray_updater(app: AppHandle) {
 
 /// The single source of command registration. Both the runtime invoke handler
 /// and the generated TS bindings come from this Builder, so they cannot disagree
+/// Relaunch the app. Used after the updater downloads + installs a new version so the freshly
+/// installed binary takes over. Diverges (`restart` replaces the process), so nothing runs after.
+#[tauri::command]
+#[specta::specta]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
 /// (hard rule 2). Events stay empty until issue #211 is de-risked (commands-only).
 fn make_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
@@ -686,6 +694,7 @@ fn make_builder() -> Builder<tauri::Wry> {
         open_settings_pane,
         show_main_window,
         quit_app,
+        restart_app,
     ])
 }
 
@@ -702,6 +711,11 @@ pub fn run() {
         // The recap sidecar (D49 chunk C) is spawned via the shell plugin; the capability is
         // scoped to exactly the one named sidecar (capabilities/default.json).
         .plugin(tauri_plugin_shell::init())
+        // Opt-in auto-update (D61/D67): the plugin only exposes check/download/install — the
+        // actual check is gated in the frontend behind the `auto_update_enabled` setting, so no
+        // network happens unless the user turned it on. Updates are ed25519-signed (pubkey in
+        // tauri.conf.json); a tampered or unsigned update can't install.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(builder.invoke_handler())
         .on_window_event(|window, event| {
             // Closing the main window HIDES it (tracking keeps running in the background); the

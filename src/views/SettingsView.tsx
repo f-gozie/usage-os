@@ -6,6 +6,7 @@ import { CategoryEditorModal } from "@/components/settings/CategoryEditorModal";
 import { DeleteAllModal } from "@/components/settings/DeleteAllModal";
 import { ExclusionModal } from "@/components/settings/ExclusionModal";
 import { UncategorizedApps } from "@/components/settings/UncategorizedApps";
+import { UpdateSettings } from "@/components/settings/UpdateSettings";
 import {
   AddRow,
   IconButton,
@@ -291,6 +292,9 @@ export function SettingsView() {
           </Pill>
         </SettingRow>
       </SettingGroup>
+
+      {/* Software update — opt-in (D67) */}
+      <UpdateSettings />
 
       {/* About */}
       <SettingGroup title="About">

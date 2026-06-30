@@ -60,6 +60,7 @@ active-win-pos-rs = "0.8"
 user-idle = "0.6"
 rusqlite = { version = "0.31", features = ["bundled"] }
 tokio = { version = "1", features = ["rt", "time", "sync"] }
+tauri-plugin-updater = "=2.9.0"
 
 # Native macOS capture (see D29). Behind the `capture` trait + `#[cfg(target_os = "macos")]`.
 # The whole AX surface lives in objc2-application-services; libc backs proc_pidinfo (terminal cwd).

@@ -336,6 +336,15 @@ async quitApp() : Promise<Result<null, AppError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * The single source of command registration. Both the runtime invoke handler
+ * and the generated TS bindings come from this Builder, so they cannot disagree
+ * Relaunch the app. Used after the updater downloads + installs a new version so the freshly
+ * installed binary takes over. Diverges (`restart` replaces the process), so nothing runs after.
+ */
+async restartApp() : Promise<void> {
+    await TAURI_INVOKE("restart_app");
 }
 }
 
