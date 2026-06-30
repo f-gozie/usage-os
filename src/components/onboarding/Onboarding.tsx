@@ -1,16 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { GrantedPill } from "@/components/ui/GrantedPill";
 import { usePermissions } from "@/hooks/usePermissions";
 import { requestAccessibility, requestAutomation } from "@/lib/tauri";
+import { autoUpdateEnabled, setAutoUpdateEnabled } from "@/lib/updater";
 
-const STEPS = ["Welcome", "Your privacy", "Accessibility", "Automation", "Ready"];
+const STEPS = ["Welcome", "Your privacy", "Accessibility", "Automation", "Updates", "Ready"];
 
 /**
- * First-run onboarding: Welcome → Privacy → Accessibility → Automation → Ready. Ported from
- * `design/onboarding.html`. Permissions are optional — every grant step can be skipped, landing
- * on a degraded (app-only) "Ready". Live status comes from `usePermissions` (re-reads on window
- * focus, so a grant flips to "Granted ✓" when the user returns from System Settings).
+ * First-run onboarding: Welcome → Privacy → Accessibility → Automation → Updates → Ready. Ported
+ * from `design/onboarding.html`. Permissions are optional — every grant step can be skipped,
+ * landing on a degraded (app-only) "Ready". Auto-update is opt-in (D67), recommended here. Live
+ * permission status comes from `usePermissions` (re-reads on window focus).
  */
 export function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
@@ -23,6 +24,14 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
   const [noBrowser, setNoBrowser] = useState(false);
+  const [autoUpdate, setAutoUpdate] = useState(false);
+  useEffect(() => {
+    void autoUpdateEnabled().then(setAutoUpdate).catch(() => undefined);
+  }, []);
+  const enableAutoUpdate = () => {
+    setAutoUpdate(true);
+    void setAutoUpdateEnabled(true).catch(() => undefined);
+  };
 
   const grantAccessibility = () => void requestAccessibility().then(refetch).catch(() => undefined);
   const grantAutomation = () =>
@@ -157,6 +166,32 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
 
             {step === 4 && (
               <>
+                <Eyebrow>One last thing</Eyebrow>
+                <H>
+                  Keep it
+                  <br />
+                  up to date
+                </H>
+                <Why
+                  items={[
+                    ["var(--c-deep)", "UsageOS can ask GitHub once a day whether a newer version exists. It sends only the version number — never your activity or any tracked data."],
+                    ["var(--c-comms)", "It’s how fixes reach you, and every update is signed so a tampered one can’t install."],
+                    ["var(--c-research)", "Off by default. Turn it on here (recommended), or anytime in Settings."],
+                  ]}
+                />
+                <GrantBox
+                  label="Automatic updates"
+                  sub="Recommended. Change anytime in Settings."
+                  granted={autoUpdate}
+                  onGrant={enableAutoUpdate}
+                  grantLabel="Enable"
+                  grantedLabel="Enabled ✓"
+                />
+              </>
+            )}
+
+            {step === 5 && (
+              <>
                 <Motif ready />
                 <Eyebrow>You’re all set</Eyebrow>
                 <H>That’s it.</H>
@@ -200,7 +235,13 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               ) : (
                 <FootButton variant="ghost" onClick={next}>Skip</FootButton>
               ))}
-            {step === 4 && <FootButton onClick={onComplete}>Open my day →</FootButton>}
+            {step === 4 &&
+              (autoUpdate ? (
+                <FootButton onClick={next}>Continue →</FootButton>
+              ) : (
+                <FootButton variant="ghost" onClick={next}>Not now</FootButton>
+              ))}
+            {step === 5 && <FootButton onClick={onComplete}>Open my day →</FootButton>}
           </div>
         </div>
       </div>
@@ -260,11 +301,15 @@ function GrantBox({
   sub,
   granted,
   onGrant,
+  grantLabel = "Grant access",
+  grantedLabel,
 }: {
   label: string;
   sub: string;
   granted: boolean;
   onGrant: () => void;
+  grantLabel?: string;
+  grantedLabel?: string;
 }) {
   return (
     <div className="mt-[18px] flex items-center justify-between gap-3.5 border-2 border-edge px-[15px] py-[13px]">
@@ -273,14 +318,14 @@ function GrantBox({
         <div className="text-xs text-muted">{sub}</div>
       </div>
       {granted ? (
-        <GrantedPill />
+        <GrantedPill label={grantedLabel} />
       ) : (
         <button
           type="button"
           onClick={onGrant}
           className="whitespace-nowrap border-2 border-edge bg-bg px-[11px] py-[5px] text-[11px] font-semibold uppercase tracking-[0.06em] text-fg"
         >
-          Grant access
+          {grantLabel}
         </button>
       )}
     </div>

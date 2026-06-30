@@ -101,5 +101,16 @@ echo "--- notarization staple ---"
 xcrun stapler validate "$APP" 2>&1 || echo "    ⚠ app not stapled"
 xcrun stapler validate "$DMG" 2>&1 || echo "    ⚠ dmg not stapled (the app inside may still be)"
 
+# ---------------------------------------------------------------------------
+say "7/7  Updater manifest (latest.json)"
+if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+  ./scripts/gen-latest-json.sh
+else
+  echo "    ⚠ TAURI_SIGNING_PRIVATE_KEY not set — skipped the updater artifact + latest.json."
+fi
+
 say "Done"
-echo "Ship:  $DMG"
+echo "Ship the DMG + (for auto-update) the updater artifact and manifest:"
+echo "  $DMG"
+echo "  src-tauri/target/universal-apple-darwin/release/bundle/UsageOS.app.tar.gz"
+echo "  src-tauri/target/universal-apple-darwin/release/bundle/latest.json"

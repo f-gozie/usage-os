@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
+    "updater:default",
     "opener:allow-reveal-item-in-dir",
     "opener:allow-open-url",
     {

@@ -9,7 +9,10 @@ const { getPermissions } = vi.hoisted(() => ({ getPermissions: vi.fn() }));
 vi.mock("@/lib/tauri", () => ({
   getPermissions,
   requestAccessibility: vi.fn().mockResolvedValue(undefined),
-  requestAutomation: vi.fn().mockResolvedValue(undefined),
+  requestAutomation: vi.fn().mockResolvedValue("no_browser_running"),
+  getSettings: vi.fn().mockResolvedValue([]),
+  updateSetting: vi.fn().mockResolvedValue(undefined),
+  restartApp: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { Onboarding } from "./Onboarding";
@@ -39,6 +42,10 @@ describe("Onboarding", () => {
     // Automation — not granted, so Skip shows
     expect(screen.getByText(/See the sites/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Skip/i }));
+
+    // Updates — opt-in, not enabled, so the "Not now" affordance shows
+    expect(screen.getByText(/up to date/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Not now/i }));
 
     // Ready — degraded note because both were skipped
     expect(screen.getByText(/That’s it/i)).toBeInTheDocument();
