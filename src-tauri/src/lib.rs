@@ -702,6 +702,10 @@ fn spawn_tray_updater(app: AppHandle) {
 #[tauri::command]
 #[specta::specta]
 fn restart_app(app: tauri::AppHandle) {
+    // `restart` re-execs with the original argv. In a login-launched session that argv has
+    // `--hidden`, and the post-update app would come back invisible mid-install — the env var
+    // (inherited by the child) tells the setup hook to show the window regardless.
+    std::env::set_var("USAGEOS_SHOW_AFTER_RESTART", "1");
     app.restart();
 }
 
@@ -791,8 +795,11 @@ pub fn run() {
         .setup(|app| {
             // The main window is `visible: false` in tauri.conf.json so a `--hidden` launch
             // (the start-at-login LaunchAgent) never flashes it: login starts straight into
-            // menu-bar mode, a normal launch shows the window as before (D68).
-            if std::env::args().any(|a| a == "--hidden") {
+            // menu-bar mode, a normal launch shows the window as before (D68). The env-var
+            // override covers an update installed in a login-launched session — see restart_app.
+            if std::env::args().any(|a| a == "--hidden")
+                && std::env::var_os("USAGEOS_SHOW_AFTER_RESTART").is_none()
+            {
                 set_dock_visible(app.handle(), false);
             } else {
                 show_main(app.handle());
@@ -851,8 +858,8 @@ pub fn run() {
         .build(tauri::generate_context!());
 
     match result {
-        // Underscore-named params: only the macOS Reopen arm uses them (the variant doesn't
-        // exist on other targets), and bare `_`s would trip unused-variable lints there.
+        // `_`-prefixed rather than plain names: only the macOS Reopen arm uses them (the
+        // variant doesn't exist elsewhere), and plain names would be unused on other targets.
         Ok(app) => app.run(|_app_handle, _event| {
             // While the window is closed there is no Dock icon, so re-opening the app from
             // Finder/Spotlight is the natural "bring it back" gesture — macOS activates this

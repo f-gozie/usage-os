@@ -74,6 +74,9 @@ describe("SettingsView", () => {
     expect(getByText("1Password")).toBeInTheDocument();
     expect(getByText("Excluded")).toBeInTheDocument();
     expect(getByText(/Always on/)).toBeInTheDocument();
+    // The Background group with its start-at-login toggle.
+    expect(getByText("Background")).toBeInTheDocument();
+    expect(getByText("Start at login")).toBeInTheDocument();
   });
 
   it("gates delete-all behind typing DELETE", () => {

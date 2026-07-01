@@ -23,8 +23,10 @@ just the menu bar" / "I've closed it but it's still showing on my Dock"._
 - [x] Settings → new "Background" group with the toggle
 - [x] Onboarding "Background" step (recommended, skippable) between Automation and Updates
 - [x] Tests: onboarding walk + enable path, BackgroundSettings toggle, SettingsView mock
-- [ ] On-device verification (Dock cycle, reopen, LaunchAgent plist, login run)
-- [ ] `/usageos-review` + PR
+- [x] On-device verification in dev (Dock cycle, glance reopen, LaunchAgent plist, `--hidden` launch)
+- [x] `/usageos-review` ([review](reviews/2026-07-01-menubar-agent.md) — 5 warnings found + fixed,
+      incl. update-restart-relaunches-hidden and toggle-revert-on-failure) + PR
+- [ ] Release smoke test on a bundled build (Finder reopen, real login run, updater restart)
 
 ## Backlog (unclaimed feedback)
 

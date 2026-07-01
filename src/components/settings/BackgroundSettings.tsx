@@ -17,14 +17,15 @@ export function BackgroundSettings() {
 
   const toggle = (on: boolean) => {
     setEnabled(on);
-    void setLaunchAtLogin(on).catch(() => undefined);
+    // The LaunchAgent is the source of truth (D68) — if the write fails, show the real state.
+    void setLaunchAtLogin(on).catch(() => setEnabled(!on));
   };
 
   return (
     <SettingGroup title="Background">
       <SettingRow
         label="Start at login"
-        description="UsageOS starts quietly in the menu bar when you log in, so your day is tracked without you having to remember to open anything. Close the window anytime — tracking keeps going."
+        description="UsageOS starts quietly in the menu bar when you log in — your day is tracked from the moment you sit down."
       >
         <Toggle checked={enabled} onChange={toggle} aria-label="Start at login" />
       </SettingRow>

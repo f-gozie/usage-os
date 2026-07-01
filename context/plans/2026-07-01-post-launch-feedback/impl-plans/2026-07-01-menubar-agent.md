@@ -46,7 +46,7 @@ User decisions (asked & answered): dynamic Dock behavior (not always-hidden) · 
   ```rust
   .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--hidden"])))
   ```
-  LaunchAgent mode writes `~/Library/LaunchAgents/<bundle-id>.plist` — shows up under System Settings → General → Login Items as a background item; no Automation/AppleScript permission involved.
+  LaunchAgent mode writes `~/Library/LaunchAgents/UsageOS.plist` (named after the app, not the bundle id) — shows up under System Settings → General → Login Items as a background item; no Automation/AppleScript permission involved.
 - Two new commands next to the settings commands (lib.rs ~315), using the plugin's `ManagerExt`:
   - `get_launch_at_login(app: AppHandle) -> Result<bool, AppError>` → `app.autolaunch().is_enabled()`
   - `set_launch_at_login(app: AppHandle, enabled: bool) -> Result<(), AppError>` → `enable()`/`disable()`

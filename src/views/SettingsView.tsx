@@ -2,11 +2,11 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useState } from "react";
 
 import { AboutModal } from "@/components/settings/AboutModal";
+import { BackgroundSettings } from "@/components/settings/BackgroundSettings";
 import { CategoryEditorModal } from "@/components/settings/CategoryEditorModal";
 import { DeleteAllModal } from "@/components/settings/DeleteAllModal";
 import { ExclusionModal } from "@/components/settings/ExclusionModal";
 import { UncategorizedApps } from "@/components/settings/UncategorizedApps";
-import { BackgroundSettings } from "@/components/settings/BackgroundSettings";
 import { UpdateSettings } from "@/components/settings/UpdateSettings";
 import {
   AddRow,

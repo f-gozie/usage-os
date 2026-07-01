@@ -39,18 +39,19 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   const [noBrowser, setNoBrowser] = useState(false);
   const [autoUpdate, setAutoUpdate] = useState(false);
-  const [launchAtLogin, setLaunchAtLoginState] = useState(false);
+  const [startAtLogin, setStartAtLogin] = useState(false);
   useEffect(() => {
     void autoUpdateEnabled().then(setAutoUpdate).catch(() => undefined);
-    void getLaunchAtLogin().then(setLaunchAtLoginState).catch(() => undefined);
+    void getLaunchAtLogin().then(setStartAtLogin).catch(() => undefined);
   }, []);
   const enableAutoUpdate = () => {
     setAutoUpdate(true);
     void setAutoUpdateEnabled(true).catch(() => undefined);
   };
-  const enableLaunchAtLogin = () => {
-    setLaunchAtLoginState(true);
-    void setLaunchAtLogin(true).catch(() => undefined);
+  const enableStartAtLogin = () => {
+    setStartAtLogin(true);
+    // The LaunchAgent is the source of truth (D68) — if the write fails, show the real state.
+    void setLaunchAtLogin(true).catch(() => setStartAtLogin(false));
   };
 
   const grantAccessibility = () => void requestAccessibility().then(refetch).catch(() => undefined);
@@ -186,7 +187,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
 
             {step === 4 && (
               <>
-                <Eyebrow>Always on</Eyebrow>
+                <Eyebrow>In your menu bar</Eyebrow>
                 <H>
                   Runs quietly in
                   <br />
@@ -196,14 +197,14 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                   items={[
                     ["var(--c-deep)", "UsageOS lives in your menu bar. Close the window and tracking keeps going — no Dock icon hanging around."],
                     ["var(--c-comms)", "Start at login and your day is tracked from the moment you sit down. Nothing to remember, nothing to open."],
-                    ["var(--c-research)", "Off by default. Turn it on here (recommended), or anytime in Settings."],
+                    ["var(--c-research)", "Off by default — turn it on here (recommended), or later in Settings."],
                   ]}
                 />
                 <GrantBox
                   label="Start at login"
-                  sub="Recommended. Change anytime in Settings."
-                  granted={launchAtLogin}
-                  onGrant={enableLaunchAtLogin}
+                  sub="Adds UsageOS to your Login Items."
+                  granted={startAtLogin}
+                  onGrant={enableStartAtLogin}
                   grantLabel="Enable"
                   grantedLabel="Enabled ✓"
                 />
@@ -282,7 +283,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                 <FootButton variant="ghost" onClick={next}>Skip</FootButton>
               ))}
             {step === 4 &&
-              (launchAtLogin ? (
+              (startAtLogin ? (
                 <FootButton onClick={next}>Continue →</FootButton>
               ) : (
                 <FootButton variant="ghost" onClick={next}>Not now</FootButton>
