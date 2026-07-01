@@ -32,14 +32,15 @@ just the menu bar" / "I've closed it but it's still showing on my Dock"._
       launch is menu-bar-only
 - [x] **Shipped in [v0.1.1](https://github.com/f-gozie/usage-os/releases/tag/v0.1.1)** — DMG
       (notarized + stapled) + updater artifact + latest.json live; landing + Homebrew cask bumped
-- [ ] Owner-only checks: in-app update 0.1.0 → 0.1.1 via Settings → Check now (the first real
-      updater run), a real log-out/in with the toggle on (incl. any Dock-icon flash at login)
+- [x] Owner check: in-app update 0.1.0 → 0.1.1 via Settings → Check now — **worked first try**
+      (found, downloaded, verified, installed, relaunched)
+- [ ] Owner check: a real log-out/in with the toggle on (incl. any Dock-icon flash at login)
 
 ### 2. About modal showed a stale version after the first real update
 _Source: owner, right after the 0.1.0 → 0.1.1 in-app update (which otherwise worked first try)._
 
 - [x] `AboutModal` had a hardcoded `VERSION` constant the release bump didn't cover — now reads
-      `getVersion()` from the running binary (PR #37). Ships with the next release.
+      `getVersion()` from the running binary (PR #37). Shipped in the re-cut v0.1.1.
 
 ### 3. Login Items should say UsageOS, not the signing certificate (D69)
 _Source: owner, first run of Start at login on v0.1.1 — macOS attributed the background item to
@@ -63,6 +64,11 @@ the signing certificate's name instead of the app; reads unofficial._
       verifying.)
 - [x] `/usageos-review` ([review](reviews/2026-07-01-smappservice-login-item.md) — the Codex lane
       caught the unregister-kills-the-app regression pre-merge) + PR
+- [x] **Shipped in the re-cut [v0.1.1](https://github.com/f-gozie/usage-os/releases/tag/v0.1.1)**
+      (owner call: replace the release rather than add a third) — tag re-pointed to `c0aeb49`,
+      all three assets rebuilt from merged main (PRs #37 + #38), DMG notarized + stapled, cask
+      sha256 bumped. Installs from the *first* 0.1.1 build won't self-update (same version) —
+      reinstall from the DMG.
 
 ## Backlog (unclaimed feedback)
 
