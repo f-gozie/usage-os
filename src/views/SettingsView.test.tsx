@@ -55,6 +55,8 @@ vi.mock("@/lib/tauri", () => ({
   getPermissions: vi.fn().mockResolvedValue({ accessibility: true, automation: "granted" }),
   requestAccessibility: vi.fn().mockResolvedValue(undefined),
   requestAutomation: vi.fn().mockResolvedValue(undefined),
+  getLaunchAtLogin: vi.fn().mockResolvedValue(false),
+  setLaunchAtLogin: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe("SettingsView", () => {
@@ -72,6 +74,9 @@ describe("SettingsView", () => {
     expect(getByText("1Password")).toBeInTheDocument();
     expect(getByText("Excluded")).toBeInTheDocument();
     expect(getByText(/Always on/)).toBeInTheDocument();
+    // The Background group with its start-at-login toggle.
+    expect(getByText("Background")).toBeInTheDocument();
+    expect(getByText("Start at login")).toBeInTheDocument();
   });
 
   it("gates delete-all behind typing DELETE", () => {

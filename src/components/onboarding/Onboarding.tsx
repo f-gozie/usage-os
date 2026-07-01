@@ -2,16 +2,30 @@ import { useEffect, useState } from "react";
 
 import { GrantedPill } from "@/components/ui/GrantedPill";
 import { usePermissions } from "@/hooks/usePermissions";
-import { requestAccessibility, requestAutomation } from "@/lib/tauri";
+import {
+  getLaunchAtLogin,
+  requestAccessibility,
+  requestAutomation,
+  setLaunchAtLogin,
+} from "@/lib/tauri";
 import { autoUpdateEnabled, setAutoUpdateEnabled } from "@/lib/updater";
 
-const STEPS = ["Welcome", "Your privacy", "Accessibility", "Automation", "Updates", "Ready"];
+const STEPS = [
+  "Welcome",
+  "Your privacy",
+  "Accessibility",
+  "Automation",
+  "Background",
+  "Updates",
+  "Ready",
+];
 
 /**
- * First-run onboarding: Welcome → Privacy → Accessibility → Automation → Updates → Ready. Ported
- * from `design/onboarding.html`. Permissions are optional — every grant step can be skipped,
- * landing on a degraded (app-only) "Ready". Auto-update is opt-in (D67), recommended here. Live
- * permission status comes from `usePermissions` (re-reads on window focus).
+ * First-run onboarding: Welcome → Privacy → Accessibility → Automation → Background → Updates →
+ * Ready. Ported from `design/onboarding.html`. Permissions are optional — every grant step can be
+ * skipped, landing on a degraded (app-only) "Ready". Start-at-login (D68) and auto-update (D67)
+ * are opt-in, recommended here. Live permission status comes from `usePermissions` (re-reads on
+ * window focus).
  */
 export function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
@@ -25,12 +39,19 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   const [noBrowser, setNoBrowser] = useState(false);
   const [autoUpdate, setAutoUpdate] = useState(false);
+  const [startAtLogin, setStartAtLogin] = useState(false);
   useEffect(() => {
     void autoUpdateEnabled().then(setAutoUpdate).catch(() => undefined);
+    void getLaunchAtLogin().then(setStartAtLogin).catch(() => undefined);
   }, []);
   const enableAutoUpdate = () => {
     setAutoUpdate(true);
     void setAutoUpdateEnabled(true).catch(() => undefined);
+  };
+  const enableStartAtLogin = () => {
+    setStartAtLogin(true);
+    // The LaunchAgent is the source of truth (D68) — if the write fails, show the real state.
+    void setLaunchAtLogin(true).catch(() => setStartAtLogin(false));
   };
 
   const grantAccessibility = () => void requestAccessibility().then(refetch).catch(() => undefined);
@@ -166,6 +187,32 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
 
             {step === 4 && (
               <>
+                <Eyebrow>In your menu bar</Eyebrow>
+                <H>
+                  Runs quietly in
+                  <br />
+                  the background
+                </H>
+                <Why
+                  items={[
+                    ["var(--c-deep)", "UsageOS lives in your menu bar. Close the window and tracking keeps going — no Dock icon hanging around."],
+                    ["var(--c-comms)", "Start at login and your day is tracked from the moment you sit down. Nothing to remember, nothing to open."],
+                    ["var(--c-research)", "Off by default — turn it on here (recommended), or later in Settings."],
+                  ]}
+                />
+                <GrantBox
+                  label="Start at login"
+                  sub="Adds UsageOS to your Login Items."
+                  granted={startAtLogin}
+                  onGrant={enableStartAtLogin}
+                  grantLabel="Enable"
+                  grantedLabel="Enabled ✓"
+                />
+              </>
+            )}
+
+            {step === 5 && (
+              <>
                 <Eyebrow>One last thing</Eyebrow>
                 <H>
                   Keep it
@@ -190,7 +237,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
               </>
             )}
 
-            {step === 5 && (
+            {step === 6 && (
               <>
                 <Motif ready />
                 <Eyebrow>You’re all set</Eyebrow>
@@ -236,12 +283,18 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                 <FootButton variant="ghost" onClick={next}>Skip</FootButton>
               ))}
             {step === 4 &&
+              (startAtLogin ? (
+                <FootButton onClick={next}>Continue →</FootButton>
+              ) : (
+                <FootButton variant="ghost" onClick={next}>Not now</FootButton>
+              ))}
+            {step === 5 &&
               (autoUpdate ? (
                 <FootButton onClick={next}>Continue →</FootButton>
               ) : (
                 <FootButton variant="ghost" onClick={next}>Not now</FootButton>
               ))}
-            {step === 5 && <FootButton onClick={onComplete}>Open my day →</FootButton>}
+            {step === 6 && <FootButton onClick={onComplete}>Open my day →</FootButton>}
           </div>
         </div>
       </div>

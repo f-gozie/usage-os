@@ -2,6 +2,7 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useEffect, useMemo, useState } from "react";
 
 import { AboutModal } from "@/components/settings/AboutModal";
+import { BackgroundSettings } from "@/components/settings/BackgroundSettings";
 import { CategoryEditorModal } from "@/components/settings/CategoryEditorModal";
 import { DeleteAllModal } from "@/components/settings/DeleteAllModal";
 import { ExclusionModal } from "@/components/settings/ExclusionModal";
@@ -292,6 +293,9 @@ export function SettingsView() {
           </Pill>
         </SettingRow>
       </SettingGroup>
+
+      {/* Background — start at login, opt-in (D68) */}
+      <BackgroundSettings />
 
       {/* Software update — opt-in (D67) */}
       <UpdateSettings />

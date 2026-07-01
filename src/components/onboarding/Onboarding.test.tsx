@@ -5,7 +5,10 @@ import { render, screen, fireEvent } from "@testing-library/react";
 
 // The IPC mock throws on any real invoke, so stub the tauri wrapper this component uses.
 // `vi.hoisted` makes the spy exist before the hoisted `vi.mock` factory runs.
-const { getPermissions } = vi.hoisted(() => ({ getPermissions: vi.fn() }));
+const { getPermissions, setLaunchAtLogin } = vi.hoisted(() => ({
+  getPermissions: vi.fn(),
+  setLaunchAtLogin: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("@/lib/tauri", () => ({
   getPermissions,
   requestAccessibility: vi.fn().mockResolvedValue(undefined),
@@ -13,6 +16,8 @@ vi.mock("@/lib/tauri", () => ({
   getSettings: vi.fn().mockResolvedValue([]),
   updateSetting: vi.fn().mockResolvedValue(undefined),
   restartApp: vi.fn().mockResolvedValue(undefined),
+  getLaunchAtLogin: vi.fn().mockResolvedValue(false),
+  setLaunchAtLogin,
 }));
 
 import { Onboarding } from "./Onboarding";
@@ -43,6 +48,10 @@ describe("Onboarding", () => {
     expect(screen.getByText(/See the sites/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Skip/i }));
 
+    // Background — opt-in, not enabled, so the "Not now" affordance shows
+    expect(screen.getByText(/the background/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Not now/i }));
+
     // Updates — opt-in, not enabled, so the "Not now" affordance shows
     expect(screen.getByText(/up to date/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Not now/i }));
@@ -53,6 +62,20 @@ describe("Onboarding", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Open my day/i }));
     expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("enables start-at-login from the Background step", async () => {
+    render(<Onboarding onComplete={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Get started/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Maybe later/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Skip/i }));
+
+    // Background — Enable registers the LaunchAgent and the footer flips to Continue
+    fireEvent.click(screen.getByRole("button", { name: /Enable/i }));
+    expect(setLaunchAtLogin).toHaveBeenCalledWith(true);
+    expect(screen.getByText(/Enabled ✓/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Continue/i })).toBeInTheDocument();
   });
 
   it("lets you step back to a previous step", async () => {

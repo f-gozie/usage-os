@@ -46,6 +46,7 @@ use tauri::{
     AppHandle, Manager, PhysicalPosition, Position, Rect, Size, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
 };
+use tauri_plugin_autostart::ManagerExt as _;
 use tauri_specta::{collect_commands, Builder};
 
 type DbState = Arc<Mutex<Connection>>;
@@ -59,6 +60,8 @@ pub enum AppError {
     Db(String),
     #[error("database lock was poisoned")]
     LockPoisoned,
+    #[error("autostart error: {0}")]
+    Autostart(String),
 }
 
 impl From<rusqlite::Error> for AppError {
@@ -479,14 +482,56 @@ fn quit_app(app: AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Whether UsageOS starts at login. Reads the LaunchAgent itself — the system is the single
+/// source of truth, there is no settings row to drift (D68).
+#[tauri::command]
+#[specta::specta]
+fn get_launch_at_login(app: AppHandle) -> Result<bool, AppError> {
+    app.autolaunch()
+        .is_enabled()
+        .map_err(|e| AppError::Autostart(e.to_string()))
+}
+
+/// Register / unregister the start-at-login LaunchAgent (the Settings + onboarding toggle).
+#[tauri::command]
+#[specta::specta]
+fn set_launch_at_login(app: AppHandle, enabled: bool) -> Result<(), AppError> {
+    let autolaunch = app.autolaunch();
+    let result = if enabled {
+        autolaunch.enable()
+    } else {
+        autolaunch.disable()
+    };
+    result.map_err(|e| AppError::Autostart(e.to_string()))
+}
+
 // ── Menubar tray + glance popover ─────────────────────────────────────────────
 
 /// Show + focus the main window (tray "Open" + the glance "Open UsageOS").
 fn show_main(app: &AppHandle) {
+    // Regular first, then show — the other way round the window can appear without focus.
+    set_dock_visible(app, true);
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+    }
+}
+
+/// Regular = Dock icon + Cmd-Tab while the dashboard is open; Accessory = menu-bar only (D68).
+/// Best-effort: a policy that fails to apply leaves the Dock icon, nothing worse.
+#[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
+fn set_dock_visible(app: &AppHandle, visible: bool) {
+    #[cfg(target_os = "macos")]
+    {
+        let policy = if visible {
+            tauri::ActivationPolicy::Regular
+        } else {
+            tauri::ActivationPolicy::Accessory
+        };
+        if let Err(e) = app.set_activation_policy(policy) {
+            eprintln!("[Dock] failed to set activation policy: {e}");
+        }
     }
 }
 
@@ -657,6 +702,10 @@ fn spawn_tray_updater(app: AppHandle) {
 #[tauri::command]
 #[specta::specta]
 fn restart_app(app: tauri::AppHandle) {
+    // `restart` re-execs with the original argv. In a login-launched session that argv has
+    // `--hidden`, and the post-update app would come back invisible mid-install — the env var
+    // (inherited by the child) tells the setup hook to show the window regardless.
+    std::env::set_var("USAGEOS_SHOW_AFTER_RESTART", "1");
     app.restart();
 }
 
@@ -695,6 +744,8 @@ fn make_builder() -> Builder<tauri::Wry> {
         show_main_window,
         quit_app,
         restart_app,
+        get_launch_at_login,
+        set_launch_at_login,
     ])
 }
 
@@ -716,6 +767,13 @@ pub fn run() {
         // network happens unless the user turned it on. Updates are ed25519-signed (pubkey in
         // tauri.conf.json); a tampered or unsigned update can't install.
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Start at login (D68): opt-in via Settings/onboarding. LaunchAgent mode — a plist in
+        // ~/Library/LaunchAgents, no AppleScript/Automation. `--hidden` makes a login launch
+        // start in menu-bar mode (no window, no Dock icon); see the setup hook.
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--hidden"]),
+        ))
         .invoke_handler(builder.invoke_handler())
         .on_window_event(|window, event| {
             // Closing the main window HIDES it (tracking keeps running in the background); the
@@ -728,11 +786,25 @@ pub fn run() {
                     if TRAY_READY.load(Ordering::Relaxed) {
                         api.prevent_close();
                         let _ = window.hide();
+                        // No window left → drop the Dock icon too; the tray is the way back (D68).
+                        set_dock_visible(window.app_handle(), false);
                     }
                 }
             }
         })
         .setup(|app| {
+            // The main window is `visible: false` in tauri.conf.json so a `--hidden` launch
+            // (the start-at-login LaunchAgent) never flashes it: login starts straight into
+            // menu-bar mode, a normal launch shows the window as before (D68). The env-var
+            // override covers an update installed in a login-launched session — see restart_app.
+            if std::env::args().any(|a| a == "--hidden")
+                && std::env::var_os("USAGEOS_SHOW_AFTER_RESTART").is_none()
+            {
+                set_dock_visible(app.handle(), false);
+            } else {
+                show_main(app.handle());
+            }
+
             let db_path = db::get_db_path(app.handle())?;
 
             let db_conn = db::init_database(&db_path)?;
@@ -783,11 +855,24 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!());
+        .build(tauri::generate_context!());
 
-    if let Err(e) = result {
-        eprintln!("[Fatal] Error while running tauri application: {}", e);
-        std::process::exit(1);
+    match result {
+        // `_`-prefixed rather than plain names: only the macOS Reopen arm uses them (the
+        // variant doesn't exist elsewhere), and plain names would be unused on other targets.
+        Ok(app) => app.run(|_app_handle, _event| {
+            // While the window is closed there is no Dock icon, so re-opening the app from
+            // Finder/Spotlight is the natural "bring it back" gesture — macOS activates this
+            // process and fires Reopen instead of launching a second instance.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = _event {
+                show_main(_app_handle);
+            }
+        }),
+        Err(e) => {
+            eprintln!("[Fatal] Error while running tauri application: {}", e);
+            std::process::exit(1);
+        }
     }
 }
 
