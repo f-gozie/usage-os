@@ -1,0 +1,31 @@
+# Post-launch feedback
+
+The rolling home for what real users surface now that v0.1.0 is public. Each item traces back
+to a concrete report (tester message, GitHub issue, dogfood note) — this plan collects them so
+feedback-driven work has the plan → impl-plan → review → handoff paper trail without inventing
+a new plan folder per nit.
+
+**Scope:** app-behavior polish driven by user feedback. Bigger themes that grow a roadmap of
+their own (e.g. categorization gaps → `2026-06-27-categorization-v2/`) get spun out, same as
+Phase 5 → branding-launch.
+
+## Items
+
+### 1. Menu-bar agent: Dock icon follows the window + start at login (D68)
+_Source: first tester feedback (2026-07-01 WhatsApp) — "wish the app didn't have to be open,
+just the menu bar" / "I've closed it but it's still showing on my Dock"._
+
+- [x] Dynamic activation policy — Regular while the dashboard is open, Accessory when closed
+      (close → no Dock icon; tray/Reopen → icon returns)
+- [x] `RunEvent::Reopen` → show the window (Finder/Spotlight re-open while Dock-less)
+- [x] Start at login: `tauri-plugin-autostart` (LaunchAgent, `--hidden`), opt-in default OFF
+- [x] `--hidden` launch starts in menu-bar mode (window `visible: false` + setup branch)
+- [x] Settings → new "Background" group with the toggle
+- [x] Onboarding "Background" step (recommended, skippable) between Automation and Updates
+- [x] Tests: onboarding walk + enable path, BackgroundSettings toggle, SettingsView mock
+- [ ] On-device verification (Dock cycle, reopen, LaunchAgent plist, login run)
+- [ ] `/usageos-review` + PR
+
+## Backlog (unclaimed feedback)
+
+_(add items here as reports come in)_

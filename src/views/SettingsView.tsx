@@ -6,6 +6,7 @@ import { CategoryEditorModal } from "@/components/settings/CategoryEditorModal";
 import { DeleteAllModal } from "@/components/settings/DeleteAllModal";
 import { ExclusionModal } from "@/components/settings/ExclusionModal";
 import { UncategorizedApps } from "@/components/settings/UncategorizedApps";
+import { BackgroundSettings } from "@/components/settings/BackgroundSettings";
 import { UpdateSettings } from "@/components/settings/UpdateSettings";
 import {
   AddRow,
@@ -292,6 +293,9 @@ export function SettingsView() {
           </Pill>
         </SettingRow>
       </SettingGroup>
+
+      {/* Background — start at login, opt-in (D68) */}
+      <BackgroundSettings />
 
       {/* Software update — opt-in (D67) */}
       <UpdateSettings />

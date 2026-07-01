@@ -240,3 +240,13 @@ export async function quitApp(): Promise<void> {
 export async function restartApp(): Promise<void> {
   await commands.restartApp();
 }
+
+/** Whether UsageOS starts at login (reads the LaunchAgent — the system is the source of truth). */
+export async function getLaunchAtLogin(): Promise<boolean> {
+  return unwrap(await commands.getLaunchAtLogin());
+}
+
+/** Register / unregister the start-at-login LaunchAgent. */
+export async function setLaunchAtLogin(on: boolean): Promise<void> {
+  unwrap(await commands.setLaunchAtLogin(on));
+}

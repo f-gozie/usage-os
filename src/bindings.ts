@@ -345,6 +345,29 @@ async quitApp() : Promise<Result<null, AppError>> {
  */
 async restartApp() : Promise<void> {
     await TAURI_INVOKE("restart_app");
+},
+/**
+ * Whether UsageOS starts at login. Reads the LaunchAgent itself — the system is the single
+ * source of truth, there is no settings row to drift (D68).
+ */
+async getLaunchAtLogin() : Promise<Result<boolean, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_launch_at_login") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Register / unregister the start-at-login LaunchAgent (the Settings + onboarding toggle).
+ */
+async setLaunchAtLogin(enabled: boolean) : Promise<Result<null, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_launch_at_login", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -392,7 +415,7 @@ is_private: boolean }
  * Typed error contract for every command (replaces `Result<_, String>`).
  * Crosses to TS as a discriminated union the frontend can `switch` on `kind`.
  */
-export type AppError = { kind: "Db"; message: string } | { kind: "LockPoisoned" }
+export type AppError = { kind: "Db"; message: string } | { kind: "LockPoisoned" } | { kind: "Autostart"; message: string }
 /**
  * Outcome of [`request_automation`], so the UI can guide the one case it can't resolve itself.
  * macOS only adds an app to the Automation list once it sends a real Apple Event to a *running*
