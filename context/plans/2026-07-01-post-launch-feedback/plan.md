@@ -26,7 +26,12 @@ just the menu bar" / "I've closed it but it's still showing on my Dock"._
 - [x] On-device verification in dev (Dock cycle, glance reopen, LaunchAgent plist, `--hidden` launch)
 - [x] `/usageos-review` ([review](reviews/2026-07-01-menubar-agent.md) — 5 warnings found + fixed,
       incl. update-restart-relaunches-hidden and toggle-revert-on-failure) + PR
-- [ ] Release smoke test on a bundled build (Finder reopen, real login run, updater restart)
+- [x] Bundled-build smoke test (merged as [PR #36](https://github.com/f-gozie/usage-os/pull/36)):
+      LS launch shows the window · close → no Dock icon · `open` again fires Reopen → window back
+      focused · toggle writes/removes the LaunchAgent plist (bundle path + `--hidden`) · `--hidden`
+      launch is menu-bar-only
+- [ ] Owner-only checks at next opportunity: a real log-out/in with the toggle on (incl. any
+      Dock-icon flash at login), and the updater-restart path once a v0.1.1 exists
 
 ## Backlog (unclaimed feedback)
 
