@@ -3,7 +3,7 @@
 ## v0.1.1 — runs in the menu bar (2026)
 
 - **Close the window, keep the tracking** — closing UsageOS now also removes it from the Dock; it keeps recording quietly from the menu bar. Bring it back from the menu bar icon, or open it like any app.
-- **Start at login** — a new opt-in toggle (Settings → Background, also offered during onboarding) starts UsageOS in the menu bar when you log in. Off by default.
+- **Start at login** — a new opt-in toggle (Settings → Background, also offered during onboarding) starts UsageOS in the menu bar when you log in. Off by default, and System Settings → Login Items shows it as UsageOS, like any proper app.
 
 ## v0.1.0 — first public release (2026)
 
