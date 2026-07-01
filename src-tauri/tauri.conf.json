@@ -52,6 +52,9 @@
     "macOS": {
       "minimumSystemVersion": "13.0",
       "entitlements": "entitlements.plist",
+      "files": {
+        "Library/LaunchAgents/com.usageos.app.agent.plist": "agents/com.usageos.app.agent.plist"
+      },
       "dmg": {
         "background": "dmg-background.tiff",
         "windowSize": { "width": 660, "height": 400 },

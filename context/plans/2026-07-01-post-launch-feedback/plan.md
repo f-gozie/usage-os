@@ -41,6 +41,29 @@ _Source: owner, right after the 0.1.0 → 0.1.1 in-app update (which otherwise w
 - [x] `AboutModal` had a hardcoded `VERSION` constant the release bump didn't cover — now reads
       `getVersion()` from the running binary (PR #37). Ships with the next release.
 
+### 3. Login Items should say UsageOS, not the signing certificate (D69)
+_Source: owner, first run of Start at login on v0.1.1 — macOS attributed the background item to
+the signing certificate's name instead of the app; reads unofficial._
+
+- [x] Register via `SMAppService.agent` with the agent plist bundled inside the app
+      (`bundle.macOS.files` → `Contents/Library/LaunchAgents/`)
+- [x] New `login_item` module (cfg-isolated `objc2-service-management` surface); the
+      `get/set_launch_at_login` commands and the whole frontend unchanged
+- [x] `tauri-plugin-autostart` removed
+- [x] Startup migration removes the legacy bare `~/Library/LaunchAgents` plist and re-registers
+- [x] Trampoline agent launch: launchd owns the process it spawns, and unregistering kills it —
+      the job respawns the app detached and exits, so toggle-off can never kill a login-launched
+      session (cross-model review finding; verified on-device: session survives toggle-off)
+- [x] Instance flock replaces the process-list guard (atomic; `--hidden` must win it or exit;
+      the updater relaunch retries briefly — verified via `launchctl kickstart`)
+- [x] Migration registers the bundled agent before deleting the legacy plist
+- [x] Bundled-build verification on a Developer-ID-signed build: toggle registers/unregisters,
+      **Login Items shows "UsageOS" with its icon**, agent-launched session survives toggle-off,
+      no bare plist ever appears. (SMAppService refuses ad-hoc-signed bundles — sign before
+      verifying.)
+- [x] `/usageos-review` ([review](reviews/2026-07-01-smappservice-login-item.md) — the Codex lane
+      caught the unregister-kills-the-app regression pre-merge) + PR
+
 ## Backlog (unclaimed feedback)
 
 _(add items here as reports come in)_

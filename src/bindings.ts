@@ -338,8 +338,6 @@ async quitApp() : Promise<Result<null, AppError>> {
 }
 },
 /**
- * The single source of command registration. Both the runtime invoke handler
- * and the generated TS bindings come from this Builder, so they cannot disagree
  * Relaunch the app. Used after the updater downloads + installs a new version so the freshly
  * installed binary takes over. Diverges (`restart` replaces the process), so nothing runs after.
  */
@@ -347,8 +345,8 @@ async restartApp() : Promise<void> {
     await TAURI_INVOKE("restart_app");
 },
 /**
- * Whether UsageOS starts at login. Reads the LaunchAgent itself — the system is the single
- * source of truth, there is no settings row to drift (D68).
+ * Whether UsageOS starts at login. Reads the SMAppService registration itself — the system is
+ * the single source of truth, there is no settings row to drift (D68/D69).
  */
 async getLaunchAtLogin() : Promise<Result<boolean, AppError>> {
     try {
@@ -359,7 +357,7 @@ async getLaunchAtLogin() : Promise<Result<boolean, AppError>> {
 }
 },
 /**
- * Register / unregister the start-at-login LaunchAgent (the Settings + onboarding toggle).
+ * Register / unregister the start-at-login agent (the Settings + onboarding toggle).
  */
 async setLaunchAtLogin(enabled: boolean) : Promise<Result<null, AppError>> {
     try {
