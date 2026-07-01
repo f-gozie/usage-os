@@ -35,6 +35,12 @@ just the menu bar" / "I've closed it but it's still showing on my Dock"._
 - [ ] Owner-only checks: in-app update 0.1.0 → 0.1.1 via Settings → Check now (the first real
       updater run), a real log-out/in with the toggle on (incl. any Dock-icon flash at login)
 
+### 2. About modal showed a stale version after the first real update
+_Source: owner, right after the 0.1.0 → 0.1.1 in-app update (which otherwise worked first try)._
+
+- [x] `AboutModal` had a hardcoded `VERSION` constant the release bump didn't cover — now reads
+      `getVersion()` from the running binary (PR #37). Ships with the next release.
+
 ## Backlog (unclaimed feedback)
 
 _(add items here as reports come in)_
