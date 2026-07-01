@@ -45,13 +45,18 @@ the signing certificate's name instead of the app; reads unofficial._
       `get/set_launch_at_login` commands and the whole frontend unchanged
 - [x] `tauri-plugin-autostart` removed
 - [x] Startup migration removes the legacy bare `~/Library/LaunchAgents` plist and re-registers
-- [x] Duplicate-instance guard: launchd starts the agent at registration time (and login can race
-      window restore) — a `--hidden` launch that finds UsageOS already running exits immediately
-      (verified via `launchctl kickstart`: duplicate exits 0)
+- [x] Trampoline agent launch: launchd owns the process it spawns, and unregistering kills it —
+      the job respawns the app detached and exits, so toggle-off can never kill a login-launched
+      session (cross-model review finding; verified on-device: session survives toggle-off)
+- [x] Instance flock replaces the process-list guard (atomic; `--hidden` must win it or exit;
+      the updater relaunch retries briefly — verified via `launchctl kickstart`)
+- [x] Migration registers the bundled agent before deleting the legacy plist
 - [x] Bundled-build verification on a Developer-ID-signed build: toggle registers/unregisters,
-      **Login Items shows "UsageOS" with its icon**, migration removes the legacy plist, no bare
-      plist ever appears. (SMAppService refuses ad-hoc-signed bundles — sign before verifying.)
-- [ ] `/usageos-review` + PR
+      **Login Items shows "UsageOS" with its icon**, agent-launched session survives toggle-off,
+      no bare plist ever appears. (SMAppService refuses ad-hoc-signed bundles — sign before
+      verifying.)
+- [x] `/usageos-review` ([review](reviews/2026-07-01-smappservice-login-item.md) — the Codex lane
+      caught the unregister-kills-the-app regression pre-merge) + PR
 
 ## Backlog (unclaimed feedback)
 

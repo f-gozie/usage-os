@@ -11,6 +11,11 @@
 		<string>usage-os</string>
 		<string>--hidden</string>
 	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>USAGEOS_AGENT_LAUNCH</key>
+		<string>1</string>
+	</dict>
 	<key>RunAtLoad</key>
 	<true/>
 </dict>

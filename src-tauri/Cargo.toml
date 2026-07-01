@@ -83,7 +83,7 @@ objc2-foundation = { version = "0.3.2", features = [
     "block2",
 ] }
 # Start at login (D69): SMAppService registers the agent plist bundled inside the .app, so
-# Login Items shows the app, not the signing certificate. Rust-only behind our own commands.
+# Login Items shows the app, not the signing certificate.
 objc2-service-management = { version = "0.3.2", features = ["SMAppService"] }
 objc2-application-services = { version = "0.3.2", features = [
     "AXUIElement",

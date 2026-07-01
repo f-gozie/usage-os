@@ -4,7 +4,6 @@
 
 #[cfg(target_os = "macos")]
 mod imp {
-    use objc2_app_kit::NSRunningApplication;
     use objc2_foundation::NSString;
     use objc2_service_management::{SMAppService, SMAppServiceStatus};
 
@@ -18,17 +17,17 @@ mod imp {
         unsafe { SMAppService::agentServiceWithPlistName(&name) }
     }
 
-    pub fn is_enabled() -> Result<bool, String> {
+    pub fn is_enabled() -> bool {
         // SAFETY: reading the registration status has no preconditions.
         let status = unsafe { service().status() };
-        // RequiresApproval (user switched it off in System Settings) reads as disabled.
-        Ok(status == SMAppServiceStatus::Enabled)
+        // RequiresApproval (switched off in System Settings) reads as disabled.
+        status == SMAppServiceStatus::Enabled
     }
 
     pub fn set_enabled(on: bool) -> Result<(), String> {
         let service = service();
-        // SAFETY: plain calls; failures (unbundled dev binary, denied in System Settings)
-        // come back as NSError, mapped to a message for the UI (whose toggle reverts).
+        // SAFETY: no preconditions; failure (unbundled dev binary, denied in System
+        // Settings) is reported via NSError, not UB.
         let result = unsafe {
             if on {
                 service.registerAndReturnError()
@@ -39,19 +38,11 @@ mod imp {
         result.map_err(|e| e.localizedDescription().to_string())
     }
 
-    /// True when another UsageOS process is already running. launchd starts the agent the
-    /// moment it's registered (and again at login even if macOS's window restore relaunched
-    /// the app), so a `--hidden` launch must bow out instead of running a duplicate.
-    pub fn another_instance_running() -> bool {
-        let bundle_id = NSString::from_str("com.usageos.app");
-        let apps = NSRunningApplication::runningApplicationsWithBundleIdentifier(&bundle_id);
-        let me = std::process::id() as i32;
-        apps.iter().any(|app| app.processIdentifier() != me)
-    }
-
     /// One-time cleanup for pre-0.1.2 installs: the old autostart plugin wrote a bare plist
     /// into ~/Library/LaunchAgents, which macOS attributes to the certificate, not the app
-    /// (D69). Its presence means the toggle was on — remove it and register the bundled agent.
+    /// (D69). The file's presence means the toggle was flipped on at some point (System
+    /// Settings can disable the item without deleting the file — migration re-registers
+    /// those; accepted, the new item lands as approval-pending rather than silently on).
     pub fn migrate_legacy() {
         let Some(home) = std::env::var_os("HOME") else {
             return;
@@ -60,34 +51,93 @@ mod imp {
         if !legacy.exists() {
             return;
         }
-        match std::fs::remove_file(&legacy) {
-            Ok(()) => {
-                if let Err(e) = set_enabled(true) {
-                    eprintln!("[LoginItem] legacy plist removed but re-register failed: {e}");
-                }
+        // Register the bundled agent BEFORE removing the old plist — a failed registration
+        // must not cost the user their working login item. ("Already registered" counts as
+        // success: the agent is in place, the file can go.)
+        if let Err(e) = set_enabled(true) {
+            if !is_enabled() {
+                eprintln!("[LoginItem] migration register failed (legacy plist kept): {e}");
+                return;
             }
-            Err(e) => eprintln!("[LoginItem] failed to remove legacy plist: {e}"),
+        }
+        if let Err(e) = std::fs::remove_file(&legacy) {
+            eprintln!("[LoginItem] failed to remove legacy plist: {e}");
+        }
+    }
+
+    /// Try to take the app-wide instance lock — an flock held for the process's lifetime and
+    /// released by the OS on exit, so it can't race the way a process-list snapshot can.
+    /// Open/create failures count as "acquired": never block a launch over a lock hiccup.
+    pub fn try_acquire_instance_lock() -> bool {
+        use std::os::fd::IntoRawFd;
+        let Some(home) = std::env::var_os("HOME") else {
+            return true;
+        };
+        // Lives next to the app's data — the dir name must match tauri.conf.json `identifier`.
+        let dir = std::path::Path::new(&home).join("Library/Application Support/com.usageos.app");
+        if std::fs::create_dir_all(&dir).is_err() {
+            return true;
+        }
+        let Ok(file) = std::fs::File::create(dir.join("instance.lock")) else {
+            return true;
+        };
+        let fd = file.into_raw_fd();
+        // SAFETY: `fd` is a valid descriptor we own; LOCK_NB makes the call non-blocking.
+        // The fd is deliberately leaked so the lock lives exactly as long as the process.
+        unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) == 0 }
+    }
+
+    /// The agent launch is a trampoline: launchd owns whatever process it spawns for the
+    /// job, so unregistering the agent (the Settings toggle) would kill that process — the
+    /// long-running app must not be launchd's child. Respawn detached, then the caller exits.
+    pub fn respawn_detached() {
+        use std::os::unix::process::CommandExt;
+        let exe = match std::env::current_exe() {
+            Ok(exe) => exe,
+            Err(e) => {
+                eprintln!("[LoginItem] current_exe failed, agent launch dropped: {e}");
+                return;
+            }
+        };
+        let mut cmd = std::process::Command::new(exe);
+        cmd.arg("--hidden")
+            .env_remove("USAGEOS_AGENT_LAUNCH")
+            .env("USAGEOS_DETACHED", "1");
+        // SAFETY: setsid is async-signal-safe (no allocation, no locks) and moves the child
+        // into its own session, out of reach of launchd's job teardown.
+        unsafe {
+            cmd.pre_exec(|| {
+                libc::setsid();
+                Ok(())
+            });
+        }
+        if let Err(e) = cmd.spawn() {
+            eprintln!("[LoginItem] detached respawn failed: {e}");
         }
     }
 }
 
 #[cfg(target_os = "macos")]
-pub use imp::{another_instance_running, is_enabled, migrate_legacy, set_enabled};
+pub use imp::{
+    is_enabled, migrate_legacy, respawn_detached, set_enabled, try_acquire_instance_lock,
+};
 
 #[cfg(not(target_os = "macos"))]
-pub fn is_enabled() -> Result<bool, String> {
-    Ok(false)
+mod stub {
+    pub fn is_enabled() -> bool {
+        false
+    }
+    pub fn set_enabled(_on: bool) -> Result<(), String> {
+        Err("start at login is only supported on macOS".into())
+    }
+    pub fn migrate_legacy() {}
+    pub fn try_acquire_instance_lock() -> bool {
+        true
+    }
+    pub fn respawn_detached() {}
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn set_enabled(_on: bool) -> Result<(), String> {
-    Err("start at login is only supported on macOS".into())
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn migrate_legacy() {}
-
-#[cfg(not(target_os = "macos"))]
-pub fn another_instance_running() -> bool {
-    false
-}
+pub use stub::{
+    is_enabled, migrate_legacy, respawn_detached, set_enabled, try_acquire_instance_lock,
+};

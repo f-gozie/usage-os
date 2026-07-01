@@ -488,7 +488,7 @@ fn quit_app(app: AppHandle) -> Result<(), AppError> {
 #[tauri::command]
 #[specta::specta]
 fn get_launch_at_login() -> Result<bool, AppError> {
-    login_item::is_enabled().map_err(AppError::Autostart)
+    Ok(login_item::is_enabled())
 }
 
 /// Register / unregister the start-at-login agent (the Settings + onboarding toggle).
@@ -688,8 +688,6 @@ fn spawn_tray_updater(app: AppHandle) {
         });
 }
 
-/// The single source of command registration. Both the runtime invoke handler
-/// and the generated TS bindings come from this Builder, so they cannot disagree
 /// Relaunch the app. Used after the updater downloads + installs a new version so the freshly
 /// installed binary takes over. Diverges (`restart` replaces the process), so nothing runs after.
 #[tauri::command]
@@ -702,7 +700,9 @@ fn restart_app(app: tauri::AppHandle) {
     app.restart();
 }
 
-/// (hard rule 2). Events stay empty until issue #211 is de-risked (commands-only).
+/// The single source of command registration. Both the runtime invoke handler and the generated
+/// TS bindings come from this Builder, so they cannot disagree (hard rule 2). Events stay empty
+/// until issue #211 is de-risked (commands-only).
 fn make_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![
         get_activity_stats,
@@ -748,16 +748,32 @@ static TRAY_READY: AtomicBool = AtomicBool::new(false);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // launchd starts the login-item agent the moment it's registered — not only at login — and
-    // a login can also race macOS's own window restore. A `--hidden` launch that finds UsageOS
-    // already running has nothing to do: bow out before touching the DB or capture (D69).
-    // The updater's relaunch is the exception — it re-execs with the same argv while the old
-    // process is still exiting, so the guard would kill the replacement; the env var
-    // (set in restart_app, inherited by the child) marks that launch as legitimate.
-    if std::env::args().any(|a| a == "--hidden")
-        && std::env::var_os("USAGEOS_SHOW_AFTER_RESTART").is_none()
-        && login_item::another_instance_running()
+    // launchd owns any process it spawns for the login-item agent — unregistering the agent
+    // (the Settings toggle) kills that process, i.e. the app the user is sitting in. So an
+    // agent launch is a trampoline: respawn detached from the job and exit immediately (D69).
+    if std::env::var_os("USAGEOS_AGENT_LAUNCH").is_some()
+        && std::env::var_os("USAGEOS_DETACHED").is_none()
     {
+        login_item::respawn_detached();
+        return;
+    }
+
+    // One long-running instance: the lock is held for the app's lifetime and released by the
+    // OS on exit. A `--hidden` launch that can't take it has nothing to do — the agent fired
+    // while UsageOS was already running (launchd starts it at registration time, and a login
+    // can race macOS's window restore). The updater's relaunch overlaps its exiting
+    // predecessor, so it briefly retries instead (USAGEOS_SHOW_AFTER_RESTART — restart_app).
+    let mut lock_held = login_item::try_acquire_instance_lock();
+    if !lock_held && std::env::var_os("USAGEOS_SHOW_AFTER_RESTART").is_some() {
+        for _ in 0..50 {
+            std::thread::sleep(Duration::from_millis(100));
+            lock_held = login_item::try_acquire_instance_lock();
+            if lock_held {
+                break;
+            }
+        }
+    }
+    if std::env::args_os().any(|a| a == "--hidden") && !lock_held {
         return;
     }
 
@@ -796,7 +812,7 @@ pub fn run() {
             // (the start-at-login LaunchAgent) never flashes it: login starts straight into
             // menu-bar mode, a normal launch shows the window as before (D68). The env-var
             // override covers an update installed in a login-launched session — see restart_app.
-            if std::env::args().any(|a| a == "--hidden")
+            if std::env::args_os().any(|a| a == "--hidden")
                 && std::env::var_os("USAGEOS_SHOW_AFTER_RESTART").is_none()
             {
                 set_dock_visible(app.handle(), false);
