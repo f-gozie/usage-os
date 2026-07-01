@@ -35,6 +35,24 @@ just the menu bar" / "I've closed it but it's still showing on my Dock"._
 - [ ] Owner-only checks: in-app update 0.1.0 → 0.1.1 via Settings → Check now (the first real
       updater run), a real log-out/in with the toggle on (incl. any Dock-icon flash at login)
 
+### 3. Login Items should say UsageOS, not the signing certificate (D69)
+_Source: owner, first run of Start at login on v0.1.1 — macOS attributed the background item to
+the signing certificate's name instead of the app; reads unofficial._
+
+- [x] Register via `SMAppService.agent` with the agent plist bundled inside the app
+      (`bundle.macOS.files` → `Contents/Library/LaunchAgents/`)
+- [x] New `login_item` module (cfg-isolated `objc2-service-management` surface); the
+      `get/set_launch_at_login` commands and the whole frontend unchanged
+- [x] `tauri-plugin-autostart` removed
+- [x] Startup migration removes the legacy bare `~/Library/LaunchAgents` plist and re-registers
+- [x] Duplicate-instance guard: launchd starts the agent at registration time (and login can race
+      window restore) — a `--hidden` launch that finds UsageOS already running exits immediately
+      (verified via `launchctl kickstart`: duplicate exits 0)
+- [x] Bundled-build verification on a Developer-ID-signed build: toggle registers/unregisters,
+      **Login Items shows "UsageOS" with its icon**, migration removes the legacy plist, no bare
+      plist ever appears. (SMAppService refuses ad-hoc-signed bundles — sign before verifying.)
+- [ ] `/usageos-review` + PR
+
 ## Backlog (unclaimed feedback)
 
 _(add items here as reports come in)_

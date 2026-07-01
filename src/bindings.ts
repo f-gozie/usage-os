@@ -347,8 +347,8 @@ async restartApp() : Promise<void> {
     await TAURI_INVOKE("restart_app");
 },
 /**
- * Whether UsageOS starts at login. Reads the LaunchAgent itself — the system is the single
- * source of truth, there is no settings row to drift (D68).
+ * Whether UsageOS starts at login. Reads the SMAppService registration itself — the system is
+ * the single source of truth, there is no settings row to drift (D68/D69).
  */
 async getLaunchAtLogin() : Promise<Result<boolean, AppError>> {
     try {
@@ -359,7 +359,7 @@ async getLaunchAtLogin() : Promise<Result<boolean, AppError>> {
 }
 },
 /**
- * Register / unregister the start-at-login LaunchAgent (the Settings + onboarding toggle).
+ * Register / unregister the start-at-login agent (the Settings + onboarding toggle).
  */
 async setLaunchAtLogin(enabled: boolean) : Promise<Result<null, AppError>> {
     try {

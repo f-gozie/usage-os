@@ -20,6 +20,8 @@ mod apps;
 mod permissions;
 // The menubar tray icon: the mono Contexts mark + a now-triangle pointing at the current hour.
 mod tray_icon;
+// Start-at-login via SMAppService — the bundled agent keeps Login Items branded as UsageOS (D69).
+mod login_item;
 // macOS NSPanel reclass so the menubar glance floats over full-screen Spaces (D56).
 #[cfg(target_os = "macos")]
 mod glance_panel;
@@ -46,7 +48,6 @@ use tauri::{
     AppHandle, Manager, PhysicalPosition, Position, Rect, Size, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
 };
-use tauri_plugin_autostart::ManagerExt as _;
 use tauri_specta::{collect_commands, Builder};
 
 type DbState = Arc<Mutex<Connection>>;
@@ -482,27 +483,19 @@ fn quit_app(app: AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Whether UsageOS starts at login. Reads the LaunchAgent itself — the system is the single
-/// source of truth, there is no settings row to drift (D68).
+/// Whether UsageOS starts at login. Reads the SMAppService registration itself — the system is
+/// the single source of truth, there is no settings row to drift (D68/D69).
 #[tauri::command]
 #[specta::specta]
-fn get_launch_at_login(app: AppHandle) -> Result<bool, AppError> {
-    app.autolaunch()
-        .is_enabled()
-        .map_err(|e| AppError::Autostart(e.to_string()))
+fn get_launch_at_login() -> Result<bool, AppError> {
+    login_item::is_enabled().map_err(AppError::Autostart)
 }
 
-/// Register / unregister the start-at-login LaunchAgent (the Settings + onboarding toggle).
+/// Register / unregister the start-at-login agent (the Settings + onboarding toggle).
 #[tauri::command]
 #[specta::specta]
-fn set_launch_at_login(app: AppHandle, enabled: bool) -> Result<(), AppError> {
-    let autolaunch = app.autolaunch();
-    let result = if enabled {
-        autolaunch.enable()
-    } else {
-        autolaunch.disable()
-    };
-    result.map_err(|e| AppError::Autostart(e.to_string()))
+fn set_launch_at_login(enabled: bool) -> Result<(), AppError> {
+    login_item::set_enabled(enabled).map_err(AppError::Autostart)
 }
 
 // ── Menubar tray + glance popover ─────────────────────────────────────────────
@@ -755,6 +748,13 @@ static TRAY_READY: AtomicBool = AtomicBool::new(false);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // launchd starts the login-item agent the moment it's registered — not only at login — and
+    // a login can also race macOS's own window restore. A `--hidden` launch that finds UsageOS
+    // already running has nothing to do: bow out before touching the DB or capture (D69).
+    if std::env::args().any(|a| a == "--hidden") && login_item::another_instance_running() {
+        return;
+    }
+
     let builder = make_builder();
 
     let result = tauri::Builder::default()
@@ -767,13 +767,6 @@ pub fn run() {
         // network happens unless the user turned it on. Updates are ed25519-signed (pubkey in
         // tauri.conf.json); a tampered or unsigned update can't install.
         .plugin(tauri_plugin_updater::Builder::new().build())
-        // Start at login (D68): opt-in via Settings/onboarding. LaunchAgent mode — a plist in
-        // ~/Library/LaunchAgents, no AppleScript/Automation. `--hidden` makes a login launch
-        // start in menu-bar mode (no window, no Dock icon); see the setup hook.
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec!["--hidden"]),
-        ))
         .invoke_handler(builder.invoke_handler())
         .on_window_event(|window, event| {
             // Closing the main window HIDES it (tracking keeps running in the background); the
@@ -853,6 +846,11 @@ pub fn run() {
                 Ok(()) => TRAY_READY.store(true, Ordering::Relaxed),
                 Err(e) => eprintln!("[Startup] Tray setup failed: {}", e),
             }
+
+            // Pre-0.1.2 installs registered start-at-login as a bare ~/Library/LaunchAgents
+            // plist (attributed to the certificate, not the app) — move them onto the bundled
+            // SMAppService agent (D69).
+            login_item::migrate_legacy();
             Ok(())
         })
         .build(tauri::generate_context!());
