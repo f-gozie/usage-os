@@ -30,8 +30,10 @@ just the menu bar" / "I've closed it but it's still showing on my Dock"._
       LS launch shows the window · close → no Dock icon · `open` again fires Reopen → window back
       focused · toggle writes/removes the LaunchAgent plist (bundle path + `--hidden`) · `--hidden`
       launch is menu-bar-only
-- [ ] Owner-only checks at next opportunity: a real log-out/in with the toggle on (incl. any
-      Dock-icon flash at login), and the updater-restart path once a v0.1.1 exists
+- [x] **Shipped in [v0.1.1](https://github.com/f-gozie/usage-os/releases/tag/v0.1.1)** — DMG
+      (notarized + stapled) + updater artifact + latest.json live; landing + Homebrew cask bumped
+- [ ] Owner-only checks: in-app update 0.1.0 → 0.1.1 via Settings → Check now (the first real
+      updater run), a real log-out/in with the toggle on (incl. any Dock-icon flash at login)
 
 ## Backlog (unclaimed feedback)
 
