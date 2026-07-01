@@ -751,7 +751,13 @@ pub fn run() {
     // launchd starts the login-item agent the moment it's registered — not only at login — and
     // a login can also race macOS's own window restore. A `--hidden` launch that finds UsageOS
     // already running has nothing to do: bow out before touching the DB or capture (D69).
-    if std::env::args().any(|a| a == "--hidden") && login_item::another_instance_running() {
+    // The updater's relaunch is the exception — it re-execs with the same argv while the old
+    // process is still exiting, so the guard would kill the replacement; the env var
+    // (set in restart_app, inherited by the child) marks that launch as legitimate.
+    if std::env::args().any(|a| a == "--hidden")
+        && std::env::var_os("USAGEOS_SHOW_AFTER_RESTART").is_none()
+        && login_item::another_instance_running()
+    {
         return;
     }
 
