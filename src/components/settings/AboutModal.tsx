@@ -1,10 +1,9 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { useEffect, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import { Wordmark } from "@/components/ui/Wordmark";
-
-// Keep in sync with package.json / src-tauri/tauri.conf.json / src-tauri/Cargo.toml.
-const VERSION = "0.1.0";
 
 const LINKS: ReadonlyArray<{ label: string; url: string }> = [
   { label: "Website", url: "https://usageos.app" },
@@ -19,15 +18,23 @@ const LINKS: ReadonlyArray<{ label: string; url: string }> = [
  * still makes no network call (hard rule 1).
  */
 export function AboutModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  // The running binary is the source of truth (a hardcoded string shipped 0.1.1 saying "0.1.0").
+  const [version, setVersion] = useState("");
+  useEffect(() => {
+    void getVersion().then(setVersion).catch(() => undefined);
+  }, []);
+
   return (
     <Modal open={open} onClose={onClose} title="About">
       <div className="flex flex-col items-center gap-3 py-2 text-center">
         <div className="flex justify-center">
           <Wordmark className="text-[44px]" />
         </div>
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
-          Version {VERSION}
-        </div>
+        {version && (
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
+            Version {version}
+          </div>
+        )}
         <p className="max-w-[34ch] text-[14.5px] font-medium leading-relaxed">
           A calm, private look at where your time goes.{" "}
           <span className="font-semibold">Everything stays on your machine.</span>
