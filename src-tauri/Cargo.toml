@@ -1,6 +1,6 @@
 [package]
 name = "usage-os"
-version = "0.1.0"
+version = "0.1.1"
 description = "UsageOS — a private, on-device app that records where your time goes and tells you the story of your day."
 authors = ["Favour Agozie"]
 edition = "2021"

@@ -5133,7 +5133,7 @@ dependencies = [
 
 [[package]]
 name = "usage-os"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "active-win-pos-rs",
  "block2 0.6.2",
