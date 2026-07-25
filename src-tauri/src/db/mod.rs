@@ -154,7 +154,8 @@ pub struct Category {
 pub struct Rule {
     pub id: i64,
     pub category_id: i64,
-    pub match_field: String, // "process" or "title"
+    /// "site" | "title" | "process" — also the precedence order the matcher uses (D70).
+    pub match_field: String,
     pub pattern: String,
     pub ignore_title: bool,
 }
@@ -182,7 +183,14 @@ pub fn init_database(db_path: &PathBuf) -> Result<DbConnection> {
     // WAL lets the dial read while capture writes (R57); persistent in the file
     // header, so it's set once. foreign_keys must be enabled per-connection.
     conn.execute_batch("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;")?;
-    crate::migrations::run_migrations(&mut conn)?;
+    let applied = crate::migrations::run_migrations(&mut conn)?;
+    // The site-rule seeds re-sort history, so back-fill once on the upgrade that introduces
+    // them — otherwise every past day keeps the categories the old app-only matcher gave it
+    // (D70). Only on the migrating launch; afterwards reprocessing stays user-initiated.
+    if applied.contains(&crate::migrations::SITE_RULES_VERSION) {
+        reprocess_logs(&conn)?;
+        println!("[Database] Recategorized history against the new site rules");
+    }
     println!("[Database] Initialized database at {:?}", db_path);
     Ok(Arc::new(Mutex::new(conn)))
 }
@@ -357,6 +365,136 @@ mod tests {
     // (Span coalescing / close-on-switch / idle behaviour now lives in the capture
     // state machine — see `crate::capture` tests.)
 
+    // --- site rules + precedence (D70) ---
+
+    /// A span with a site, so the site-rule paths have something to match.
+    fn site_span(conn: &Connection, app: &str, site: &str, start: i64, secs: i64) {
+        conn.execute(
+            "INSERT INTO activity_logs (process_name, window_title, start_time, end_time, is_idle, site)
+             VALUES (?1, '', ?2, ?3, 0, ?4)",
+            rusqlite::params![app, start, start + secs, site],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn site_rule_beats_a_broad_process_rule() {
+        // The bug this shipped to fix: `Chrome → Browsing` was written first (lower id) and
+        // swallowed every tab, so Entertainment read ~0. Precedence, not id, must decide.
+        let conn = setup_test_db();
+        let browsing = create_category(&conn, "TestBrowsing", "#1B4FA0").unwrap();
+        let fun = create_category(&conn, "TestFun", "#161616").unwrap();
+        create_rule(&conn, browsing, "process", "Chrome", false).unwrap();
+        create_rule(&conn, fun, "site", "youtube.com", false).unwrap();
+
+        assert_eq!(
+            find_category(
+                &conn,
+                "Google Chrome",
+                "some video",
+                Some("www.youtube.com")
+            )
+            .unwrap(),
+            Some(fun),
+            "the site rule wins even though the process rule has the lower id"
+        );
+        assert_eq!(
+            find_category(&conn, "Google Chrome", "a PR", Some("github.com")).unwrap(),
+            Some(browsing),
+            "a site with no rule still falls through to the browser's own category"
+        );
+    }
+
+    #[test]
+    fn site_rule_matches_subdomains_but_not_a_bare_substring() {
+        // `"netflix.com".contains("x.com")` is true — a substring test would let one x.com
+        // rule swallow unrelated hosts. Matching is on a `.` boundary instead.
+        let conn = setup_test_db();
+        let social = create_category(&conn, "TestSocial", "#EAB308").unwrap();
+        create_rule(&conn, social, "site", "x.com", false).unwrap();
+
+        assert_eq!(
+            find_category(&conn, "Chrome", "", Some("x.com")).unwrap(),
+            Some(social)
+        );
+        assert_eq!(
+            find_category(&conn, "Chrome", "", Some("mobile.x.com")).unwrap(),
+            Some(social),
+            "subdomains belong to the host"
+        );
+        assert_eq!(
+            find_category(&conn, "Chrome", "", Some("netflix.com")).unwrap(),
+            None,
+            "a host that merely ENDS in the pattern's text is not a match"
+        );
+        assert_eq!(
+            find_category(&conn, "Chrome", "", Some("notx.com")).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn site_rules_are_ignored_for_events_without_a_site() {
+        let conn = setup_test_db();
+        let fun = create_category(&conn, "TestFun", "#161616").unwrap();
+        create_rule(&conn, fun, "site", "youtube.com", false).unwrap();
+        assert_eq!(
+            find_category(&conn, "iTerm2", "youtube.com", None).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn reprocess_applies_site_precedence_identically_to_find_category() {
+        // The bulk path and the live matcher must never drift — same rules, same verdicts.
+        let conn = setup_test_db();
+        let browsing = create_category(&conn, "TestBrowsing", "#1B4FA0").unwrap();
+        let fun = create_category(&conn, "TestFun", "#161616").unwrap();
+        create_rule(&conn, browsing, "process", "Chrome", false).unwrap();
+        create_rule(&conn, fun, "site", "youtube.com", false).unwrap();
+
+        site_span(&conn, "Google Chrome", "www.youtube.com", 1000, 60);
+        site_span(&conn, "Google Chrome", "github.com", 2000, 60);
+        site_span(&conn, "Google Chrome", "netflix.com", 3000, 60);
+        reprocess_logs(&conn).unwrap();
+
+        let logs = get_activity_logs(&conn, 0, 100_000).unwrap();
+        let got: Vec<_> = logs
+            .iter()
+            .map(|l| (l.site.clone(), l.category_id))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                (Some("www.youtube.com".into()), Some(fun)),
+                (Some("github.com".into()), Some(browsing)),
+                (Some("netflix.com".into()), Some(browsing)),
+            ]
+        );
+
+        for (site, expected) in &got {
+            assert_eq!(
+                find_category(&conn, "Google Chrome", "", site.as_deref()).unwrap(),
+                *expected,
+                "reprocess and find_category disagree on {site:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn reprocess_site_pattern_wildcards_stay_literal() {
+        let conn = setup_test_db();
+        let cat = create_category(&conn, "Odd", "#000000").unwrap();
+        create_rule(&conn, cat, "site", "a_b.com", false).unwrap();
+        site_span(&conn, "Chrome", "axb.com", 1000, 60);
+        reprocess_logs(&conn).unwrap();
+        let logs = get_activity_logs(&conn, 0, 100_000).unwrap();
+        assert_eq!(
+            logs[0].category_id, None,
+            "`_` is a literal underscore, not a LIKE wildcard"
+        );
+    }
+
     // --- find_category tests ---
 
     #[test]
@@ -365,7 +503,7 @@ mod tests {
         let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
         create_rule(&conn, cat_id, "process", "firefox", false).unwrap();
 
-        let result = find_category(&conn, "firefox", "Some Page").unwrap();
+        let result = find_category(&conn, "firefox", "Some Page", None).unwrap();
         assert_eq!(result, Some(cat_id));
     }
 
@@ -376,7 +514,10 @@ mod tests {
         let conn = setup_test_db();
         let cat_id = create_category(&conn, "Junk", "#000000").unwrap();
         create_rule(&conn, cat_id, "process", "   ", false).unwrap(); // whitespace pattern
-        assert_eq!(find_category(&conn, "firefox", "anything").unwrap(), None);
+        assert_eq!(
+            find_category(&conn, "firefox", "anything", None).unwrap(),
+            None
+        );
         span(&conn, "firefox", 1000, 60, None, false);
         reprocess_logs(&conn).unwrap();
         let logs = get_activity_logs(&conn, 0, 100_000).unwrap();
@@ -426,7 +567,7 @@ mod tests {
         let cat_id = create_category(&conn, "Browsers", "#ff0000").unwrap();
         create_rule(&conn, cat_id, "process", "firefox", false).unwrap();
 
-        let result = find_category(&conn, "Firefox", "Some Page").unwrap();
+        let result = find_category(&conn, "Firefox", "Some Page", None).unwrap();
         assert_eq!(result, Some(cat_id), "Should match case-insensitively");
     }
 
@@ -436,7 +577,7 @@ mod tests {
         let cat_id = create_category(&conn, "Development", "#00ff00").unwrap();
         create_rule(&conn, cat_id, "title", "github", false).unwrap();
 
-        let result = find_category(&conn, "firefox", "GitHub - Pull Request").unwrap();
+        let result = find_category(&conn, "firefox", "GitHub - Pull Request", None).unwrap();
         assert_eq!(result, Some(cat_id));
     }
 
@@ -446,14 +587,14 @@ mod tests {
         create_category(&conn, "Browsers", "#ff0000").unwrap();
         // No rules created
 
-        let result = find_category(&conn, "firefox", "Some Page").unwrap();
+        let result = find_category(&conn, "firefox", "Some Page", None).unwrap();
         assert_eq!(result, None);
     }
 
     #[test]
     fn test_find_category_no_rules_at_all() {
         let conn = setup_test_db();
-        let result = find_category(&conn, "firefox", "Some Page").unwrap();
+        let result = find_category(&conn, "firefox", "Some Page", None).unwrap();
         assert_eq!(result, None);
     }
 

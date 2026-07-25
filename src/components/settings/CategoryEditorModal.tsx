@@ -48,11 +48,34 @@ export interface CategoryEditorModalProps {
   onSaved: () => void | Promise<void>;
 }
 
-/** Parse a token from the "match by window title" drawer into a title rule. A leading
- *  `title:` prefix is stripped (the drawer already implies it). Returns `null` when empty. */
-function parseTitleRule(token: string): PendingRule | null {
-  const t = token.trim().replace(/^title:\s*/i, "").trim();
-  return t ? { match_field: "title", pattern: t } : null;
+/** A bare token that is unmistakably a hostname: dotted, no whitespace, no path or scheme.
+ *  Lets `youtube.com` be typed without the `site:` prefix while `invoice` stays a title. */
+const HOSTNAME = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+
+/** Parse a token from the Advanced drawer into a site or title rule. An explicit
+ *  `site:` / `title:` prefix always wins; a bare hostname is read as a site rule and
+ *  anything else as a title rule. Returns `null` when empty. */
+export function parseAdvancedRule(token: string): PendingRule | null {
+  const raw = token.trim();
+  if (!raw) return null;
+
+  const site = raw.match(/^site:\s*(.*)$/i);
+  if (site) {
+    const pattern = site[1].trim().replace(/^\.+/, "");
+    return pattern ? { match_field: "site", pattern } : null;
+  }
+
+  const t = raw.replace(/^title:\s*/i, "").trim();
+  if (!t) return null;
+  const bare = !/^title:/i.test(raw);
+  return { match_field: bare && HOSTNAME.test(t) ? "site" : "title", pattern: t };
+}
+
+/** How a non-app rule reads on its chip. */
+function ruleChipLabel(r: { match_field: string; pattern: string }): string {
+  if (r.match_field === "title") return `title: ${r.pattern}`;
+  if (r.match_field === "site") return `site: ${r.pattern}`;
+  return r.pattern;
 }
 
 export function CategoryEditorModal({
@@ -104,14 +127,12 @@ export function CategoryEditorModal({
     ...added.filter((r) => r.match_field === "process").map((r) => r.pattern.toLowerCase()),
   ]);
 
-  // Title rules + process rules that aren't a plain installed-app name (e.g. seeded
-  // substrings like "Code") — shown as editable chips, not in the picker grid.
-  const otherExisting = workingExisting.filter(
-    (r) => r.match_field === "title" || !appNames.has(r.pattern.toLowerCase()),
-  );
-  const otherAdded = added
-    .map((r, i) => ({ r, i }))
-    .filter(({ r }) => r.match_field === "title" || !appNames.has(r.pattern.toLowerCase()));
+  // Site + title rules, plus process rules that aren't a plain installed-app name (e.g.
+  // seeded substrings like "Code") — shown as editable chips, not in the picker grid.
+  const isChipRule = (r: { match_field: string; pattern: string }) =>
+    r.match_field !== "process" || !appNames.has(r.pattern.toLowerCase());
+  const otherExisting = workingExisting.filter(isChipRule);
+  const otherAdded = added.map((r, i) => ({ r, i })).filter(({ r }) => isChipRule(r));
 
   // The owner (in ANOTHER category) of an app, if any — drives the conflict marker/warning.
   const ownerElsewhere = (appName: string): { rule: Rule; ctx: Category | undefined } | null => {
@@ -183,7 +204,7 @@ export function CategoryEditorModal({
   const addAdvanced = () => {
     const parsed = ruleInput
       .split(",")
-      .map(parseTitleRule)
+      .map(parseAdvancedRule)
       .filter((r): r is PendingRule => r !== null);
     if (parsed.length) setAdded((a) => [...a, ...parsed]);
     setRuleInput("");
@@ -326,20 +347,20 @@ export function CategoryEditorModal({
         {(otherExisting.length > 0 || otherAdded.length > 0) && (
           <div className="mt-3">
             <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">
-              Title &amp; pattern rules
+              Site, title &amp; pattern rules
             </span>
             <div className="flex flex-wrap gap-1.5">
               {otherExisting.map((r) => (
                 <RuleChip
                   key={`r-${r.id}`}
-                  label={r.match_field === "title" ? `title: ${r.pattern}` : r.pattern}
+                  label={ruleChipLabel(r)}
                   onRemove={() => removeExisting(r.id)}
                 />
               ))}
               {otherAdded.map(({ r, i }) => (
                 <RuleChip
                   key={`a-${i}`}
-                  label={r.match_field === "title" ? `title: ${r.pattern}` : r.pattern}
+                  label={ruleChipLabel(r)}
                   pending
                   onRemove={() => removeAdded(i)}
                 />
@@ -354,7 +375,7 @@ export function CategoryEditorModal({
             onClick={() => setShowAdvanced((s) => !s)}
             className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted"
           >
-            {showAdvanced ? "▾" : "▸"} Advanced — match by window title
+            {showAdvanced ? "▾" : "▸"} Advanced — match by site or window title
           </button>
           {showAdvanced && (
             <div className="mt-2.5">
@@ -369,17 +390,25 @@ export function CategoryEditorModal({
                       addAdvanced();
                     }
                   }}
-                  placeholder="e.g. invoice"
+                  placeholder="e.g. youtube.com, or invoice"
                 />
                 <Button variant="secondary" onClick={addAdvanced} disabled={!ruleInput.trim()}>
                   Add
                 </Button>
               </div>
               <p className="mt-2 text-xs text-muted">
-                A title rule sorts a window when its title <span className="font-semibold text-fg">contains</span>{" "}
-                this text — it's plain text, not a wildcard (<code className="font-sans font-semibold text-fg">.fig</code>{" "}
-                works, <code className="font-sans font-semibold text-fg">*.fig</code> doesn't). Prefix is optional;
-                here it's assumed.
+                Type a site (<code className="font-sans font-semibold text-fg">youtube.com</code>) to sort that
+                host and its subdomains; anything else becomes a title rule, sorting a window when its title{" "}
+                <span className="font-semibold text-fg">contains</span> that text. Both are plain text, not
+                wildcards (<code className="font-sans font-semibold text-fg">.fig</code> works,{" "}
+                <code className="font-sans font-semibold text-fg">*.fig</code> doesn't). Force either with{" "}
+                <code className="font-sans font-semibold text-fg">site:</code> or{" "}
+                <code className="font-sans font-semibold text-fg">title:</code>.
+              </p>
+              <p className="mt-1.5 text-xs text-muted">
+                A site rule beats an app rule, so{" "}
+                <code className="font-sans font-semibold text-fg">youtube.com</code> here outranks Chrome
+                wherever Chrome sits.
               </p>
             </div>
           )}

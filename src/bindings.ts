@@ -522,7 +522,11 @@ export type ProjectSlice = { name: string; secs: number }
  * Models prose (Phase 3) will reuse the same facts behind the `ai` trait.
  */
 export type Recap = { text: string; generated_by: string }
-export type Rule = { id: number; category_id: number; match_field: string; pattern: string; ignore_title: boolean }
+export type Rule = { id: number; category_id: number; 
+/**
+ * "site" | "title" | "process" — also the precedence order the matcher uses (D70).
+ */
+match_field: string; pattern: string; ignore_title: boolean }
 /**
  * One persisted setting key/value (replaces the awkward `[string, string][]`).
  */

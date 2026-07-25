@@ -232,7 +232,8 @@ fn resolve_focus(conn: &Connection, ev: &FocusEvent) -> rusqlite::Result<Resolve
 
 /// Insert a fresh open span for `focus`, starting at `ts`. Category is computed here.
 fn open_span(conn: &Connection, focus: &Focus, ts: i64) -> rusqlite::Result<OpenSpan> {
-    let category_id = match db::find_category(conn, &focus.app, &focus.title) {
+    let category_id = match db::find_category(conn, &focus.app, &focus.title, focus.site.as_deref())
+    {
         Ok(id) => id,
         Err(e) => {
             eprintln!("[Capture] category lookup failed: {}", e);
