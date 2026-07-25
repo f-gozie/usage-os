@@ -37,3 +37,24 @@ auto-creates the record and provisions TLS — no nameserver change needed.
   colours live **inside the dial** only. No green. See `../context/design-system.md`.
 - `public/og.png` is the social card (1200×630). Regenerate from `../design/` if the brand changes.
 - The Download CTA points to the notarized DMG once it ships (Phase 5 tail).
+
+## Analytics
+
+The **site** (not the app) reports pageviews to PostHog, and only when a key is present:
+
+```
+PUBLIC_POSTHOG_KEY=phc_xxx     # required — without it no script is emitted at all
+PUBLIC_POSTHOG_HOST=https://eu.i.posthog.com   # optional, this is the default
+```
+
+Set these as environment variables in the Cloudflare Pages project (Settings → Environment
+variables), production and preview. Local `npm run dev`/`build` stays silent unless you export them.
+
+Configured cookieless on purpose: `persistence: "memory"` means no cookie and no localStorage, so
+there is no cross-site identifier and no consent banner to show. Session recording is off. This is
+the site only — **the app itself still makes no network calls except the opt-in update check** (hard
+rule 1), and nothing about your tracked activity is ever involved.
+
+One open trade-off: the PostHog script is fetched from `*-assets.i.posthog.com`, so unlike the
+self-hosted fonts it is a third-party request. Reverse-proxying it through the Pages project would
+close that gap if it ever matters.
