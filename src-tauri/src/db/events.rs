@@ -185,18 +185,38 @@ fn like_escape(pattern: &str) -> String {
 
 /// Recategorize every stored event from the current rules (retroactive — D44). Runs in ONE
 /// transaction, so a mid-reprocess failure can't leave history half-recategorized. Matching
-/// mirrors [`find_category`] exactly: case-insensitive literal substring, first rule (by id) wins
-/// (only still-`NULL` rows are touched as rules are applied in id order).
+/// mirrors [`find_category`] exactly: rules are applied in precedence order (site → title →
+/// process, then by id) and only still-`NULL` rows are touched, so the first rule to claim a
+/// row keeps it. Site rules match the host or a subdomain of it, never a bare substring.
 pub fn reprocess_logs(conn: &Connection) -> Result<()> {
     let tx = conn.unchecked_transaction()?;
     tx.execute("UPDATE activity_logs SET category_id = NULL", [])?;
-    for rule in get_rules(&tx)? {
+
+    let mut rules = get_rules(&tx)?;
+    rules.sort_by_key(|r| (super::categories::match_field_tier(&r.match_field), r.id));
+
+    for rule in rules {
+        if rule.pattern.trim().is_empty() {
+            continue;
+        }
+        if rule.match_field == "site" {
+            // Mirrors `host_matches`: exact host, or a `.`-boundary subdomain of it.
+            let host = rule.pattern.trim_start_matches('.').to_lowercase();
+            let subdomain = format!("%.{}", like_escape(&host));
+            tx.execute(
+                "UPDATE activity_logs SET category_id = ?1
+                 WHERE category_id IS NULL AND site IS NOT NULL
+                   AND (lower(site) = ?2 OR lower(site) LIKE ?3 ESCAPE '\\')",
+                (rule.category_id, &host, &subdomain),
+            )?;
+            continue;
+        }
         let pattern = format!("%{}%", like_escape(&rule.pattern));
         // `column` is a fixed literal (not user input) chosen by the match field — safe to inline.
-        let column = if rule.match_field == "process" {
-            "process_name"
-        } else {
+        let column = if rule.match_field == "title" {
             "window_title"
+        } else {
+            "process_name"
         };
         let sql = format!(
             "UPDATE activity_logs SET category_id = ?1

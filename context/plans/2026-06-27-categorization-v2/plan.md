@@ -1,6 +1,6 @@
 # UsageOS — Categorization v2 (rules: sites, precedence, default exclusions)
 
-**Created:** 2026-06-27 · **Status:** 🅿️ backlog — not started (owner will pick up later) · **Owner:** Favour
+**Created:** 2026-06-27 · **Status:** 🔵 in progress — **W1 + W2 shipped 2026-07-25** (D70); W3 still open · **Owner:** Favour
 **Origin:** surfaced 2026-06-27 while verifying landing-page claims against the code (branding-launch session). The landing/README/Settings were corrected to match *current* behavior; this plan is to close the gaps the verification exposed.
 
 > Source of truth is the code. The "current behavior" below was read directly from the
@@ -17,20 +17,20 @@ Make the rule engine match how people actually think about categorizing: let a *
 
 ## Work items
 
-### W1 — Site-based category rules
+### W1 — Site-based category rules — ✅ **done 2026-07-25** (D70)
 Let a category rule match the parsed **site/host** (e.g. `youtube.com → Browsing`, `github.com → Work`), not just the app or window title.
 - **Why:** the #1 ask — "group specific sites." The data is already captured (`activity_logs.site`), and **exclusions already match on `site`**, so the plumbing exists.
 - **Sketch:** add `"site"` as a valid `match_field`; thread `site` into `find_category(process, title, site)` and add a `site` column branch in `reprocess_logs`; extend the category editor UI (the exclusion modal's App/Website/Title segmented control is the precedent to mirror). No schema migration needed (`match_field` is a free string; just validate the new value in UI + backend).
 - **Caveat to document:** `site` is only present when Automation is granted and the window isn't private/incognito — site rules silently won't match in degraded mode. Surface this in the editor copy.
 
-### W2 — Rule precedence / specificity (the override problem)
+### W2 — Rule precedence / specificity (the override problem) — ✅ **done 2026-07-25**, option (a) (D70)
 Make "a specific site or title beat a broad app rule" actually work. **Needs a decision (ADR) before building** — pick one:
 - **(a) Field specificity (recommended default):** most-specific field wins — `site` > `title` > `process`; within a field, longest pattern (or most-recent) breaks ties. Solves the user's scenario with zero UI ("YouTube title rule beats the Chrome app rule" just works). Changes `find_category` from first-match to best-match, and `reprocess_logs` to apply passes in specificity order.
 - **(b) Explicit priority:** a `priority` column + drag-to-reorder in the editor; first by priority, then id. More control, more UI, more user burden.
 - **(c) Hybrid:** (a) as the default, (b) as an optional manual override.
 - **Watch-outs:** the existing first-match-wins tests will change — update them and add specificity tests. Keep `reprocess_logs` and `find_category` resolving **identically** (they're deliberately kept in step — see `events.rs` comment). Re-run a full reprocess after the change so historical data re-sorts under the new rule.
 
-### W3 — Default exclusions (close the "out of the box" promise)
+### W3 — Default exclusions (close the "out of the box" promise) — ⬜ **still open** (deferred out of the D70 PR)
 Ship a curated default exclusion list so password managers (and ideally banking) are excluded without setup.
 - **Sketch:** seed common password managers as `app`/`exclude` (1Password, Bitwarden, Dashlane, LastPass, KeePassXC, Proton Pass, Keychain Access). Banking is mostly *sites*, not apps — depends on W1 (site rules/exclusions exist) and is region-specific, so seed a small starter set or leave to the user; decide scope.
 - **Migration nuance (decide):** a seed migration applies on **upgrade** too — don't clobber users who've already configured exclusions. Options: seed only on **fresh install**, or gate behind a one-time settings flag, or seed-if-empty. Pick and document.
@@ -54,3 +54,22 @@ No cloud/model categorization (that's the separate embeddings arc). No gamificat
 
 ## Lifecycle
 Backlog. When picked up: register as `active` in [`../README.md`](../README.md), write impl-plans per task, `/usageos-review` each PR, append the ADRs above to `context/decisions.md`.
+
+## What actually shipped (2026-07-25 — PR: site rules + precedence)
+
+W1 and W2 landed together; the full rationale is **D70**. Deltas from the sketch above:
+
+- **Site matching is host-boundary, not substring.** The sketch implied a `.contains` branch like the
+  other fields. That is unsafe — `"netflix.com".contains("x.com")` is `true` — so matching is
+  `host == pattern || host.ends_with(".{pattern}")`, mirrored in `reprocess_logs`' SQL.
+- **Precedence is by field tier only** (`site` 0 > `title` 1 > `process` 2, then id). The sketch's
+  "longest pattern breaks ties" was dropped as unneeded complexity; ties inside a tier stay id-ordered.
+- **A migration was needed after all** (`0008`) — not for schema (`match_field` is a free string, as the
+  sketch said) but to *seed* the default site rules and to trigger the one-time historical reprocess.
+  It deliberately is **not** gated on an empty `activity_logs` (unlike `0006`); it is additive instead.
+- **Editor UI:** no new segmented control. The existing Advanced drawer infers a site rule from a bare
+  hostname and accepts explicit `site:` / `title:` prefixes — less UI than the exclusion-modal precedent.
+- **The degraded-mode caveat is real and bigger than expected.** The plan noted site rules can't match
+  without Automation. On the author's machine 23 h of Chrome carries no URL, and window titles have been
+  empty since 2026-07-02 — see the post-launch-feedback plan; not a rules problem.
+- **Not done:** W3 default exclusions.

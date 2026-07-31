@@ -102,28 +102,57 @@ pub fn delete_rule(conn: &Connection, id: i64) -> Result<()> {
 
 // --- Categorization Logic ---
 
+/// Precedence tier for a rule's match field: the narrower the signal, the earlier it is
+/// consulted (D70). A `site` rule names one host, a `title` rule one window, a `process`
+/// rule a whole app — so `youtube.com → Entertainment` beats `Chrome → Browsing` no matter
+/// which was written first. Within a tier, the lowest rule id still wins.
+pub(crate) fn match_field_tier(match_field: &str) -> u8 {
+    match match_field {
+        "site" => 0,
+        "title" => 1,
+        _ => 2, // "process"
+    }
+}
+
+/// Rules in evaluation order: by precedence tier, then by id.
+fn rules_by_precedence(conn: &Connection) -> Result<Vec<Rule>> {
+    let mut rules = get_rules(conn)?;
+    rules.sort_by_key(|r| (match_field_tier(&r.match_field), r.id));
+    Ok(rules)
+}
+
+/// Does `host` fall under the site `pattern`? True for the host itself and for its
+/// subdomains — `youtube.com` matches `www.youtube.com`. Deliberately NOT a substring
+/// test: `"netflix.com".contains("x.com")` is true, which would let one `x.com` rule
+/// swallow unrelated hosts. Both sides are lowercased by the caller.
+pub(crate) fn host_matches(host: &str, pattern: &str) -> bool {
+    let pattern = pattern.trim_start_matches('.');
+    host == pattern || host.ends_with(&format!(".{pattern}"))
+}
+
+/// The category for one event, or `None` if no rule claims it. `site` is the parsed host
+/// (`None` for non-browser events).
 pub fn find_category(
     conn: &Connection,
     process_name: &str,
     window_title: &str,
+    site: Option<&str>,
 ) -> Result<Option<i64>> {
-    let rules = get_rules(conn)?;
-    for rule in rules {
+    for rule in rules_by_precedence(conn)? {
         // An empty/whitespace pattern would `.contains` everything — skip it so a stray empty
         // rule can't swallow every event (defense-in-depth; the UI also rejects empty patterns).
         if rule.pattern.trim().is_empty() {
             continue;
         }
-        let match_target = if rule.match_field == "process" {
-            process_name
-        } else {
-            window_title
+        let pattern = rule.pattern.to_lowercase();
+
+        let matched = match rule.match_field.as_str() {
+            "site" => site.is_some_and(|host| host_matches(&host.to_lowercase(), &pattern)),
+            "title" => window_title.to_lowercase().contains(&pattern),
+            _ => process_name.to_lowercase().contains(&pattern),
         };
 
-        if match_target
-            .to_lowercase()
-            .contains(&rule.pattern.to_lowercase())
-        {
+        if matched {
             return Ok(Some(rule.category_id));
         }
     }

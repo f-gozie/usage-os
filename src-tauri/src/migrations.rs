@@ -54,7 +54,16 @@ const MIGRATIONS: &[Migration] = &[
         name: "recap_cache",
         sql: include_str!("../migrations/0007_recap_cache.sql"),
     },
+    Migration {
+        version: 8,
+        name: "seed_site_rules",
+        sql: include_str!("../migrations/0008_seed_site_rules.sql"),
+    },
 ];
+
+/// Migration 8 seeds site rules that re-sort history, so applying it must be followed by a
+/// one-time [`crate::db::reprocess_logs`]. `init_database` keys off this (D70).
+pub const SITE_RULES_VERSION: i64 = 8;
 
 /// Normalize SQL for checksumming: drop blank lines and full-line `--` comments, and collapse
 /// each remaining line's internal whitespace. So editing a migration's comments or reindenting it
@@ -165,12 +174,15 @@ fn verify_applied_checksums(conn: &Connection, strict: bool) -> Result<()> {
     Ok(())
 }
 
-/// Run all pending migrations, each atomically.
-pub fn run_migrations(conn: &mut Connection) -> Result<()> {
+/// Apply every pending migration, each atomically. Returns the versions applied by *this* call (empty when the
+/// database was already current), so a caller can run a one-time follow-up — see
+/// [`SITE_RULES_VERSION`].
+pub fn run_migrations(conn: &mut Connection) -> Result<Vec<i64>> {
     ensure_migrations_table(conn)?;
     // Strict (hard error) in release; self-heal in dev/tests so editing a migration never blocks.
     verify_applied_checksums(conn, !cfg!(debug_assertions))?;
     let current = current_version(conn)?;
+    let mut applied = Vec::new();
 
     for migration in MIGRATIONS.iter().filter(|m| m.version > current) {
         println!(
@@ -190,8 +202,9 @@ pub fn run_migrations(conn: &mut Connection) -> Result<()> {
             ),
         )?;
         tx.commit()?;
+        applied.push(migration.version);
     }
-    Ok(())
+    Ok(applied)
 }
 
 /// Build a `rusqlite::Error` carrying a human-readable message (for the drift guard).
@@ -285,11 +298,11 @@ mod tests {
             )
             .unwrap();
         assert_eq!(
-            crate::db::find_category(&conn, "Spotify", "").unwrap(),
+            crate::db::find_category(&conn, "Spotify", "", None).unwrap(),
             Some(personal)
         );
         assert_eq!(
-            crate::db::find_category(&conn, "FaceTime", "").unwrap(),
+            crate::db::find_category(&conn, "FaceTime", "", None).unwrap(),
             Some(personal)
         );
     }
@@ -396,7 +409,7 @@ mod tests {
             })
             .unwrap();
         // A starter rule maps the Cursor editor to Deep work.
-        let matched = crate::db::find_category(&conn, "Cursor", "").unwrap();
+        let matched = crate::db::find_category(&conn, "Cursor", "", None).unwrap();
         assert_eq!(matched, Some(deep));
     }
 
@@ -411,7 +424,7 @@ mod tests {
                 r.get(0)
             })
             .unwrap();
-        let matched = crate::db::find_category(&conn, "Claude", "").unwrap();
+        let matched = crate::db::find_category(&conn, "Claude", "", None).unwrap();
         assert_eq!(matched, Some(deep), "Claude app should now be Deep work");
     }
 }
