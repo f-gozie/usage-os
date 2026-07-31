@@ -30,7 +30,7 @@ export function DayView({ date, onDateChange }: DayViewProps) {
   const nowMinutes = isToday ? (Date.now() / 1000 - start) / 60 : null;
 
   const { data, loading, error, refresh } = useDayData(start, end, isToday);
-  const { healthy: captureHealthy, refetch: recheckHealth } = useCaptureHealth([start]);
+  const { problem: captureProblem, refetch: recheckHealth } = useCaptureHealth([start]);
   // The AI recap is fetched lazily, off the day-load path (D11); the card shows the instant
   // template recap from `getDay` until this resolves, then upgrades in place.
   const { recap: aiRecap, refetch: refetchRecap } = useRecap(start, end);
@@ -90,13 +90,13 @@ export function DayView({ date, onDateChange }: DayViewProps) {
         nextLabel="Next day"
       />
 
-      {!captureHealthy && (
+      {captureProblem && (
         <div className="mb-5">
           <DegradedBanner
-            title="Tracking hit a snag"
-            description="UsageOS ran into repeated errors while recording. Your existing data is safe."
-            actionLabel="Retry"
-            onAction={refreshAll}
+            title={captureProblem.title}
+            description={captureProblem.description}
+            actionLabel={captureProblem.actionLabel}
+            onAction={captureProblem.action}
           />
         </div>
       )}

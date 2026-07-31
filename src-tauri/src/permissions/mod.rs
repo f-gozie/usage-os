@@ -130,10 +130,17 @@ pub(crate) fn open_settings(pane: SettingsPane) {
     }
 }
 
-/// Whether Accessibility is granted (macOS only) — capture uses this for its degraded-mode log.
-#[cfg(target_os = "macos")]
+/// Whether Accessibility is granted — capture's degraded-mode log and the health monitor
+/// both key off this. Trivially true off-macOS (no AX there to lose).
 pub(crate) fn accessibility_trusted() -> bool {
-    macos::accessibility_trusted()
+    #[cfg(target_os = "macos")]
+    {
+        macos::accessibility_trusted()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
 }
 
 #[cfg(test)]

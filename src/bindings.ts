@@ -580,7 +580,17 @@ export type UncategorizedApp = { process_name: string; total_secs: number; last_
 /**
  * Health of the background capture watcher (replaces an untyped `serde_json::Value`).
  */
-export type WatcherStatus = { consecutive_errors: number; healthy: boolean }
+export type WatcherStatus = { consecutive_errors: number; healthy: boolean; 
+/**
+ * macOS Accessibility trust right now — false means window titles can't be read. The
+ * grant can silently die when the app bundle is replaced by an update (D71).
+ */
+accessibility: boolean; 
+/**
+ * False once a browser URL read was denied by macOS (Automation revoked — typically
+ * after the browser itself updates and relaunches, D71).
+ */
+automation_ok: boolean }
 /**
  * Everything the Week view needs: 7 day-slices + week-level aggregates (numbers in Rust).
  */

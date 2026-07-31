@@ -24,12 +24,7 @@ export function TimelineView({ date, onDateChange }: TimelineViewProps) {
   const { start, end } = useMemo(() => dayBounds(date), [date]);
   const isToday = isSameDay(date, new Date());
   const { data, loading, error, refresh } = useTimelineData(start, end, isToday);
-  const { healthy: captureHealthy, refetch: recheckHealth } = useCaptureHealth([start]);
-
-  const retry = () => {
-    refresh();
-    recheckHealth();
-  };
+  const { problem: captureProblem, refetch: recheckHealth } = useCaptureHealth([start]);
 
   // Slug → current DB display name, so the legend reflects a renamed canonical category.
   const dbNames = useMemo(
@@ -53,19 +48,19 @@ export function TimelineView({ date, onDateChange }: TimelineViewProps) {
         nextLabel="Next day"
       />
 
-      {!captureHealthy && (
+      {captureProblem && (
         <div className="mb-5">
           <DegradedBanner
-            title="Tracking hit a snag"
-            description="UsageOS ran into repeated errors while recording. Your existing data is safe."
-            actionLabel="Retry"
-            onAction={retry}
+            title={captureProblem.title}
+            description={captureProblem.description}
+            actionLabel={captureProblem.actionLabel}
+            onAction={captureProblem.action}
           />
         </div>
       )}
 
       {error ? (
-        <ErrorState message={error} onRetry={refresh} />
+        <ErrorState message={error} onRetry={() => { refresh(); recheckHealth(); }} />
       ) : loading && !data ? (
         <LoadingState />
       ) : data ? (

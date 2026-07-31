@@ -13,7 +13,7 @@ mod polling;
 pub use fake::FakeCapture;
 pub use polling::PollingCapture;
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::time::Duration;
 
@@ -72,6 +72,61 @@ pub fn note_capture_failure() {
              Check permissions (macOS: Accessibility).",
             count
         );
+    }
+}
+
+// ── Automation health (D71) ──────────────────────────────────────────────────
+//
+// macOS can revoke the Automation grant behind our back — observed whenever the target
+// browser updates and relaunches — and the denial (-1743) used to be swallowed as "no URL",
+// so the app recorded apps-only for weeks with nothing noticing. The browser reader latches
+// the *actual* per-call outcome here; the health monitor and `get_watcher_status` read it.
+// Latched, not counted: one real denial means every later call fails the same way until the
+// user re-grants, and one real success proves recovery.
+
+static AUTOMATION_DENIED: AtomicBool = AtomicBool::new(false);
+
+/// False once a browser read failed with a TCC Automation denial (until one succeeds again).
+pub fn automation_ok() -> bool {
+    !AUTOMATION_DENIED.load(Ordering::Relaxed)
+}
+
+/// A browser read hit -1743: macOS is refusing our Apple Events. Warn once per episode.
+pub fn note_automation_denied() {
+    if !AUTOMATION_DENIED.swap(true, Ordering::Relaxed) {
+        eprintln!(
+            "[Capture] Automation denied by macOS (-1743) — browser URLs will be missing \
+             until the grant is restored in System Settings → Privacy & Security → Automation."
+        );
+    }
+}
+
+/// A browser read succeeded — the Automation grant works (clears any latched denial).
+pub fn note_automation_ok() {
+    AUTOMATION_DENIED.store(false, Ordering::Relaxed);
+}
+
+/// What one health check concluded (pure — the IO lives in the monitor; see D71).
+///
+/// `degraded` drives the tray affordance (tooltip + fix menu item); `regressed` — a permission
+/// that *was* working is now gone — additionally earns the one-time notification. A permission
+/// that was never granted (`prev` empty) degrades quietly: the user chose that in onboarding,
+/// and nagging about it would break the product's calm.
+#[derive(Debug, PartialEq, Eq)]
+pub struct HealthCheck {
+    pub degraded: bool,
+    pub regressed: bool,
+}
+
+pub fn evaluate_health(
+    prev_ax: Option<bool>,
+    ax_ok: bool,
+    prev_auto: Option<bool>,
+    auto_ok: bool,
+) -> HealthCheck {
+    HealthCheck {
+        degraded: !ax_ok || !auto_ok,
+        regressed: (prev_ax == Some(true) && !ax_ok) || (prev_auto == Some(true) && !auto_ok),
     }
 }
 
@@ -455,6 +510,40 @@ impl WriteProbe {
 mod tests {
     use super::*;
     use crate::db::ActivityLog;
+
+    // ── evaluate_health (D71) ────────────────────────────────────────────────
+
+    #[test]
+    fn health_lost_grant_is_a_regression() {
+        // The shipped bug: Accessibility worked for weeks, then an app update killed it.
+        let h = evaluate_health(Some(true), false, Some(true), true);
+        assert!(h.degraded && h.regressed);
+        // Same for Automation dying after a browser update.
+        let h = evaluate_health(Some(true), true, Some(true), false);
+        assert!(h.degraded && h.regressed);
+    }
+
+    #[test]
+    fn health_never_granted_degrades_quietly() {
+        // The user skipped the permission in onboarding — degraded, but their choice: no alert.
+        let h = evaluate_health(None, false, None, true);
+        assert!(h.degraded && !h.regressed);
+        // Known-off last time is also not news.
+        let h = evaluate_health(Some(false), false, Some(false), false);
+        assert!(h.degraded && !h.regressed);
+    }
+
+    #[test]
+    fn health_all_good_is_quiet() {
+        let h = evaluate_health(Some(true), true, None, true);
+        assert_eq!(
+            h,
+            HealthCheck {
+                degraded: false,
+                regressed: false
+            }
+        );
+    }
 
     /// In-memory DB on the real migration chain.
     fn test_db() -> Connection {

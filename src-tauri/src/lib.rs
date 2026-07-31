@@ -76,6 +76,12 @@ impl From<rusqlite::Error> for AppError {
 pub struct WatcherStatus {
     pub consecutive_errors: u64,
     pub healthy: bool,
+    /// macOS Accessibility trust right now — false means window titles can't be read. The
+    /// grant can silently die when the app bundle is replaced by an update (D71).
+    pub accessibility: bool,
+    /// False once a browser URL read was denied by macOS (Automation revoked — typically
+    /// after the browser itself updates and relaunches, D71).
+    pub automation_ok: bool,
 }
 
 /// One persisted setting key/value (replaces the awkward `[string, string][]`).
@@ -312,6 +318,8 @@ fn get_watcher_status() -> Result<WatcherStatus, AppError> {
     Ok(WatcherStatus {
         consecutive_errors: errors,
         healthy: errors < 6,
+        accessibility: permissions::accessibility_trusted(),
+        automation_ok: capture::automation_ok(),
     })
 }
 
@@ -618,13 +626,29 @@ fn toggle_glance(app: &AppHandle, rect: Rect) {
     }
 }
 
-/// Build the menubar tray: left-click toggles the glance popover; right-click shows a small
-/// menu (Open / Quit). The app keeps running + tracking when the main window is closed — it
-/// exits only via Quit.
-fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
+/// The tray's right-click menu. When capture is degraded a "Fix recording…" item leads —
+/// for a menu-bar app whose window is normally closed, this menu IS the surface where a
+/// broken permission gets seen and repaired (D71).
+fn build_tray_menu(
+    app: &AppHandle,
+    degraded: bool,
+) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    let mut builder = MenuBuilder::new(app);
+    if degraded {
+        let fix =
+            MenuItemBuilder::with_id("fix-permissions", "Fix recording permissions…").build(app)?;
+        builder = builder.item(&fix).separator();
+    }
     let open = MenuItemBuilder::with_id("open", "Open UsageOS").build(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit UsageOS").build(app)?;
-    let menu = MenuBuilder::new(app).items(&[&open, &quit]).build()?;
+    builder.items(&[&open, &quit]).build()
+}
+
+/// Build the menubar tray: left-click toggles the glance popover; right-click shows a small
+/// menu (Open / Quit, plus a fix item when capture is degraded). The app keeps running +
+/// tracking when the main window is closed — it exits only via Quit.
+fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
+    let menu = build_tray_menu(app, false)?;
 
     let builder = TrayIconBuilder::with_id("main-tray")
         .tooltip("UsageOS")
@@ -634,6 +658,15 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open" => show_main(app),
             "quit" => app.exit(0),
+            // Deep-link straight to the broken pane; if both are broken, Accessibility first —
+            // it's the bigger loss (titles for every app vs URLs for browsers).
+            "fix-permissions" => {
+                if !permissions::accessibility_trusted() {
+                    permissions::open_settings(permissions::SettingsPane::Accessibility);
+                } else {
+                    permissions::open_settings(permissions::SettingsPane::Automation);
+                }
+            }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -662,17 +695,21 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Keep the tray's now-triangle pointing at the right hour. A background thread that wakes every
-/// 10 minutes (negligible — no busy timer, honours the idle-CPU discipline) and updates the icon
-/// only when the local hour rolls over. The tray outlives the main window, so this runs for the
-/// life of the process.
+/// Keep the tray's now-triangle pointing at the right hour, and run the capture-health check
+/// (D71) on the same slow cadence. A background thread that wakes every 10 minutes (negligible —
+/// no busy timer, honours the idle-CPU discipline); the first health pass runs ~30s after launch
+/// so a permission lost across an update is visible within a minute of login, not after the
+/// first long tick. The tray outlives the main window, so this runs for the life of the process.
 fn spawn_tray_updater(app: AppHandle) {
     let _ = std::thread::Builder::new()
         .name("tray-now-hand".into())
         .spawn(move || {
             let mut last = tray_icon::local_hour();
+            std::thread::sleep(Duration::from_secs(30));
+            check_capture_health(&app);
             loop {
                 std::thread::sleep(Duration::from_secs(600));
+                check_capture_health(&app);
                 let hour = tray_icon::local_hour();
                 if hour == last {
                     continue;
@@ -686,6 +723,99 @@ fn spawn_tray_updater(app: AppHandle) {
                 }
             }
         });
+}
+
+// ── Capture-permission health monitor (D71) ──────────────────────────────────
+//
+// macOS revokes both grants this app depends on behind its back: Accessibility dies when the
+// app bundle is replaced by an update (checkbox still LOOKS on), Automation dies when the
+// target browser updates and relaunches. Both failures are silent at the capture layer, and
+// this is a menu-bar app nobody opens — so weeks of apps-only recording went unnoticed (the
+// author's own data: window titles empty for 29 days). The monitor compares the current truth
+// against the last-seen state in `settings` and surfaces a loss where it can be seen.
+
+/// Settings keys remembering the last-seen permission state ("1"/"0"). Their absence means
+/// "never checked" — a pre-existing broken state at first run degrades quietly rather than
+/// alerting about a loss we never witnessed.
+const HEALTH_AX_KEY: &str = "capture_ax_ok";
+const HEALTH_AUTO_KEY: &str = "capture_auto_ok";
+/// Set once the regression notification fired; cleared on recovery so a future loss can
+/// notify again. One notification per episode — an alert, not a nag.
+const HEALTH_ALERTED_KEY: &str = "capture_alerted";
+
+fn health_flag(conn: &rusqlite::Connection, key: &str) -> Option<bool> {
+    db::get_setting(conn, key).ok().flatten().map(|v| v == "1")
+}
+
+/// One health pass: read the truth, diff against last-seen, persist, then apply the tray
+/// affordance (tooltip + fix menu item) and — only on a witnessed regression — notify once.
+fn check_capture_health(app: &AppHandle) {
+    let ax_ok = permissions::accessibility_trusted();
+    let auto_ok = capture::automation_ok();
+
+    let Some(db_state) = app.try_state::<DbState>() else {
+        return;
+    };
+    let (check, notify) = {
+        let Ok(conn) = db_state.lock() else { return };
+        let check = capture::evaluate_health(
+            health_flag(&conn, HEALTH_AX_KEY),
+            ax_ok,
+            health_flag(&conn, HEALTH_AUTO_KEY),
+            auto_ok,
+        );
+        let _ = db::set_setting(&conn, HEALTH_AX_KEY, if ax_ok { "1" } else { "0" });
+        let _ = db::set_setting(&conn, HEALTH_AUTO_KEY, if auto_ok { "1" } else { "0" });
+        let alerted = health_flag(&conn, HEALTH_ALERTED_KEY).unwrap_or(false);
+        let notify = check.regressed && !alerted;
+        if notify {
+            let _ = db::set_setting(&conn, HEALTH_ALERTED_KEY, "1");
+        } else if !check.degraded && alerted {
+            let _ = db::set_setting(&conn, HEALTH_ALERTED_KEY, "0");
+        }
+        (check, notify)
+    };
+
+    // Menus (and notifications, to be safe) belong on the main thread.
+    let handle = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        apply_tray_health(&handle, check.degraded);
+        if notify {
+            notify_permission_lost(&handle);
+        }
+    });
+}
+
+/// Reflect health in the tray: a degraded tooltip + the "Fix recording permissions…" menu item.
+/// Rebuilt every pass (cheap at this cadence, and stateless beats tracking a dirty flag).
+fn apply_tray_health(app: &AppHandle, degraded: bool) {
+    let Some(tray) = app.tray_by_id("main-tray") else {
+        return;
+    };
+    let tooltip = if degraded {
+        "UsageOS — some details aren't being recorded. Right-click to fix."
+    } else {
+        "UsageOS"
+    };
+    let _ = tray.set_tooltip(Some(tooltip));
+    if let Ok(menu) = build_tray_menu(app, degraded) {
+        let _ = tray.set_menu(Some(menu));
+    }
+}
+
+/// The one-time "macOS took a permission away" notification. Best-effort — if notifications
+/// are declined the tray affordance still stands.
+fn notify_permission_lost(app: &AppHandle) {
+    use tauri_plugin_notification::NotificationExt;
+    let _ = app
+        .notification()
+        .builder()
+        .title("UsageOS lost a recording permission")
+        .body(
+            "macOS switched off access UsageOS had before — this can happen after an update. \
+             Right-click the UsageOS menu-bar icon to fix it.",
+        )
+        .show();
 }
 
 /// Relaunch the app. Used after the updater downloads + installs a new version so the freshly
@@ -789,6 +919,8 @@ pub fn run() {
         // network happens unless the user turned it on. Updates are ed25519-signed (pubkey in
         // tauri.conf.json); a tampered or unsigned update can't install.
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Local notifications only (the capture-health regression alert, D71) — no network.
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(builder.invoke_handler())
         .on_window_event(|window, event| {
             // Closing the main window HIDES it (tracking keeps running in the background); the
