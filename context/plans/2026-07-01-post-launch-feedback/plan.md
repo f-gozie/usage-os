@@ -110,6 +110,10 @@ a missing title, and a menu-bar app nobody opens has no banner surface.
       tag at `6acd59f`, cask bumped, landing link bumped after publish).
 - [ ] Follow-up: have the health pass pick up a live TCC change without a relaunch (re-evaluate
       `AXIsProcessTrusted` / retry the Automation probe when the window regains focus?).
-- [ ] Owner check after the *next* app update: does Accessibility survive, and if not, does the
-      notification fire? (This is the case the feature exists for.)
+- [x] Owner check after the *next* app update (2026-09-13, in-app updater 0.1.2 → 0.1.3):
+      Accessibility and Automation both **survived** (`capture_ax_ok=1`, `capture_auto_ok=1`,
+      titles flowing straight after relaunch); the SMAppService login item survived too
+      (`sfltool dumpbtm` still lists UsageOS, Developer ID team, generation 4 — D69 confirmed).
+      So an in-place updater install does not trip the revocation; the 2 Jul loss came from a
+      manual DMG replace. The "notification fires on a witnessed loss" path is still unexercised.
 
