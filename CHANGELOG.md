@@ -5,6 +5,7 @@
 - **Sort by site, not just by app** — a rule can now match a website (`youtube.com`), and a site rule wins over an app rule. So YouTube can count as Entertainment while the rest of your browser stays Work — something the old app-only rules couldn't express.
 - **Sensible sites out of the box** — video, streaming, calls, code hosts and dashboards are sorted for you. Everything stays editable, and nothing you'd already set up is touched.
 - **Your past days re-sort themselves** — the first time you open this version, everything you've already recorded is re-sorted against the new rules. Once, automatically.
+- **It tells you when recording breaks** — macOS can silently drop the Accessibility or Automation permission after an update, leaving app names but no titles or sites. UsageOS now notices, says so in the menu bar and the window, and sends you straight to the setting to fix.
 
 ## v0.1.1 — runs in the menu bar (2026)
 
