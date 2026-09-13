@@ -101,9 +101,12 @@ a missing title, and a menu-bar app nobody opens has no banner surface.
       0.1.1; migration 0008 re-sorted 32 days (Entertainment 8.9 h); the health pass ran within
       36 s and wrote `capture_ax_ok=0`, `capture_auto_ok=1`; the Day view banner names the
       Accessibility loss with the switch-off-and-on copy.
-- [ ] On-device verification, recovery half: owner re-grants Accessibility (System Settings →
-      Privacy & Security → Accessibility → UsageOS off, then on); banner and tray item should
-      clear on the next 10-min pass, and titles should return in the timeline.
+- [x] On-device verification, recovery half (2026-09-13): owner toggled Accessibility off and
+      on. The running process did NOT pick the grant up (titles stayed empty, flag stayed 0);
+      after quitting and relaunching, the health pass cleared `capture_ax_ok` to 1 within 33 s
+      and Chrome titles returned immediately. Follow-up: the banner copy should say to relaunch
+      after toggling, or the health pass should re-check `AXIsProcessTrusted` with a prompt-free
+      re-evaluation that survives a live TCC change.
 - [ ] Owner check after the *next* app update: does Accessibility survive, and if not, does the
       notification fire? (This is the case the feature exists for.)
 
