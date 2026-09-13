@@ -97,8 +97,13 @@ a missing title, and a menu-bar app nobody opens has no banner surface.
       (2026-09-13) — PR #41 merged, tag at `5accb12`, DMG notarized + stapled, cask bumped.
       The 0.1.2 draft had sat since 31 Jul with no DMG, so the landing's download button 404'd
       for six weeks; resolved by this release.
-- [ ] On-device verification: install the release build while this machine is still degraded —
-      the tray fix item should appear within a minute; then re-grant and watch it clear
+- [x] On-device verification, detection half (2026-09-13): installed 0.1.2 over the degraded
+      0.1.1; migration 0008 re-sorted 32 days (Entertainment 8.9 h); the health pass ran within
+      36 s and wrote `capture_ax_ok=0`, `capture_auto_ok=1`; the Day view banner names the
+      Accessibility loss with the switch-off-and-on copy.
+- [ ] On-device verification, recovery half: owner re-grants Accessibility (System Settings →
+      Privacy & Security → Accessibility → UsageOS off, then on); banner and tray item should
+      clear on the next 10-min pass, and titles should return in the timeline.
 - [ ] Owner check after the *next* app update: does Accessibility survive, and if not, does the
       notification fire? (This is the case the feature exists for.)
 
