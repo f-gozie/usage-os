@@ -35,7 +35,7 @@ export function pickProblem(
       kind: "accessibility",
       title: "Window titles aren't being recorded",
       description:
-        "macOS switched off UsageOS's access to window titles — this can happen after an update, even while the checkbox still looks on. In System Settings, switch Accessibility for UsageOS off and back on.",
+        "macOS switched off UsageOS's access to window titles — this can happen after an update, even while the checkbox still looks on. In System Settings, switch Accessibility for UsageOS off and back on, then quit and reopen UsageOS.",
       actionLabel: "Open System Settings",
       action: actions.accessibility,
     };
@@ -45,7 +45,7 @@ export function pickProblem(
       kind: "automation",
       title: "Sites aren't being recorded",
       description:
-        "macOS stopped UsageOS from asking your browser which site is open — this can happen after a browser update. In System Settings, switch UsageOS back on under Automation.",
+        "macOS stopped UsageOS from asking your browser which site is open — this can happen after a browser update. In System Settings, switch UsageOS back on under Automation, then quit and reopen UsageOS.",
       actionLabel: "Open System Settings",
       action: actions.automation,
     };
