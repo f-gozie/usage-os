@@ -93,6 +93,10 @@ a missing title, and a menu-bar app nobody opens has no banner surface.
       local only)
 - [x] `WatcherStatus` + the views' degraded banner name the actual problem, with
       switch-it-off-and-on copy for the stale-checkbox trap
+- [x] **Shipped in [v0.1.2](https://github.com/f-gozie/usage-os/releases/tag/v0.1.2)**
+      (2026-09-13) — PR #41 merged, tag at `5accb12`, DMG notarized + stapled, cask bumped.
+      The 0.1.2 draft had sat since 31 Jul with no DMG, so the landing's download button 404'd
+      for six weeks; resolved by this release.
 - [ ] On-device verification: install the release build while this machine is still degraded —
       the tray fix item should appear within a minute; then re-grant and watch it clear
 - [ ] Owner check after the *next* app update: does Accessibility survive, and if not, does the
