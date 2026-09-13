@@ -29,12 +29,7 @@ export function WeekView({ date, onDateChange, onOpenDay }: WeekViewProps) {
   const isCurrentWeek = days.some((d) => isSameDay(d, today));
 
   const { data, loading, error, refresh } = useWeekData(dayStarts, weekEnd, isCurrentWeek);
-  const { healthy: captureHealthy, refetch: recheckHealth } = useCaptureHealth([dayStarts]);
-
-  const retry = () => {
-    refresh();
-    recheckHealth();
-  };
+  const { problem: captureProblem, refetch: recheckHealth } = useCaptureHealth([dayStarts]);
 
   const deepestLabel =
     data?.deepest_day != null
@@ -53,19 +48,19 @@ export function WeekView({ date, onDateChange, onOpenDay }: WeekViewProps) {
         nextLabel="Next week"
       />
 
-      {!captureHealthy && (
+      {captureProblem && (
         <div className="mb-5">
           <DegradedBanner
-            title="Tracking hit a snag"
-            description="UsageOS ran into repeated errors while recording. Your existing data is safe."
-            actionLabel="Retry"
-            onAction={retry}
+            title={captureProblem.title}
+            description={captureProblem.description}
+            actionLabel={captureProblem.actionLabel}
+            onAction={captureProblem.action}
           />
         </div>
       )}
 
       {error ? (
-        <ErrorState message={error} onRetry={refresh} />
+        <ErrorState message={error} onRetry={() => { refresh(); recheckHealth(); }} />
       ) : loading && !data ? (
         <LoadingState />
       ) : data ? (

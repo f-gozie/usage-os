@@ -73,3 +73,28 @@ the signing certificate's name instead of the app; reads unofficial._
 ## Backlog (unclaimed feedback)
 
 _(add items here as reports come in)_
+
+### 4. Capture permissions die silently across updates — detect, surface, guide the fix (D71)
+
+Found by auditing the author's own 32-day database (2026-07-25/31 sessions): window titles ~0%
+since the v0.1.1 install (2 Jul 00:53, to the hour — stale Accessibility grant, checkbox still
+"on"); browser URLs dying in whole-day chunks whenever Chrome updates and relaunches (-1743
+swallowed as "no URL"). The app reported "healthy" throughout: the error counter never fires for
+a missing title, and a menu-bar app nobody opens has no banner surface.
+
+- [x] Latch the real Automation denial in `run_osa` (stderr `-1743` classification + tests)
+- [x] `evaluate_health` (pure, tested): regression ("was granted, now gone" → alert once) vs
+      never-granted (degrade quietly — the user's onboarding choice)
+- [x] Health monitor on the existing 10-min tray thread (first pass ~30s after launch);
+      last-seen state + alert flag in `settings`
+- [x] Tray affordance: degraded tooltip + "Fix recording permissions…" menu item deep-linking
+      to the broken System Settings pane (Accessibility first)
+- [x] One macOS notification per regression episode (`tauri-plugin-notification` `=2.3.3`,
+      local only)
+- [x] `WatcherStatus` + the views' degraded banner name the actual problem, with
+      switch-it-off-and-on copy for the stale-checkbox trap
+- [ ] On-device verification: install the release build while this machine is still degraded —
+      the tray fix item should appear within a minute; then re-grant and watch it clear
+- [ ] Owner check after the *next* app update: does Accessibility survive, and if not, does the
+      notification fire? (This is the case the feature exists for.)
+
