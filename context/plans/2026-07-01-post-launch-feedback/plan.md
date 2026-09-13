@@ -105,7 +105,9 @@ a missing title, and a menu-bar app nobody opens has no banner surface.
       on. The running process did NOT pick the grant up (titles stayed empty, flag stayed 0);
       after quitting and relaunching, the health pass cleared `capture_ax_ok` to 1 within 33 s
       and Chrome titles returned immediately.
-- [x] Banner copy now ends "then quit and reopen UsageOS" (both permission banners) — PR #43.
+- [x] Banner copy now ends "then quit and reopen UsageOS" (both permission banners) — PR #43,
+      **shipped in [v0.1.3](https://github.com/f-gozie/usage-os/releases/tag/v0.1.3)** (2026-09-13,
+      tag at `6acd59f`, cask bumped, landing link bumped after publish).
 - [ ] Follow-up: have the health pass pick up a live TCC change without a relaunch (re-evaluate
       `AXIsProcessTrusted` / retry the Automation probe when the window regains focus?).
 - [ ] Owner check after the *next* app update: does Accessibility survive, and if not, does the
