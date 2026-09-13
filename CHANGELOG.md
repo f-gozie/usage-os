@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.3 — a clearer fix for lost permissions (2026)
+
+- **The permission warning now says the whole fix** — after switching Accessibility or Automation off and back on in System Settings, quit and reopen UsageOS. The running app doesn't pick the change up on its own, so the old wording left the warning on screen after you'd done what it said.
+
 ## v0.1.2 — sites get their own rules (2026)
 
 - **Sort by site, not just by app** — a rule can now match a website (`youtube.com`), and a site rule wins over an app rule. So YouTube can count as Entertainment while the rest of your browser stays Work — something the old app-only rules couldn't express.
