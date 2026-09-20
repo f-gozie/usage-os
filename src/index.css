@@ -154,3 +154,135 @@
     stroke-dashoffset: 0 !important;
   }
 }
+
+/* ── Calendar ────────────────────────────────────────────────────────────────
+   Every animation here touches only `transform` and `opacity`, so it runs on the
+   compositor: 365 bars rising costs no layout, no paint of their neighbours, and no
+   JavaScript. The stagger is a single `--i` custom property per cell. The global
+   reduced-motion block above already collapses all of it to an instant state. */
+
+/* A rung or layout change: the new view settles in rather than snapping. Keyed remounts in
+   CalendarView restart it, so year → month and rows ↔ wall both get it for free. */
+@keyframes cal-view-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.cal-view {
+  animation: cal-view-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Bars rise from the baseline, left to right across the year. Capped so day 365 is not
+   still waiting a second after January has landed: the whole field settles in ~0.5s. */
+@keyframes cal-bar-in {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: none;
+  }
+}
+.cal-bar {
+  transform-origin: bottom;
+  animation: cal-bar-in 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(min(var(--i, 0), 365) * 0.7ms);
+  transition: transform 120ms ease-out;
+}
+
+/* Hover: the bar you are pointing at lifts and takes an ink outline — the same "this one"
+   the dial gives an arc — and the press dips it, so a click always answers. */
+.cal-cell:not(:disabled):hover .cal-bar {
+  outline: 2px solid var(--edge);
+  outline-offset: 1px;
+  transform: scaleY(1.06);
+}
+.cal-cell:not(:disabled):active .cal-bar {
+  transform: scaleY(0.94);
+}
+.cal-cell:focus-visible {
+  outline: 2px solid var(--edge);
+  outline-offset: 1px;
+}
+
+.cal-wallcell {
+  transition: border-color 120ms ease-out;
+}
+.cal-wallcell:hover {
+  border-color: var(--edge);
+}
+
+.cal-month {
+  transition: color 120ms ease-out;
+}
+.cal-month:not(:disabled):hover,
+.cal-row:hover > .cal-month:not(:disabled) {
+  color: var(--fg);
+}
+
+/* Month cells: the same lift-and-press vocabulary at the larger scale. */
+.cal-daycell {
+  transition:
+    background-color 130ms ease-out,
+    transform 130ms ease-out;
+}
+.cal-daycell:not(:disabled):hover {
+  background-color: var(--bg);
+  transform: translateY(-1px);
+}
+.cal-daycell:not(:disabled):active {
+  transform: translateY(0) scale(0.985);
+}
+.cal-daycell {
+  animation: cal-view-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 9ms);
+}
+
+/* The layout picker: a press that answers, and the board's ink-chip tooltip instead of the
+   OS one (which waits a second and looks like nothing else in the app). The name is ALSO the
+   button's aria-label — the tooltip is never the only way to learn it. */
+.cal-pick {
+  position: relative;
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out;
+}
+.cal-pick:active svg {
+  transform: scale(0.88);
+}
+.cal-pick svg {
+  transition: transform 100ms ease-out;
+}
+.cal-pick::after {
+  content: attr(data-name);
+  position: absolute;
+  top: calc(100% + 7px);
+  right: 0;
+  z-index: 5;
+  white-space: nowrap;
+  background: var(--bar-bg);
+  color: var(--bar-fg);
+  padding: 4px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+  /* No transition here on purpose: leaving is instant. The two buttons are adjacent and both
+     chips anchor right, so a fading-out chip sat under the incoming one and the pair briefly
+     read as one garbled label. */
+}
+.cal-pick:hover::after,
+.cal-pick:focus-visible::after {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 120ms ease-out,
+    transform 120ms ease-out;
+}

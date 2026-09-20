@@ -58,6 +58,14 @@ function setup(overrides: Partial<React.ComponentProps<typeof CalendarView>> = {
 
 beforeEach(() => updateSetting.mockClear());
 
+// This file cold-mounts a 365-cell year in jsdom. On a loaded machine (observed once: a release
+// compile running, swap exhausted, load average ~9) the first mount intermittently exceeded
+// vitest's 5s default. That failure was never reproduced on demand and its error text was not
+// captured, so "timeout under load" is an inference. The budget below is deliberate rather than
+// cosmetic: wall-clock is the wrong instrument for render cost — `YearGrid.test.tsx` pins that by
+// counting renders, which does not vary with machine load.
+vi.setConfig({ testTimeout: 20_000 });
+
 describe("CalendarView", () => {
   it("opens on the year, with both layouts offered", () => {
     const { getByRole } = setup();

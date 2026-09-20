@@ -1,40 +1,53 @@
-import { YearCell } from "@/components/calendar/YearGrid";
-import type { YearDay } from "@/lib/tauri";
+import { memo, useCallback } from "react";
+
+import { dayFromEvent, YearCell } from "@/components/calendar/YearGrid";
+import type { DayModel } from "@/components/calendar/yearModel";
 import { cn } from "@/lib/utils";
 
 /** Sunday-first, matching the shipped `weekDays()` and the Week view. Two week-starts in one
  *  app would be a bug, so the wall calendar follows the app rather than the other way round. */
 const DOW = ["S", "M", "T", "W", "T", "F", "S"];
 
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const DAY_TICKS = Array.from({ length: 31 }, (_, i) => (i === 0 || (i + 1) % 5 === 0 ? i + 1 : ""));
 
 export interface YearLayoutProps {
-  days: YearDay[];
-  now: number;
-  /** Jump to a month (clicking its name). */
+  /** The year's day models, grouped by month (from `buildYearModel`). */
+  months: DayModel[][];
+  /** Index of the current month when this is the current year, else -1. */
+  currentMonth: number;
   onOpenMonth: (dayStart: number) => void;
-  /** Jump to a day (clicking its bar). */
   onOpenDay: (dayStart: number) => void;
 }
 
-/** Group the year's days by calendar month, keeping order. */
-function byMonth(days: YearDay[]): YearDay[][] {
-  const months: YearDay[][] = Array.from({ length: 12 }, () => []);
-  for (const day of days) {
-    months[new Date(day.day_start * 1000).getMonth()].push(day);
+/** Running count of days before each month, so a cell's stagger index is its day-of-year. */
+function monthOffsets(months: DayModel[][]): number[] {
+  const offsets: number[] = [];
+  let total = 0;
+  for (const m of months) {
+    offsets.push(total);
+    total += m.length;
   }
-  return months;
+  return offsets;
 }
 
-const dateText = (dayStart: number) =>
-  new Date(dayStart * 1000).toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "long",
-  });
+/** One listener for the whole grid. A click on a bar bubbles here and is resolved from
+ *  `data-day`; month names carry `data-month-start` and resolve the same way. */
+function useGridClick(onOpenDay: (d: number) => void, onOpenMonth: (d: number) => void) {
+  return useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      const monthEl = (event.target as HTMLElement).closest<HTMLElement>("[data-month-start]");
+      if (monthEl?.dataset.monthStart) {
+        onOpenMonth(Number(monthEl.dataset.monthStart));
+        return;
+      }
+      const day = dayFromEvent(event);
+      if (day !== null) onOpenDay(day);
+    },
+    [onOpenDay, onOpenMonth],
+  );
+}
 
 /**
  * Layout A — twelve month rows, one slim bar per day.
@@ -42,20 +55,25 @@ const dateText = (dayStart: number) =>
  * The year as one continuous run: a heavy stretch, a holiday, the month you were ill, all read
  * left to right without the eye resetting. What it gives up is day-of-week alignment.
  */
-export function YearRows({ days, now, onOpenMonth, onOpenDay }: YearLayoutProps) {
-  const months = byMonth(days);
-  const thisMonth = new Date(now * 1000).getMonth();
-  const thisYear = new Date(now * 1000).getFullYear();
-  const showingThisYear = days.length > 0 && new Date(days[0].day_start * 1000).getFullYear() === thisYear;
+export const YearRows = memo(function YearRows({
+  months,
+  currentMonth,
+  onOpenMonth,
+  onOpenDay,
+}: YearLayoutProps) {
+  const onClick = useGridClick(onOpenDay, onOpenMonth);
+  const offsets = monthOffsets(months);
 
   return (
-    <div className="border-2 border-edge bg-surface px-4 py-3">
-      <div className="mb-1.5 grid grid-cols-[2.6rem_1fr] gap-2.5">
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- delegation target; every
+    // actionable descendant is a real <button>, so keyboard and AT reach them directly.
+    <div className="cal-view border-2 border-edge bg-surface px-4 pb-2.5 pt-3.5" onClick={onClick}>
+      <div className="mb-1.5 grid grid-cols-[42px_1fr] gap-2.5">
         <span />
         <div className="grid grid-cols-31 text-[9px] font-semibold text-muted">
-          {Array.from({ length: 31 }, (_, i) => (
+          {DAY_TICKS.map((tick, i) => (
             <span key={i} className="text-center">
-              {i === 0 || (i + 1) % 5 === 0 ? i + 1 : ""}
+              {tick}
             </span>
           ))}
         </div>
@@ -64,93 +82,85 @@ export function YearRows({ days, now, onOpenMonth, onOpenDay }: YearLayoutProps)
       {months.map((monthDays, i) => (
         <div
           key={i}
-          className="mb-[3px] grid grid-cols-[2.6rem_1fr] items-end gap-2.5 border-b border-rule pb-[3px] last:mb-0 last:border-b-0"
+          className="cal-row mb-[3px] grid grid-cols-[42px_1fr] items-end gap-2.5 border-b border-rule pb-[3px] last:mb-0 last:border-b-0"
         >
           <button
             type="button"
-            onClick={() => monthDays[0] && onOpenMonth(monthDays[0].day_start)}
+            data-month-start={monthDays[0]?.dayStart}
             disabled={monthDays.length === 0}
             className={cn(
-              "pb-1.5 text-left font-display text-[13px] uppercase tracking-[0.05em]",
-              showingThisYear && i === thisMonth ? "text-fg" : "text-muted hover:text-fg",
+              "cal-month pb-[5px] text-left font-display text-[13px] uppercase tracking-[0.05em]",
+              i === currentMonth ? "text-fg" : "text-muted",
             )}
           >
             {MONTHS[i]}
           </button>
           <div className="grid h-[34px] grid-cols-31 items-end">
-            {monthDays.map((day) => (
-              <YearCell
-                key={day.day_start}
-                day={day}
-                now={now}
-                dateText={dateText(day.day_start)}
-                barWidthClass="w-[13px]"
-                onOpen={onOpenDay}
-              />
+            {monthDays.map((model, d) => (
+              <YearCell key={model.dayStart} model={model} index={offsets[i] + d} barWidthClass="w-[46%] min-w-[7px] max-w-[18px]" />
             ))}
           </div>
         </div>
       ))}
     </div>
   );
-}
+});
 
 /**
  * Layout B — twelve miniature month calendars.
  *
  * Day-of-week alignment: weekends land in their own columns, so the shape of your week is
  * obvious. What it gives up is continuity — twelve small grids read as twelve things.
+ *
+ * Four columns, fixed. The app window is ~1000px, so viewport breakpoints like `lg:` (1024px)
+ * never fire inside it — the first build used them and silently shipped three columns where
+ * the board draws four.
  */
-export function YearWall({ days, now, onOpenMonth, onOpenDay }: YearLayoutProps) {
-  const months = byMonth(days);
-  const thisMonth = new Date(now * 1000).getMonth();
-  const thisYear = new Date(now * 1000).getFullYear();
-  const showingThisYear = days.length > 0 && new Date(days[0].day_start * 1000).getFullYear() === thisYear;
+export const YearWall = memo(function YearWall({
+  months,
+  currentMonth,
+  onOpenMonth,
+  onOpenDay,
+}: YearLayoutProps) {
+  const onClick = useGridClick(onOpenDay, onOpenMonth);
+  const offsets = monthOffsets(months);
 
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-5 border-2 border-edge bg-surface p-4 sm:grid-cols-3 lg:grid-cols-4">
-      {months.map((monthDays, i) => {
-        // Leading blanks so the 1st lands under its weekday.
-        const pads = monthDays.length > 0 ? new Date(monthDays[0].day_start * 1000).getDay() : 0;
-        return (
-          <div key={i}>
-            <button
-              type="button"
-              onClick={() => monthDays[0] && onOpenMonth(monthDays[0].day_start)}
-              disabled={monthDays.length === 0}
-              className={cn(
-                "mb-1.5 w-full border-b pb-1 text-left font-display text-[12px] uppercase tracking-[0.06em]",
-                showingThisYear && i === thisMonth
-                  ? "border-b-2 border-edge text-fg"
-                  : "border-rule text-muted hover:text-fg",
-              )}
-            >
-              {MONTHS[i]}
-            </button>
-            <div className="mb-0.5 grid grid-cols-7 text-center text-[7.5px] tracking-[0.06em] text-muted">
-              {DOW.map((d, j) => (
-                <span key={j}>{d}</span>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-px">
-              {Array.from({ length: pads }, (_, j) => (
-                <span key={`pad-${j}`} className="h-[22px]" />
-              ))}
-              {monthDays.map((day) => (
-                <span key={day.day_start} className="h-[22px] border border-rule">
-                  <YearCell
-                    day={day}
-                    now={now}
-                    dateText={dateText(day.day_start)}
-                    barWidthClass="w-[9px]"
-                    onOpen={onOpenDay}
-                  />
-                </span>
-              ))}
-            </div>
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- delegation target, as above.
+    <div
+      className="cal-view grid grid-cols-4 gap-x-4 gap-y-[18px] border-2 border-edge bg-surface px-4 pb-2.5 pt-3.5"
+      onClick={onClick}
+    >
+      {months.map((monthDays, i) => (
+        <div key={i}>
+          <button
+            type="button"
+            data-month-start={monthDays[0]?.dayStart}
+            disabled={monthDays.length === 0}
+            className={cn(
+              "cal-month mb-[5px] w-full border-b pb-[3px] text-left font-display text-[12px] uppercase tracking-[0.06em]",
+              i === currentMonth ? "border-b-2 border-edge text-fg" : "border-rule text-muted",
+            )}
+          >
+            {MONTHS[i]}
+          </button>
+          <div className="mb-0.5 grid grid-cols-7 text-center text-[7.5px] tracking-[0.06em] text-muted">
+            {DOW.map((d, j) => (
+              <span key={j}>{d}</span>
+            ))}
           </div>
-        );
-      })}
+          <div className="grid grid-cols-7 gap-0.5">
+            {Array.from({ length: monthDays[0]?.dow ?? 0 }, (_, j) => (
+              <span key={`pad-${j}`} className="h-[22px]" />
+            ))}
+            {monthDays.map((model, d) => (
+              <span key={model.dayStart} className="cal-wallcell h-[22px] border border-rule">
+                <YearCell model={model} index={offsets[i] + d} barWidthClass="w-[52%] min-w-[6px] max-w-[12px]" />
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
-}
+});
