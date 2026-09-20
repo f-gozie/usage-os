@@ -114,8 +114,10 @@ startup failure natively before exiting, and leave a marker the next successful 
 
 ## Open, for the next session
 
-1. **Revert the live DB** (above) or build+install the coverage version — the machine is in a
-   state where the installed app won't start.
+1. **Nothing is required to make the machine work** — it was restored and the installed app is
+   recording. To get coverage running for real, the next step is a signed build installed over
+   `/Applications/UsageOS.app`; a locally-built unsigned bundle would break the SMAppService
+   login item (D69), so this wants the real release path, not a shortcut.
 2. Decide the Calendar questions: year layout (rows vs wall), the bar-height ceiling
    (fixed 12 h vs scale-to-busiest), and whether Calendar is one tab or two.
 3. `vision.md:63` scopes "long-range trends/month view" out of **v1**. v1 shipped; amend the line
