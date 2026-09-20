@@ -39,7 +39,7 @@ pub mod perf;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -120,6 +120,19 @@ fn load_lookup_maps(conn: &Connection) -> Result<LookupMaps, AppError> {
     Ok((categories, projects))
 }
 
+/// The stretches of `[start, end)` that UsageOS wasn't running for. Days that predate the
+/// coverage log return no gaps: we genuinely cannot say, and implying failure for every
+/// archived day would be the same dishonesty pointing the other way.
+fn day_coverage_gaps(
+    conn: &Connection,
+    start: i64,
+    end: i64,
+) -> Result<Vec<db::CoverageGap>, AppError> {
+    let spans = db::get_coverage(conn, start, end)?;
+    let first = db::first_coverage_start(conn)?;
+    Ok(db::coverage_gaps(&spans, start, end, db::now_unix(), first))
+}
+
 /// Build the Day view — per-axis category aggregates, category-runs, and the template
 /// recap (D34) — for a `[start_time, end_time]` Unix-second range. Numbers are computed
 /// in Rust (hard rule 6); the frontend only renders this.
@@ -133,11 +146,13 @@ fn get_day(
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     let events = db::get_activity_logs(&conn, start_time, end_time)?;
     let (categories, projects) = load_lookup_maps(&conn)?;
+    let gaps = day_coverage_gaps(&conn, start_time, end_time)?;
     Ok(rollup::build_day_view(
         &events,
         &categories,
         &projects,
         start_time,
+        gaps,
     ))
 }
 
@@ -167,7 +182,9 @@ async fn get_recap(
         let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
         let events = db::get_activity_logs(&conn, start_time, end_time)?;
         let (categories, projects) = load_lookup_maps(&conn)?;
-        let facts = rollup::build_recap_facts(&events, &categories, &projects, start_time);
+        let unwatched = db::unwatched_secs(&day_coverage_gaps(&conn, start_time, end_time)?);
+        let facts =
+            rollup::build_recap_facts(&events, &categories, &projects, start_time, unwatched);
         let fingerprint = rollup::recap_fingerprint(&facts);
         let cached = db::get_cached_recap(&conn, start_time, &fingerprint)?;
         (facts, fingerprint, cached)
@@ -207,15 +224,26 @@ fn get_week(
 ) -> Result<rollup::WeekView, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     let (categories, projects) = load_lookup_maps(&conn)?;
+    // One lookup for the whole range: a day predating it can't be judged either way.
+    let first_coverage = db::first_coverage_start(&conn)?;
     let mut days = Vec::with_capacity(day_starts.len());
     for (i, &start) in day_starts.iter().enumerate() {
         let end = day_starts.get(i + 1).copied().unwrap_or(week_end);
         let events = db::get_activity_logs(&conn, start, end)?;
+        let gaps = db::coverage_gaps(
+            &db::get_coverage(&conn, start, end)?,
+            start,
+            end,
+            db::now_unix(),
+            first_coverage,
+        );
         days.push(rollup::build_day_slice(
             start,
             &events,
             &categories,
             &projects,
+            db::unwatched_secs(&gaps),
+            first_coverage.is_some_and(|f| f < end),
         ));
     }
     Ok(rollup::build_week_view(days))
@@ -234,7 +262,13 @@ fn get_timeline(
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     let events = db::get_activity_logs(&conn, start_time, end_time)?;
     let (categories, projects) = load_lookup_maps(&conn)?;
-    Ok(rollup::build_timeline(&events, &categories, &projects))
+    let unwatched = db::unwatched_secs(&day_coverage_gaps(&conn, start_time, end_time)?);
+    Ok(rollup::build_timeline(
+        &events,
+        &categories,
+        &projects,
+        unwatched,
+    ))
 }
 
 #[tauri::command]
@@ -876,6 +910,10 @@ fn make_builder() -> Builder<tauri::Wry> {
 /// hiding-on-close is safe (a reachable tray to reopen) or it should fall back to a normal close.
 static TRAY_READY: AtomicBool = AtomicBool::new(false);
 
+/// This run's `watch_coverage` row, so the exit handler can close it. 0 = none (the session could
+/// not be opened); the process then simply records no coverage rather than a wrong one.
+static LIVE_SESSION: AtomicI64 = AtomicI64::new(0);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // launchd owns any process it spawns for the login-item agent — unregistering the agent
@@ -986,12 +1024,43 @@ pub fn run() {
                 ai::sidecar::prewarm(&warm_handle).await;
             });
 
+            // Claim this run in the coverage log before capture starts, and close out any session
+            // a previous process left open — it died without saying so, so its last heartbeat is
+            // the most it can honestly claim. Everything between that and now was unwatched (D72).
+            let session_id = match db_conn.lock() {
+                Ok(conn) => {
+                    match db::open_session(&conn, db::now_unix(), env!("CARGO_PKG_VERSION")) {
+                        Ok(id) => {
+                            match db::reconcile_open_sessions(&conn, id) {
+                                Ok(n) if n > 0 => {
+                                    println!("[Coverage] closed {} session(s) left open by a previous run", n)
+                                }
+                                Err(e) => eprintln!("[Coverage] reconcile failed: {}", e),
+                                _ => {}
+                            }
+                            Some(id)
+                        }
+                        Err(e) => {
+                            eprintln!("[Coverage] could not open a session: {}", e);
+                            None
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[Coverage] skipping, db lock poisoned: {}", e);
+                    None
+                }
+            };
+            if let Some(id) = session_id {
+                LIVE_SESSION.store(id, Ordering::Relaxed);
+            }
+
             // The source registers on this (main) thread — the macOS impl attaches to the main
             // CFRunLoop (D29) — while the consumer (the sole DB writer) drains on a dedicated
             // thread, since SQLite + git-shell enrichment block and must stay off the executor.
             let (tx, rx) = std::sync::mpsc::channel();
             capture::default_source().start(tx);
-            std::thread::spawn(move || capture::consume(db_conn, rx));
+            std::thread::spawn(move || capture::consume(db_conn, rx, session_id));
 
             // Menubar tray + glance popover. Non-fatal: a tray failure shouldn't block launch —
             // but the main window keeps normal close-to-quit behavior until the tray is up (see
@@ -1019,6 +1088,25 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { .. } = _event {
                 show_main(_app_handle);
+            }
+            // A clean exit — ⌘Q, the tray Quit, the glance Quit, or a system shutdown — closes
+            // this run's coverage row at the real time. Without it the row would be reconciled
+            // at its last heartbeat and we'd report up to a minute of blindness that never was.
+            // A SIGKILL never reaches here, which is exactly what the watermark is for.
+            if let tauri::RunEvent::Exit = _event {
+                let id = LIVE_SESSION.swap(0, Ordering::Relaxed);
+                if id != 0 {
+                    if let Some(db) = _app_handle.try_state::<db::DbConnection>() {
+                        match db.lock() {
+                            Ok(conn) => {
+                                if let Err(e) = db::close_session(&conn, id, db::now_unix()) {
+                                    eprintln!("[Coverage] could not close the session: {}", e);
+                                }
+                            }
+                            Err(e) => eprintln!("[Coverage] db lock poisoned at exit: {}", e),
+                        }
+                    }
+                }
             }
         }),
         Err(e) => {

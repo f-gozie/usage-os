@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::ActivityLog;
+use crate::db::{ActivityLog, CoverageGap};
 
 /// An idle/untracked gap at least this long ends a category-run. Dogfood-tunable; see D34a.
 const IDLE_GAP_ENDS_RUN_SECS: i64 = 5 * 60;
@@ -93,6 +93,11 @@ pub struct DayView {
     pub categories: Vec<CategorySlice>,
     pub runs: Vec<CategoryRun>,
     pub recap: Recap,
+    /// Stretches of this day when UsageOS wasn't running, so the dial can show a blind spot
+    /// instead of implying an idle one. Empty for a day we have no coverage record for.
+    pub gaps: Vec<CoverageGap>,
+    /// Seconds of this day nobody was watching — the sum of `gaps`, computed in Rust (rule 6).
+    pub unwatched_secs: i64,
 }
 
 /// One day's compact summary for the Week view: a mini-dial's arcs plus the two totals
@@ -104,6 +109,12 @@ pub struct DaySlice {
     pub active_secs: i64,
     pub deep_secs: i64,
     pub runs: Vec<CategoryRun>,
+    /// Seconds of this day UsageOS wasn't running. 0 also means "we have no coverage record
+    /// for this day" — callers distinguish the two with `coverage_known`.
+    pub unwatched_secs: i64,
+    /// Whether coverage was being recorded at all on this day. False for days that predate the
+    /// coverage log: we cannot say what happened, and must not imply failure.
+    pub coverage_known: bool,
 }
 
 /// Everything the Week view needs: 7 day-slices + week-level aggregates (numbers in Rust).
@@ -156,6 +167,9 @@ pub struct TimelineRun {
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct TimelineView {
     pub runs: Vec<TimelineRun>,
+    /// Seconds of this day UsageOS wasn't running, so an empty timeline can say which of the
+    /// two reasons it is (computed in Rust, hard rule 6).
+    pub unwatched_secs: i64,
 }
 
 fn duration(event: &ActivityLog) -> i64 {
@@ -195,10 +209,18 @@ pub fn build_day_view(
     categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
     day_start: i64,
+    gaps: Vec<CoverageGap>,
 ) -> DayView {
     let (active_secs, idle_secs, category_slices) = aggregate_categories(events, categories);
     let runs = build_runs(events, categories, projects);
-    let facts = compute_recap_facts(active_secs, day_start, &category_slices, &runs);
+    let unwatched_secs = crate::db::unwatched_secs(&gaps);
+    let facts = compute_recap_facts(
+        active_secs,
+        day_start,
+        &category_slices,
+        &runs,
+        unwatched_secs,
+    );
     let recap = render_template_recap(&facts);
 
     DayView {
@@ -207,6 +229,8 @@ pub fn build_day_view(
         categories: category_slices,
         runs,
         recap,
+        gaps,
+        unwatched_secs,
     }
 }
 
@@ -266,10 +290,17 @@ pub(crate) fn build_recap_facts(
     categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
     day_start: i64,
+    unwatched_secs: i64,
 ) -> RecapFacts {
     let (active_secs, _idle_secs, category_slices) = aggregate_categories(events, categories);
     let runs = build_runs(events, categories, projects);
-    compute_recap_facts(active_secs, day_start, &category_slices, &runs)
+    compute_recap_facts(
+        active_secs,
+        day_start,
+        &category_slices,
+        &runs,
+        unwatched_secs,
+    )
 }
 
 /// One day's slice for the Week grid: per-day active + deep totals and the dial arcs. Reuses
@@ -280,6 +311,8 @@ pub fn build_day_slice(
     events: &[ActivityLog],
     categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
+    unwatched_secs: i64,
+    coverage_known: bool,
 ) -> DaySlice {
     let mut active_secs = 0;
     let mut deep_secs = 0;
@@ -297,6 +330,8 @@ pub fn build_day_slice(
         day_start,
         active_secs,
         deep_secs,
+        unwatched_secs,
+        coverage_known,
         runs: build_runs(events, categories, projects),
     }
 }
@@ -579,9 +614,11 @@ pub fn build_timeline(
     events: &[ActivityLog],
     categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
+    unwatched_secs: i64,
 ) -> TimelineView {
     TimelineView {
         runs: build_segmented_runs(events, categories, projects),
+        unwatched_secs,
     }
 }
 
@@ -654,6 +691,9 @@ pub struct RecapFacts {
     pub leading_project: Option<String>,
     /// The longest continuous stretch, only when it's substantial (≥ [`RECAP_MIN_FOCUS_SECS`]).
     pub longest_focus: Option<FocusFact>,
+    /// Seconds of the day UsageOS wasn't running. A fact like any other: the narrator may phrase
+    /// it but never speculates about it, and the template always states it plainly.
+    pub unwatched_secs: i64,
 }
 
 /// A rough, local time-of-day phrase for the recap, from the hour-of-day (0–23) of a run's
@@ -676,6 +716,7 @@ fn compute_recap_facts(
     day_start: i64,
     categories: &[CategorySlice],
     runs: &[CategoryRun],
+    unwatched_secs: i64,
 ) -> RecapFacts {
     let leading = categories.first().map(|c| CategoryFact {
         name: c.name.clone(),
@@ -703,6 +744,7 @@ fn compute_recap_facts(
         second,
         leading_project: leading_project(runs, active_secs),
         longest_focus,
+        unwatched_secs,
     }
 }
 
@@ -710,8 +752,22 @@ fn compute_recap_facts(
 /// rear-view mirror, not a coach: no "productive"/"focused"/"distracted"). The Foundation
 /// Models prose (Phase 3 step 2 — see `ai::build_recap`) reuses [`RecapFacts`]; this is the
 /// always-available fallback.
+/// Below this much missing time the gap isn't worth mentioning in prose — a reboot or a short
+/// crash doesn't change how the day reads.
+const RECAP_GAP_MENTION_SECS: i64 = 30 * 60;
+
+/// A whole day is "not recorded" only when essentially none of it was watched. Below this the
+/// day still has a story; the missing stretch is a clause, not the headline.
+const MOSTLY_UNWATCHED_SECS: i64 = 23 * 3600;
+
 pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
     let text = match &facts.leading {
+        // Nothing tracked. Which of the two reasons it is matters more than anything else the
+        // recap says: a day you rested and a day the recorder was dead are opposite facts, and
+        // for years this line reported them identically.
+        None if facts.unwatched_secs >= MOSTLY_UNWATCHED_SECS => {
+            "UsageOS wasn’t running on this day, so there’s nothing to show.".to_string()
+        }
         None => "No activity tracked today yet.".to_string(),
         Some(leading) => {
             let total = human_secs(facts.active_secs);
@@ -736,6 +792,14 @@ pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
             }
             if let Some(project) = &facts.leading_project {
                 text.push_str(&format!(" Mostly on {project}."));
+            }
+            // Appended, never prepended: the day still had a shape, and this is a footnote about
+            // the recorder, not a verdict on you. Stated plainly so the totals read as partial.
+            if facts.unwatched_secs >= RECAP_GAP_MENTION_SECS {
+                text.push_str(&format!(
+                    " UsageOS wasn’t running for {} of it, so this is only part of the day.",
+                    human_secs(facts.unwatched_secs),
+                ));
             }
             text
         }
@@ -794,6 +858,15 @@ pub(crate) fn format_recap_prompt(facts: &RecapFacts) -> String {
     }
     if let Some(project) = &facts.leading_project {
         lines.push(format!("- Main project: {project}"));
+    }
+    // Only when there is a real gap, so a normal day's prompt — and therefore its cached
+    // narration (D52) — is byte-identical to before this shipped.
+    if facts.unwatched_secs >= RECAP_GAP_MENTION_SECS {
+        lines.push(format!(
+            "- UsageOS was not running for {} of this day, so these totals cover only part of it. \
+             Say so plainly at the end. Do not guess what happened during that time.",
+            human_secs_long(facts.unwatched_secs)
+        ));
     }
     lines.join("\n")
 }
@@ -925,7 +998,7 @@ mod tests {
             ev(600, 900, "Slack", Some(2), None),   // 5m comms
             idle(900, 1200),                        // 5m idle
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
         assert_eq!(day.active_secs, 900);
         assert_eq!(day.idle_secs, 300);
         assert_eq!(day.categories.len(), 2);
@@ -942,7 +1015,7 @@ mod tests {
             ev(300, 600, "Cursor", Some(1), Some(2)),
             ev(600, 900, "iTerm", Some(1), Some(1)),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
         assert_eq!(day.runs.len(), 1);
         let run = &day.runs[0];
         assert_eq!(run.category_slug, "deep");
@@ -961,7 +1034,7 @@ mod tests {
             ev(600, 900, "Slack", Some(2), None),
             ev(900, 1200, "Cursor", Some(1), Some(1)),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
         assert_eq!(day.runs.len(), 3);
         assert_eq!(day.runs[1].category_slug, "comms");
         assert_eq!(day.runs[1].projects[0].name, "No project");
@@ -980,14 +1053,14 @@ mod tests {
                 Some(1),
             ),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
         assert_eq!(day.runs.len(), 2);
     }
 
     #[test]
     fn uncategorized_active_time_becomes_other_category() {
         let events = vec![ev(0, 600, "Unknown", None, None)];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
         assert_eq!(day.categories[0].slug, "other");
         assert_eq!(day.categories[0].name, "Uncategorized");
         assert_eq!(day.runs[0].category_slug, "other");
@@ -1023,7 +1096,7 @@ mod tests {
             ev(600, 1200, "Books", Some(11), None), // Reading
             ev(1200, 1500, "Unknown", None, None),  // truly uncategorized
         ];
-        let day = build_day_view(&events, &cats, &proj_map(), 0);
+        let day = build_day_view(&events, &cats, &proj_map(), 0, vec![]);
         let by_name: HashMap<&str, &CategorySlice> = day
             .categories
             .iter()
@@ -1047,9 +1120,101 @@ mod tests {
 
     #[test]
     fn recap_is_empty_when_no_active_time() {
-        let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0);
+        let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![]);
         assert_eq!(day.recap.text, "No activity tracked today yet.");
         assert_eq!(day.recap.generated_by, "template");
+    }
+
+    #[test]
+    fn an_unwatched_day_does_not_read_as_a_quiet_one() {
+        // The Sep 2026 bug: the app was dead for the whole day, and the recap said the same
+        // thing it says about a day you chose to rest. These are opposite facts.
+        let whole_day = vec![CoverageGap {
+            start: 0,
+            end: 86_400,
+        }];
+        let day = build_day_view(&[], &ctx_map(), &proj_map(), 0, whole_day);
+        assert_eq!(
+            day.recap.text,
+            "UsageOS wasn’t running on this day, so there’s nothing to show."
+        );
+        assert_eq!(day.unwatched_secs, 86_400);
+    }
+
+    #[test]
+    fn a_quiet_but_watched_day_still_reads_as_quiet() {
+        let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![]);
+        assert_eq!(day.recap.text, "No activity tracked today yet.");
+        assert_eq!(day.unwatched_secs, 0);
+    }
+
+    #[test]
+    fn a_partly_unwatched_day_says_so_after_the_story_not_before() {
+        let gaps = vec![CoverageGap {
+            start: 40_000,
+            end: 60_000,
+        }];
+        let day = build_day_view(
+            &[ev(0, 7200, "Zed", Some(1), None)],
+            &ctx_map(),
+            &proj_map(),
+            0,
+            gaps,
+        );
+        assert!(
+            day.recap.text.starts_with("2h 0m tracked"),
+            "the day's own story leads: {}",
+            day.recap.text
+        );
+        assert!(
+            day.recap.text.ends_with("so this is only part of the day."),
+            "the gap is a footnote, not the headline: {}",
+            day.recap.text
+        );
+    }
+
+    #[test]
+    fn a_short_gap_is_not_worth_mentioning() {
+        // A reboot or an update relaunch shouldn't editorialise the day.
+        let gaps = vec![CoverageGap {
+            start: 40_000,
+            end: 40_400,
+        }];
+        let day = build_day_view(
+            &[ev(0, 7200, "Zed", Some(1), None)],
+            &ctx_map(),
+            &proj_map(),
+            0,
+            gaps,
+        );
+        assert!(
+            !day.recap.text.contains("wasn’t running"),
+            "{}",
+            day.recap.text
+        );
+    }
+
+    #[test]
+    fn the_model_prompt_is_unchanged_on_a_fully_watched_day() {
+        // So every recap cached before coverage shipped (D52 keys on this prompt) still hits.
+        let base = build_recap_facts(
+            &[ev(0, 7200, "Zed", Some(1), None)],
+            &ctx_map(),
+            &proj_map(),
+            0,
+            0,
+        );
+        let with_sliver = build_recap_facts(
+            &[ev(0, 7200, "Zed", Some(1), None)],
+            &ctx_map(),
+            &proj_map(),
+            0,
+            60,
+        );
+        assert_eq!(
+            format_recap_prompt(&base),
+            format_recap_prompt(&with_sliver)
+        );
     }
 
     #[test]
@@ -1058,7 +1223,7 @@ mod tests {
             ev(0, 3600, "Cursor", Some(1), Some(1)), // 1h deep on usageos
             ev(3600, 4200, "Slack", Some(2), None),  // 10m comms
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
         let t = &day.recap.text;
         assert!(t.contains("Deep work led at"), "leading category: {t}");
         assert!(t.contains("then Comms at"), "runner-up category: {t}");
@@ -1074,6 +1239,7 @@ mod tests {
             &ctx_map(),
             &proj_map(),
             0,
+            vec![],
         );
         let t = &day.recap.text;
         assert!(t.contains("tracked, all comms."), "single category: {t}");
@@ -1096,7 +1262,7 @@ mod tests {
             ev(600, 900, "Slack", Some(2), None),   // 5m comms
             idle(900, 1200),                        // ignored
         ];
-        let slice = build_day_slice(42, &events, &ctx_map(), &proj_map());
+        let slice = build_day_slice(42, &events, &ctx_map(), &proj_map(), 0, true);
         assert_eq!(slice.day_start, 42, "origin passed through");
         assert_eq!(slice.active_secs, 900);
         assert_eq!(slice.deep_secs, 600, "only the deep-work time");
@@ -1110,6 +1276,8 @@ mod tests {
             active_secs: deep, // active == deep for this fixture
             deep_secs: deep,
             runs: vec![],
+            unwatched_secs: 0,
+            coverage_known: true,
         };
         // 7 days; index 3 is the deepest (1800s).
         let week = build_week_view(vec![
@@ -1133,6 +1301,8 @@ mod tests {
             active_secs: 300,
             deep_secs: 0,
             runs: vec![],
+            unwatched_secs: 0,
+            coverage_known: true,
         };
         let week = build_week_view(vec![flat.clone(), flat.clone(), flat]);
         assert_eq!(week.deepest_day, None);
@@ -1146,7 +1316,7 @@ mod tests {
             ev(0, 300, "Cursor", Some(1), Some(1)),
             ev(300, 600, "iTerm", Some(1), Some(2)),
         ];
-        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(tl.runs.len(), 1);
         let run = &tl.runs[0];
         assert_eq!(run.segments.len(), 2);
@@ -1163,7 +1333,7 @@ mod tests {
             ev(0, 600, "Cursor", Some(1), Some(1)), // deep
             ev(600, 900, "Slack", Some(2), None),   // comms → split
         ];
-        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(tl.runs.len(), 2);
         assert_eq!(tl.runs[1].category_slug, "comms");
         assert_eq!(
@@ -1184,7 +1354,7 @@ mod tests {
                 Some(1),
             ),
         ];
-        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(tl.runs.len(), 2, "a gap ≥ threshold ends the run");
     }
 
@@ -1199,7 +1369,7 @@ mod tests {
             ev(600, 650, "Slack", Some(2), None),      // comms 50s, no project
             ev(650, 1200, "Cursor", Some(1), Some(1)), // deep / usageos
         ];
-        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(tl.runs.len(), 1, "the brief comms glance is absorbed");
         let run = &tl.runs[0];
         assert_eq!(run.category_slug, "deep");
@@ -1229,7 +1399,7 @@ mod tests {
             "the absorbed segment keeps its real category"
         );
         // Totals are independent of segmentation (D34): the 50s is still Comms in the ledger.
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
         let comms_total = day
             .categories
             .iter()
@@ -1248,7 +1418,7 @@ mod tests {
             ev(630, 650, "Chrome", Some(3), None),
             ev(650, 1200, "Cursor", Some(1), Some(1)),
         ];
-        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(tl.runs.len(), 1);
         assert_eq!(tl.runs[0].category_slug, "deep");
         assert_eq!(tl.runs[0].segments.len(), 4);
@@ -1261,7 +1431,7 @@ mod tests {
             ev(600, 600 + ABSORB_SECS + 30, "Slack", Some(2), None), // > ABSORB_SECS
             ev(600 + ABSORB_SECS + 30, 1500, "Cursor", Some(1), Some(1)),
         ];
-        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(
             tl.runs.len(),
             3,
@@ -1275,7 +1445,7 @@ mod tests {
             ev(0, 600, "Cursor", Some(1), Some(1)),
             ev(600, 640, "Slack", Some(2), None), // 40s blip at the end, no deep after
         ];
-        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(
             tl.runs.len(),
             2,
@@ -1291,7 +1461,7 @@ mod tests {
             ev(5, 85, "Slack", Some(2), None),
             ev(85, 90, "Cursor", Some(1), Some(1)),
         ];
-        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(
             tl.runs.len(),
             3,
@@ -1308,7 +1478,7 @@ mod tests {
             ev(100, 180, "Slack", Some(2), None),
             ev(180, 280, "Cursor", Some(1), Some(1)),
         ];
-        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(tl.runs.len(), 3, "the cap forbids a run that's >15% detour");
     }
 
@@ -1321,8 +1491,8 @@ mod tests {
             ev(650, 1200, "Cursor", Some(1), Some(1)),
             ev(1200, 1500, "Slack", Some(2), None), // tail comms — its own run
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0);
-        let tl = build_timeline(&events, &ctx_map(), &proj_map());
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
+        let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(day.runs.len(), tl.runs.len());
         for (cr, tr) in day.runs.iter().zip(tl.runs.iter()) {
             assert_eq!(cr.category_slug, tr.category_slug);
@@ -1333,6 +1503,7 @@ mod tests {
     #[test]
     fn recap_fingerprint_is_stable_and_sensitive() {
         let base = RecapFacts {
+            unwatched_secs: 0,
             active_secs: 17580,
             leading: Some(CategoryFact {
                 name: "Work".into(),

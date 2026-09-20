@@ -84,7 +84,9 @@ function GlancePanel() {
 
         {active === 0 ? (
           <div className="flex h-[150px] items-center justify-center px-4 text-center text-[13px] font-medium text-muted">
-            No activity tracked today yet.
+            {(data?.unwatched_secs ?? 0) >= 23 * 3600
+              ? "UsageOS wasn’t running today, so there’s nothing to show."
+              : "No activity tracked today yet."}
           </div>
         ) : (
           <>

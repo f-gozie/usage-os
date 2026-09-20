@@ -117,3 +117,69 @@ a missing title, and a menu-bar app nobody opens has no banner surface.
       So an in-place updater install does not trip the revocation; the 2 Jul loss came from a
       manual DMG replace. The "notification fires on a witnessed loss" path is still unexercised.
 
+
+## Watch coverage — the app records when it wasn't watching (D72)
+
+Found by the owner on 2026-09-20: **2026-09-16 and 09-17 hold zero rows.** The app exited
+cleanly on 09-15 at 17:32:26 and did not run again until the 09-18 23:07 reboot brought it back
+via the login item. The Mac was in use on both days (lid opened 3× and 4×, per `pmset -g log`);
+there was no crash report and no jetsam kill. In ~90 days and 31,913 rows these are the **only**
+two fully-missing days, and the 77.6 h gap is 3.5× the next largest — every other gap is an
+ordinary overnight. So: a one-off outage, and a permanent class of silence.
+
+- [x] Migration `0009_watch_coverage.sql` — one row per app run (`started_at`, `last_seen`,
+      `ended_at`, `version`). Verified against a copy of the owner's real 31,913-row database.
+- [x] `db/coverage.rs` — open / touch / close / reconcile / read / prune, plus the pure
+      `coverage_gaps` derivation. 14 tests.
+- [x] Lifecycle: claim a session in `setup` before capture starts; reconcile any session a dead
+      process left open, at its watermark; close on `RunEvent::Exit` (catches ⌘Q, tray Quit,
+      glance Quit and shutdown alike).
+- [x] Heartbeat on the existing capture tick, throttled to 60 s. **A session is continuous** —
+      sleep suspends the process, so heartbeat gaps are not blindness; only the stretches
+      *between* sessions are. Otherwise every night would hatch.
+- [x] Read model: `DayView.gaps` + `unwatched_secs`, `DaySlice.unwatched_secs` +
+      `coverage_known`, `TimelineView.unwatched_secs`, `RecapFacts.unwatched_secs`.
+- [x] The empty-day copy splits into its two honest cases in Rust; a partly-blind day gets the
+      gap appended after its own story. The model prompt is unchanged on a fully-watched day, so
+      D52's cached recaps still hit.
+- [x] Dial renders a blind stretch as a **broken** track — solid faint = you were away,
+      interrupted = we weren't looking. Timeline + glance empty states follow.
+- [x] Retention prunes coverage with the events it describes, so a pruned day reads as
+      unknowable rather than as a failure.
+- [x] Gates: `cargo clippy -D warnings`, `cargo fmt --check`, 156 Rust tests, `tsc`, 46 TS
+      tests, bindings regenerated (never hand-edited).
+- [ ] **Not yet verified on device.** Needs a real run: the app must write a session row, the
+      heartbeat must advance, and a quit-then-relaunch must produce a reconciled span with no
+      phantom gap. Running `tauri dev` writes to the live database and applies 0009 to it.
+- [ ] **Found while verifying D72 on device — a downgrade silently bricks the app.**
+      `verify_applied_checksums(conn, !cfg!(debug_assertions))` makes a release build refuse to
+      start when the DB records a migration it doesn't ship ("do not downgrade"). That failure
+      then takes the silent path: `setup` returns `Err` → `build()` fails → `eprintln!` +
+      `std::process::exit(1)`, and in a `--hidden` login launch there is **no window, no tray, no
+      notification, and no recording** — indefinitely, with nothing to look at. Any rollback
+      (Homebrew cask, a Time Machine restore, running an older build once) arms it. The fix is
+      small: surface startup failure natively before exiting, and leave a marker the next
+      successful run can explain. Same silent-failure family as D72 itself.
+- [ ] Open: should the app self-restart? `KeepAlive` on the bundled agent **cannot** work —
+      D69's trampoline `setsid()`s the real process out of launchd's job, so launchd would
+      respawn the trampoline forever and never observe the app. A periodic supervisor plus a
+      recorded quit intent is the shape that would; it needs its own decision.
+- [ ] Open: ⌘Q is live (`tauri::Builder::default()` never disables the default macOS menu) one
+      key from the ⌘W that merely hides the window, and the glance has a bare one-click `Quit`
+      beside "Open UsageOS →". D72 makes their consequence visible; it does not make them
+      harder to hit.
+
+## Calendar — Year → Month → Day (designed, not built)
+
+- [x] Boards: `design/month.html` (the three cell treatments compared; heat blocks ruled out
+      because darkness-as-hours makes colour encode two things) and `design/calendar.html` (the
+      drill-down: Year as a bar per day, Month as a dial per day, one `Calendar` tab).
+- [x] Measured: the R77 ink casing is 1.25% of rendered size, so it is a true 1px only at an
+      **80px dial**; at 80px month cells come out 126×130 inside a 984px frame, so the compliant
+      size fits the window and the month scrolls. A year cell is ~29px, which is why Year cannot
+      use the dial at all.
+- [ ] Owner to pick: the Year cell layout (month-row strips vs a wall-calendar grid), the year
+      bar-height ceiling, and whether Calendar is one tab or two.
+- [ ] `vision.md:63` scopes "long-range trends/month view" out of **v1**. v1 shipped; the line
+      needs amending as part of building this — keeping the ban on *trends*, dropping it for the
+      month view.

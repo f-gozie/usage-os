@@ -83,6 +83,7 @@ mod tests {
 
     fn sample_facts() -> RecapFacts {
         RecapFacts {
+            unwatched_secs: 0,
             active_secs: 17580, // 4h 53m
             leading: Some(CategoryFact {
                 name: "Work".into(),
@@ -152,6 +153,7 @@ mod tests {
     #[test]
     fn empty_day_skips_the_model() {
         let facts = RecapFacts {
+            unwatched_secs: 0,
             active_secs: 0,
             leading: None,
             second: None,

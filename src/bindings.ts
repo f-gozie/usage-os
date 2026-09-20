@@ -465,6 +465,10 @@ export type CategorySlice = { slug: string; name: string; secs: number; pct: num
  */
 color: string | null }
 /**
+ * A stretch with no coverage at all: the app was not running.
+ */
+export type CoverageGap = { start: number; end: number }
+/**
  * One day's compact summary for the Week view: a mini-dial's arcs plus the two totals
  * the week summary needs. `deep_secs` is carried so "deepest day" is a Rust number (rule 6).
  */
@@ -472,11 +476,30 @@ export type DaySlice = {
 /**
  * Local midnight (Unix secs) — the mini-dial's angular origin.
  */
-day_start: number; active_secs: number; deep_secs: number; runs: CategoryRun[] }
+day_start: number; active_secs: number; deep_secs: number; runs: CategoryRun[]; 
+/**
+ * Seconds of this day UsageOS wasn't running. 0 also means "we have no coverage record
+ * for this day" — callers distinguish the two with `coverage_known`.
+ */
+unwatched_secs: number; 
+/**
+ * Whether coverage was being recorded at all on this day. False for days that predate the
+ * coverage log: we cannot say what happened, and must not imply failure.
+ */
+coverage_known: boolean }
 /**
  * Everything the Day view needs, computed from one day of events.
  */
-export type DayView = { active_secs: number; idle_secs: number; categories: CategorySlice[]; runs: CategoryRun[]; recap: Recap }
+export type DayView = { active_secs: number; idle_secs: number; categories: CategorySlice[]; runs: CategoryRun[]; recap: Recap; 
+/**
+ * Stretches of this day when UsageOS wasn't running, so the dial can show a blind spot
+ * instead of implying an idle one. Empty for a day we have no coverage record for.
+ */
+gaps: CoverageGap[]; 
+/**
+ * Seconds of this day nobody was watching — the sum of `gaps`, computed in Rust (rule 6).
+ */
+unwatched_secs: number }
 /**
  * A sensitive-handling rule (D8): match an app/site/title and either drop the
  * event (`mode = "exclude"`) or record time without title/url (`mode = "private"`).
@@ -569,7 +592,12 @@ title: string | null; secs: number }
  * Everything the Timeline view needs: the day's category-runs, each with its segments.
  * The "Away" idle gaps and the now-marker are derived on the frontend from run bounds.
  */
-export type TimelineView = { runs: TimelineRun[] }
+export type TimelineView = { runs: TimelineRun[]; 
+/**
+ * Seconds of this day UsageOS wasn't running, so an empty timeline can say which of the
+ * two reasons it is (computed in Rust, hard rule 6).
+ */
+unwatched_secs: number }
 /**
  * An app with tracked time that matches no rule — its `category_id` is NULL, so it
  * rolls up as "Uncategorized" (Other). Surfaced in Settings so the user can sort it

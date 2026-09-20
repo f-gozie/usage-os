@@ -29,6 +29,7 @@ export type {
   Category,
   CategoryRun,
   CategorySlice,
+  CoverageGap,
   DaySlice,
   DayView,
   Exclusion,

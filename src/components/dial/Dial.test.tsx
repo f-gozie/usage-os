@@ -5,6 +5,7 @@ import { render, fireEvent } from "@testing-library/react";
 
 import { Dial } from "./Dial";
 import type { CategoryRun } from "@/lib/tauri";
+import { formatClock } from "@/lib/format";
 
 // Skip the imperative draw-in (jsdom has no SVGPathElement.getTotalLength).
 vi.mock("@/hooks/useReducedMotion", () => ({ useReducedMotion: () => true }));
@@ -50,5 +51,71 @@ describe("Dial", () => {
     // Each run is [casing, coloured]; the coloured arc (index 1) carries the handler.
     fireEvent.click(paths[1]);
     expect(onSelect).toHaveBeenCalledWith(RUNS[0]);
+  });
+});
+
+// A local midnight; the dial's angular origin and the base for every offset below.
+const MIDNIGHT = new Date(2026, 8, 16, 0, 0, 0).getTime() / 1000;
+const at = (hours: number) => MIDNIGHT + hours * 3600;
+
+const base = {
+  runs: [] as CategoryRun[],
+  dayStartUnix: MIDNIGHT,
+  nowMinutes: null,
+  activeLabel: "0m",
+};
+
+/** The blind-stretch arcs, found by the title they carry (their only accessible name). */
+function gapTitles(container: HTMLElement): string[] {
+  return [...container.querySelectorAll("path > title")]
+    .map((t) => t.textContent ?? "")
+    .filter((t) => t.includes("wasn’t running"));
+}
+
+describe("Dial coverage gaps", () => {
+  it("draws nothing extra on a day that was fully watched", () => {
+    const { container } = render(<Dial {...base} gaps={[]} />);
+    expect(gapTitles(container)).toHaveLength(0);
+  });
+
+  it("draws a blind stretch and names the hours it covers", () => {
+    const { container } = render(<Dial {...base} gaps={[{ start: at(17.5), end: at(23) }]} />);
+
+    const titles = gapTitles(container);
+    expect(titles).toHaveLength(1);
+    expect(titles[0]).toBe(
+      `UsageOS wasn’t running · ${formatClock(at(17.5))}–${formatClock(at(23))}`,
+    );
+  });
+
+  it("uses a broken track, not a coloured arc — an absence, never an alarm", () => {
+    const { container } = render(<Dial {...base} gaps={[{ start: at(2), end: at(9) }]} />);
+
+    const gap = [...container.querySelectorAll("path")].find((p) =>
+      p.querySelector("title")?.textContent?.includes("wasn’t running"),
+    );
+    expect(gap).toBeDefined();
+    expect(gap).toHaveAttribute("stroke", "var(--bg)");
+    expect(gap).toHaveAttribute("stroke-dasharray", "3 7");
+  });
+
+  it("skips a stretch too short to read, so a reboot leaves no speck", () => {
+    const { container } = render(
+      <Dial {...base} gaps={[{ start: at(12), end: at(12) + 120 }]} />,
+    );
+    expect(gapTitles(container)).toHaveLength(0);
+  });
+
+  it("draws every blind stretch of a day that lost the app more than once", () => {
+    const { container } = render(
+      <Dial
+        {...base}
+        gaps={[
+          { start: at(1), end: at(6) },
+          { start: at(14), end: at(18) },
+        ]}
+      />,
+    );
+    expect(gapTitles(container)).toHaveLength(2);
   });
 });

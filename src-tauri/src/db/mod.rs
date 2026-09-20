@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 mod categories;
+mod coverage;
 mod events;
 mod exclusions;
 mod projects;
@@ -19,6 +20,7 @@ mod recap;
 mod settings;
 
 pub use categories::*;
+pub use coverage::*;
 pub use events::*;
 pub use exclusions::*;
 pub use projects::*;

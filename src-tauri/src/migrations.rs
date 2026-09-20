@@ -59,6 +59,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "seed_site_rules",
         sql: include_str!("../migrations/0008_seed_site_rules.sql"),
     },
+    Migration {
+        version: 9,
+        name: "watch_coverage",
+        sql: include_str!("../migrations/0009_watch_coverage.sql"),
+    },
 ];
 
 /// Migration 8 seeds site rules that re-sort history, so applying it must be followed by a

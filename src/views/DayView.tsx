@@ -119,6 +119,7 @@ export function DayView({ date, onDateChange }: DayViewProps) {
           <div className="grid grid-cols-1 items-center gap-[30px] md:grid-cols-[330px_1fr]">
             <Dial
               runs={data.runs}
+              gaps={data.gaps}
               dayStartUnix={start}
               nowMinutes={nowMinutes}
               activeLabel={formatDuration(activeSecs)}
