@@ -44,6 +44,8 @@ export function WeekView({ date, onDateChange, onOpenDay }: WeekViewProps) {
         onPrev={() => onDateChange(addDays(date, -7))}
         onNext={() => onDateChange(addDays(date, 7))}
         onRefresh={refresh}
+        onLatest={() => onDateChange(new Date())}
+        latestLabel="This week"
         prevLabel="Previous week"
         nextLabel="Next week"
       />
