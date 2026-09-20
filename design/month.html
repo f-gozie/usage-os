@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Month</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616; --c-personal:#2E8B57;
+  --now:#161616; --casing:#161616; --on-ink:#EEEBE1; --bar-bg:#161616; --bar-fg:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8; --c-personal:#46B97E;
+  --now:#EDE9DD; --casing:transparent; --on-ink:#1A1916; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4; --c-personal:#4FCB8A;
+  --now:#F4F4F2; --casing:transparent; --on-ink:#0E0E0E; --bar-bg:#000000; --bar-fg:#F4F4F2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);transition:background .25s;}
+body{font-family:'Jost',sans-serif;color:var(--fg);background:var(--bg);padding:30px 20px 90px;}
+
+/* ── board scaffolding (outside the app frame) ───────────────────────── */
+.board{max-width:1080px;margin:0 auto;}
+.board-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:8px;}
+h1.board-title{font-family:'Anton',sans-serif;font-size:40px;letter-spacing:.02em;text-transform:uppercase;line-height:1;}
+.board-sub{color:var(--muted);font-size:15px;max-width:620px;margin-top:10px;line-height:1.5;}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:var(--muted);font-weight:600;}
+.frame-note{font-size:13.5px;color:var(--muted);line-height:1.55;margin:0 0 14px;max-width:760px;}
+.frame-note b{color:var(--fg);font-weight:600;}
+section.slab{margin-top:54px;}
+section.slab > h2{font-family:'Anton',sans-serif;font-size:21px;text-transform:uppercase;letter-spacing:.03em;border-bottom:3px solid var(--edge);padding-bottom:9px;margin-bottom:8px;}
+.verdict{border:2px solid var(--edge);background:var(--surface);padding:15px 17px;font-size:14px;line-height:1.6;margin:16px 0 0;}
+.verdict .tag{font-family:'Anton',sans-serif;font-size:12px;letter-spacing:.14em;text-transform:uppercase;background:var(--bar-bg);color:var(--bar-fg);padding:3px 8px;margin-right:9px;}
+
+/* theme switcher */
+.switch{display:flex;border:2px solid var(--edge);}
+.switch button{font-family:'Jost',sans-serif;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  padding:7px 13px;background:transparent;color:var(--fg);border:0;border-right:2px solid var(--edge);cursor:pointer;}
+.switch button:last-child{border-right:0;}
+.switch button[aria-pressed="true"]{background:var(--bar-bg);color:var(--bar-fg);}
+
+/* ── the app window frame ────────────────────────────────────────────── */
+.app{max-width:1000px;border:3px solid var(--edge);background:var(--bg);border-radius:5px;overflow:hidden;}
+.titlebar{background:var(--bar-bg);color:var(--bar-fg);display:flex;align-items:center;gap:10px;padding:9px 13px;}
+.dots{display:flex;gap:6px;}
+.dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.wordmark{flex:1;text-align:center;font-family:'Anton',sans-serif;font-size:13px;letter-spacing:.16em;text-transform:uppercase;}
+.tracking{display:flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.82;}
+.tracking em{width:7px;height:7px;border-radius:50%;background:var(--c-personal);font-style:normal;animation:pulse 2.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.28;}}
+.appbody{padding:22px 26px 28px;}
+nav.tabs{display:flex;gap:26px;border-bottom:3px solid var(--edge);padding-bottom:11px;margin-bottom:20px;}
+nav.tabs a{font-family:'Jost',sans-serif;font-size:12.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);text-decoration:none;cursor:pointer;}
+nav.tabs a[aria-current]{color:var(--fg);}
+
+/* date stepper */
+.stepper{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:14px;}
+.stepper h2{font-family:'Anton',sans-serif;font-size:22px;letter-spacing:.02em;text-transform:uppercase;}
+.steps{display:flex;align-items:center;gap:8px;}
+.btn{height:34px;min-width:36px;padding:0 9px;display:flex;align-items:center;justify-content:center;
+  border:2px solid var(--edge);background:var(--bg);color:var(--fg);font-family:'Jost',sans-serif;font-weight:700;font-size:15px;cursor:pointer;}
+.btn.today{font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:0 12px;}
+.btn[disabled]{opacity:.3;cursor:default;}
+
+/* ── the month grid ──────────────────────────────────────────────────── */
+.grid-head{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--cell-gap);margin-bottom:7px;}
+.grid-head span{font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);text-align:center;}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:var(--cell-gap);}
+.cell{border:2px solid var(--edge);background:var(--surface);padding:7px 6px 8px;min-height:var(--cell-h);
+  display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;cursor:pointer;transition:background .13s;}
+.cell:hover{background:var(--bg);}
+.cell .dnum{position:absolute;top:5px;left:7px;font-size:10.5px;font-weight:600;color:var(--muted);line-height:1;}
+.cell .total{font-family:'Anton',sans-serif;font-size:var(--fig-size);line-height:1;letter-spacing:.01em;}
+.cell .sub{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);line-height:1;}
+.cell.out{background:transparent;border-color:var(--rule);}
+.cell.out .dnum{opacity:.4;}
+.cell.today{border-width:3px;}
+.cell.today .dnum{color:var(--fg);background:var(--fg);color:var(--on-ink);padding:2px 4px;top:4px;left:5px;}
+.cell.future{background:transparent;border-style:dashed;border-color:var(--rule);}
+.dialwrap{margin-top:10px;}
+
+/* the "not recorded" cell — hatched, the one place we admit we were blind */
+.cell.gap{background:
+  repeating-linear-gradient(45deg,transparent 0 5px,var(--rule) 5px 6px);}
+.cell.gap .total{font-family:'Jost',sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted);text-align:center;line-height:1.25;}
+.gapmark{width:var(--dial-size);height:var(--dial-size);border:2px dashed var(--rule);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;margin-top:10px;color:var(--muted);font-size:15px;font-weight:600;}
+
+/* option B: stacked bars */
+.barwrap{margin-top:12px;width:var(--dial-size);height:var(--dial-size);display:flex;flex-direction:column-reverse;
+  border:1px solid var(--casing);background:var(--track);}
+.barwrap i{display:block;width:100%;}
+
+/* option C: heat block */
+.heat{margin-top:12px;width:var(--dial-size);height:var(--dial-size);border:1px solid var(--casing);}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;}
+.chip{display:flex;align-items:center;gap:7px;border:2px solid var(--edge);padding:5px 10px;font-size:11.5px;
+  font-weight:600;letter-spacing:.1em;text-transform:uppercase;background:var(--bg);}
+.chip b{width:10px;height:10px;display:block;border:1px solid var(--casing);}
+
+/* month summary strip */
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--cell-gap);margin-bottom:20px;}
+.tile{border:2px solid var(--edge);background:var(--surface);padding:12px 14px;}
+.tile .k{font-size:10px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+.tile .v{font-family:'Anton',sans-serif;font-size:29px;line-height:1.1;margin-top:5px;white-space:nowrap;}
+.tile .v small{display:block;font-family:'Jost',sans-serif;font-size:12.5px;font-weight:500;
+  color:var(--muted);letter-spacing:0;margin-top:4px;white-space:nowrap;}
+
+/* comparison strip */
+.opts{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:18px;}
+.opt{border:2px solid var(--edge);background:var(--surface);padding:15px;}
+.opt h3{font-family:'Anton',sans-serif;font-size:15px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px;}
+.opt .why{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:10px;}
+.opt .why b{color:var(--fg);font-weight:600;}
+.optgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:11px;}
+.optgrid .cell{min-height:auto;padding:5px 3px 6px;}
+.optgrid .cell .dnum{display:none;}
+.optgrid .cell .total{font-size:11px;}
+.optgrid .cell .sub{display:none;}
+.pick{display:inline-block;font-family:'Anton',sans-serif;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  background:var(--bar-bg);color:var(--bar-fg);padding:3px 7px;margin-left:8px;vertical-align:middle;}
+
+/* states strip */
+.states{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-top:18px;}
+.state{text-align:center;}
+.state .cap{font-size:11px;color:var(--muted);margin-top:9px;line-height:1.45;}
+.state .cap b{display:block;color:var(--fg);font-weight:600;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;margin-bottom:3px;}
+
+/* tuning panel */
+.tuner{position:fixed;right:18px;bottom:18px;width:262px;border:3px solid var(--edge);background:var(--surface);
+  padding:13px 14px 14px;z-index:60;max-height:74vh;overflow:auto;}
+.tuner h4{font-family:'Anton',sans-serif;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
+.tuner h4 button{border:2px solid var(--edge);background:var(--bg);color:var(--fg);font-family:'Jost',sans-serif;
+  font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;cursor:pointer;}
+.tune{margin-bottom:11px;}
+.tune label{display:flex;justify-content:space-between;font-size:11px;font-weight:500;margin-bottom:4px;}
+.tune label var{font-style:normal;font-family:'Anton',sans-serif;letter-spacing:.04em;}
+.tune input[type=range]{width:100%;accent-color:var(--c-deep);}
+.tuner .mini{font-size:10.5px;color:var(--muted);line-height:1.45;border-top:1px solid var(--rule);padding-top:9px;}
+.tuner.collapsed .tune,.tuner.collapsed .mini{display:none;}
+
+/* large-text frame */
+.bigtext{font-size:19px;}
+.bigtext .cell .total{font-size:calc(var(--fig-size) * 1.34);}
+.bigtext .cell .sub{font-size:11.5px;}
+.bigtext .cell .dnum{font-size:12.5px;}
+.bigtext nav.tabs a{font-size:15px;}
+.bigtext .stepper h2{font-size:27px;}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation:none !important;transition:none !important;}
+  .cell circle{stroke-dashoffset:0 !important;}
+}
+.noanim *{animation:none !important;transition:none !important;}
+.noanim circle{stroke-dashoffset:0 !important;}
+</style>
+</head>
+<body style="--cell-gap:7px; --cell-h:130px; --dial-size:80px; --fig-size:15px;">
+
+<div class="board">
+
+  <div class="board-head">
+    <div>
+      <div class="eyebrow">Board · proposed surface</div>
+      <h1 class="board-title">Month</h1>
+    </div>
+    <div class="switch" role="group" aria-label="Theme">
+      <button data-theme-btn="paper" aria-pressed="true">Paper</button>
+      <button data-theme-btn="warm" aria-pressed="false">Warm</button>
+      <button data-theme-btn="black" aria-pressed="false">Black</button>
+    </div>
+  </div>
+  <p class="board-sub">A month at a glance — the same day you already know, thirty of them at once.
+  The question this screen answers is not “how much did I work,” it’s “what did that stretch actually
+  look like.” Nothing here scores you.</p>
+
+  <!-- ════════ 1. THE RECOMMENDED BOARD, IN REAL CHROME ════════ -->
+  <section class="slab">
+    <h2>1 · The screen</h2>
+    <p class="frame-note">Full app chrome, real nav, real date stepper — including the
+    <b>Today button</b>, which is always drawn and simply greys out at the latest range — the same
+    way “next” already does, so the control row never changes width.
+    Hover a cell to see it lift; click goes to that Day.</p>
+
+    <div class="app" id="mainapp">
+      <div class="titlebar">
+        <div class="dots"><i style="background:var(--c-research)"></i><i style="background:var(--c-comms)"></i><i style="background:var(--c-deep)"></i></div>
+        <div class="wordmark">UsageOS</div>
+        <div class="tracking"><em></em> Tracking</div>
+      </div>
+      <div class="appbody">
+        <nav class="tabs">
+          <a>Day</a><a>Week</a><a aria-current="page">Month</a><a>Timeline</a><a>Settings</a>
+        </nav>
+
+        <div class="stepper">
+          <h2>September 2026</h2>
+          <div class="steps">
+            <button class="btn today">Today</button>
+            <button class="btn" aria-label="Refresh" style="margin-left:4px">↻</button>
+            <button class="btn" aria-label="Previous month">‹</button>
+            <button class="btn" aria-label="Next month" disabled>›</button>
+          </div>
+        </div>
+
+        <div class="summary">
+          <div class="tile"><div class="k">Tracked</div><div class="v" style="font-size:26px">118h 40m<small>across 28 days</small></div></div>
+          <div class="tile"><div class="k">Busiest day</div><div class="v">Sat 19<small>10h 38m</small></div></div>
+          <div class="tile"><div class="k">Most of it</div><div class="v" style="color:var(--c-deep)">Work<small>61% of tracked time</small></div></div>
+          <div class="tile"><div class="k">Not recorded</div><div class="v">2 days<small>Sep 16 &amp; 17</small></div></div>
+        </div>
+
+        <div class="grid-head">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="grid" id="monthgrid"></div>
+
+        <div class="legend">
+          <div class="chip"><b style="background:var(--c-deep)"></b>Work</div>
+          <div class="chip"><b style="background:var(--c-research)"></b>Browsing</div>
+          <div class="chip"><b style="background:var(--c-comms)"></b>Messaging</div>
+          <div class="chip"><b style="background:var(--c-breaks)"></b>Entertainment</div>
+          <div class="chip"><b style="background:var(--c-personal)"></b>Personal</div>
+          <div class="chip" style="border-style:dashed"><b style="background:transparent;border-style:dashed"></b>Not recorded</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="verdict">
+      <span class="tag">Asks you to decide</span>
+      Is <b>Month</b> its own nav tab (five tabs), or a zoom control inside Week? Five tabs is honest
+      about it being a real destination; a Week toggle keeps the nav at four and frames it as
+      “same screen, further out.” The board shows the tab version because that’s the riskier one —
+      if the fifth tab feels like clutter to you here, it will feel like clutter in the app.
+    </div>
+  </section>
+
+  <!-- ════════ 2. WHAT GOES IN A CELL ════════ -->
+  <section class="slab">
+    <h2>2 · What goes in a cell</h2>
+    <p class="frame-note">The whole design is this one choice. Three treatments, same five days,
+    same numbers.</p>
+
+    <div class="opts">
+      <div class="opt">
+        <h3>A · Mini-dial <span class="pick">Recommended</span></h3>
+        <div class="optgrid" data-opt="dial"></div>
+        <p class="why">The signature, thirty times. You already read this shape on Day and Week, so
+        there’s nothing new to learn, and the <b>shape of a day</b> survives the shrink — a solid
+        afternoon block still looks different from scattered dipping. <b>Colour stays category-only</b>,
+        which is the one rule that’s bitten us before.</p>
+      </div>
+      <div class="opt">
+        <h3>B · Stacked bar</h3>
+        <div class="optgrid" data-opt="bar"></div>
+        <p class="why">Easiest to compare across days — proportions line up on a shared baseline, and
+        it reads fine at 20px. But it <b>throws away when</b>: a 9am-to-6pm day and a 2am-to-noon day
+        are the same bar. That’s most of what a month is for.</p>
+      </div>
+      <div class="opt">
+        <h3>C · Heat block</h3>
+        <div class="optgrid" data-opt="heat"></div>
+        <p class="why">Legible at any size and the cheapest to build. But it’s the
+        <b>contribution-graph look</b>, and that whole aesthetic is about streaks — the exact thing
+        this product cut on purpose. It also makes colour encode two things at once (hue = category,
+        darkness = hours), which the design system forbids.</p>
+      </div>
+    </div>
+
+    <div class="verdict">
+      <span class="tag">Recommendation</span>
+      <b>A, the mini-dial.</b> It’s the only one that keeps “when” — and “when” is the thing a month
+      view can show that Week already can’t. B is the fallback if the dials turn out illegible at
+      real size; that’s what the sliders below are for. <b>C should be ruled out on principle, not on
+      looks</b> — it’s boarded here so the rejection is on the record with a reason.
+    </div>
+  </section>
+
+  <!-- ════════ 3. CELL STATES ════════ -->
+  <section class="slab">
+    <h2>3 · Every cell state</h2>
+    <p class="frame-note">The important one is the fourth. <b>“Nothing happened” and “we weren’t
+    watching” are different days</b> and must never look the same — right now the app can’t tell you
+    apart, which is how two days went missing without a word.</p>
+    <div class="states" id="statestrip"></div>
+    <div class="verdict">
+      <span class="tag">Needs a ruling</span>
+      The hatch is a <b>new primitive</b>. The design system says “flat fills only — no gradients”;
+      this is a hard-edged 1px stripe (no colour gradation), so it is arguably flat, but it is not in
+      the component list and it would be drift to ship it unblessed. If it survives, it gets written
+      into <code>design-system.md</code> as a component + state. The alternative that needs no new
+      primitive: a dotted <code>--track</code> ring and no cell fill at all.
+    </div>
+
+    <div class="verdict">
+      <span class="tag">Copy, locked by this board</span>
+      The hatched cell reads <b>“Not recorded”</b> — not “No data”, not “0h”, not an error colour.
+      It’s a statement of fact about the app, not about you. The month summary counts them plainly:
+      <b>“Not recorded · 2 days.”</b> Hovering says <b>“UsageOS wasn’t running on this day.”</b>
+    </div>
+  </section>
+
+  <!-- ════════ 4. LARGE TEXT + REDUCED MOTION ════════ -->
+  <section class="slab">
+    <h2>4 · Large text &amp; reduced motion</h2>
+    <p class="frame-note">Same grid at large text, with the load animation off. Figures grow, cells
+    grow with them, nothing clips, and the dials hold their shape because they’re drawn from the
+    cell box rather than a fixed pixel size.</p>
+    <div class="app bigtext noanim" style="max-width:760px">
+      <div class="titlebar">
+        <div class="dots"><i style="background:var(--c-research)"></i><i style="background:var(--c-comms)"></i><i style="background:var(--c-deep)"></i></div>
+        <div class="wordmark">UsageOS</div>
+      </div>
+      <div class="appbody">
+        <div class="stepper"><h2>September 2026</h2>
+          <div class="steps"><button class="btn today">Today</button><button class="btn">‹</button><button class="btn" disabled>›</button></div>
+        </div>
+        <div class="grid-head"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+        <div class="grid" id="biggrid"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ 5. NOTES ════════ -->
+  <section class="slab">
+    <h2>5 · Left open on purpose</h2>
+    <div class="verdict" style="margin-top:14px">
+      <span class="tag">Measured — must be resolved before code</span>
+      <b>The R77 ink casing stops working at this size.</b> <code>MiniDial.tsx</code> draws
+      <code>ARC_W 6</code> / <code>CASING_W 8</code> in an 80-unit viewBox, so the casing is
+      1 unit either side — <b>1.25% of the rendered size</b>. It is a true 1px only at an 80px dial.
+      At 50px it renders 0.63px per side, and R77’s whole mitigation for the Comms yellow on
+      <code>paper</code> quietly stops holding. Either the stroke ratios get parameterised so the
+      casing stays ~1 device pixel at the rendered size, or the cells get bigger. <b>Measured in the browser:</b> at an 80px dial the cells come out 126×130 inside a 984px app
+      frame — so the compliant size <b>fits the existing window width with room to spare</b>. The
+      real cost is height: five rows run 678px, and a six-row month about 813px, so the view
+      scrolls. That is the trade — <b>scroll the month, or break R77</b>. The board now defaults to
+      the compliant size; drag <b>dial size</b> down to 50 to see what the non-compliant version
+      buys you.
+    </div>
+
+    <div class="verdict">
+      <span class="tag">Open</span>
+      <b>Does a month need a recap?</b> Day has prose; Week has none today. A month of narrated prose
+      risks becoming a performance review, which is the one tone this product refuses. Boarded here
+      with no recap at all; the four summary tiles carry the facts instead. Say if you want prose and
+      it gets its own round.
+    </div>
+    <div class="verdict">
+      <span class="tag">Open</span>
+      <b>Six-week months.</b> September 2026 fits in five rows. Months that need six will make the
+      grid taller than the window — either the cells shrink, or the view scrolls. Not solved here.
+    </div>
+    <div class="verdict">
+      <span class="tag">Not boarded</span>
+      Click-through and keyboard traversal. Cells are clickable in this board but the focus ring,
+      arrow-key movement, and what a screen reader announces per cell all need their own pass before
+      this is buildable.
+    </div>
+  </section>
+
+</div>
+
+<!-- ── tuning panel ─────────────────────────────────────────────────── -->
+<div class="tuner" id="tuner">
+  <h4>Tune by eye <button id="tcollapse">Hide</button></h4>
+  <div class="tune"><label>Cell height <var id="v-h">130</var>px</label>
+    <input type="range" id="s-h" min="58" max="170" value="130"></div>
+  <div class="tune"><label>Dial size <var id="v-d">80</var>px</label>
+    <input type="range" id="s-d" min="20" max="110" value="80"></div>
+  <div class="tune"><label>Arc thickness <var id="v-w">6</var>px</label>
+    <input type="range" id="s-w" min="2" max="14" value="6"></div>
+  <div class="tune"><label>Grid gap <var id="v-g">7</var>px</label>
+    <input type="range" id="s-g" min="0" max="20" value="7"></div>
+  <div class="tune"><label>Figure size <var id="v-f">15</var>px</label>
+    <input type="range" id="s-f" min="10" max="26" value="15"></div>
+  <div class="tune"><label>Cascade delay <var id="v-c">18</var>ms</label>
+    <input type="range" id="s-c" min="0" max="70" value="18"></div>
+  <div class="mini">Drag until it looks right, then hit <b>Copy values</b> and paste the numbers back.
+    <button id="tcopy" style="margin-top:8px;width:100%;border:2px solid var(--edge);background:var(--bg);color:var(--fg);
+      font-family:'Jost',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:5px;cursor:pointer;">Copy values</button>
+    <span id="tcopied" style="display:block;margin-top:6px;color:var(--c-personal);font-weight:600;"></span></div>
+</div>
+
+<script>
+/* ── theme ──────────────────────────────────────────────────────────── */
+document.querySelectorAll('[data-theme-btn]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.documentElement.setAttribute('data-theme',b.dataset.themeBtn);
+    document.querySelectorAll('[data-theme-btn]').forEach(o=>o.setAttribute('aria-pressed', String(o===b)));
+  });
+});
+
+/* ── synthetic month, modelled on the real distribution ─────────────────
+   Shape only — proportions and rhythm are true to a real month of use, the
+   contents are invented. Sep 16 + 17 are deliberately "not recorded". */
+const CATS=['deep','research','comms','breaks','personal'];
+let seed=20260901;
+const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
+
+function makeDay(dow){
+  const weekend = dow===5||dow===6;
+  const base = weekend ? 2.4+rnd()*4.5 : 4.2+rnd()*5.6;
+  // A day is a handful of runs placed on a 24h clock, mostly 08:00–23:00.
+  const runs=[]; let t = weekend ? 10+rnd()*3 : 8.2+rnd()*1.7; let left=base;
+  while(left>0.15 && t<23.6){
+    const r=rnd();
+    const cat = r<0.50?'deep' : r<0.74?'research' : r<0.85?'comms' : r<0.93?'personal':'breaks';
+    const len=Math.min(left, 0.25+rnd()*(cat==='deep'?2.1:0.9));
+    runs.push({cat,start:t,len}); t+=len+rnd()*0.55; left-=len;
+  }
+  return {runs, total:base};
+}
+const MONTH=[];
+for(let d=1;d<=30;d++){
+  const dow=(d+1)%7;                       // Sep 1 2026 = Tuesday
+  if(d===16||d===17){ MONTH.push({day:d,gap:true}); continue; }
+  if(d>20){ MONTH.push({day:d,future:true}); continue; }
+  MONTH.push(Object.assign({day:d},makeDay(dow)));
+}
+const fmt=h=>{const m=Math.round(h*60);return m>=60?`${Math.floor(m/60)}h ${String(m%60).padStart(2,'0')}m`:`${m}m`;};
+
+/* ── the mini-dial ──────────────────────────────────────────────────── */
+function dial(d,size,sw,delay){
+  const r=(size-sw)/2-1, C=2*Math.PI*r, c=size/2;
+  let s=`<svg class="dialwrap" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true" style="overflow:visible">
+    <g transform="rotate(-90 ${c} ${c})">
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--track)" stroke-width="${sw}"/>`;
+  // Casing first, coloured arc on top: a stroke 2px wider in --casing leaves a 1px ink
+  // outline on BOTH edges of every arc (R77 Option A). In warm/black --casing is
+  // transparent, so the wider stroke simply disappears.
+  (d.runs||[]).forEach(run=>{
+    const frac=run.len/24, off=run.start/24;
+    const da=`${(frac*C).toFixed(2)} ${C.toFixed(2)}`, off2=(-off*C).toFixed(2);
+    s+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--casing)" stroke-width="${sw+2}"
+        stroke-dasharray="${da}" stroke-dashoffset="${off2}"/>`;
+    s+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--c-${run.cat})" stroke-width="${sw}"
+        stroke-dasharray="${da}" stroke-dashoffset="${off2}"/>`;
+  });
+  return s+`</g></svg>`;
+}
+
+/* ── render one cell ────────────────────────────────────────────────── */
+function cell(d,opt,size,sw,i,delay){
+  if(d.blank) return `<div class="cell out"></div>`;
+  const today = d.day===20;
+  if(d.gap) return `<div class="cell gap" title="UsageOS wasn’t running on this day">
+      <span class="dnum">${d.day}</span><div class="gapmark" style="--dial-size:${size}px">—</div>
+      <span class="total">Not recorded</span></div>`;
+  if(d.future) return `<div class="cell future"><span class="dnum">${d.day}</span></div>`;
+
+  let body='';
+  if(opt==='dial') body=dial(d,size,sw,delay);
+  else if(opt==='bar'){
+    const by={}; (d.runs||[]).forEach(r=>by[r.cat]=(by[r.cat]||0)+r.len);
+    body=`<div class="barwrap" style="--dial-size:${size}px">`+
+      CATS.map(c=>by[c]?`<i style="background:var(--c-${c});height:${(by[c]/d.total*100).toFixed(1)}%"></i>`:'').join('')+`</div>`;
+  } else {
+    const by={}; (d.runs||[]).forEach(r=>by[r.cat]=(by[r.cat]||0)+r.len);
+    const top=CATS.reduce((a,b)=>(by[b]||0)>(by[a]||0)?b:a,'deep');
+    body=`<div class="heat" style="--dial-size:${size}px;background:var(--c-${top});opacity:${(0.22+Math.min(d.total,10)/10*0.78).toFixed(2)}"></div>`;
+  }
+  return `<div class="cell${today?' today':''}" style="animation-delay:${i*delay}ms">
+      <span class="dnum">${d.day}</span>${body}
+      <span class="total">${fmt(d.total)}</span></div>`;
+}
+
+/* ── build the grids ────────────────────────────────────────────────── */
+function render(){
+  const cs=getComputedStyle(document.body);
+  const size=parseInt(cs.getPropertyValue('--dial-size'));
+  const sw=+document.getElementById('s-w').value;
+  const delay=+document.getElementById('s-c').value;
+
+  // Sep 1 2026 is a Tuesday → one blank before it in a Mon-first grid.
+  const padded=[{blank:true}].concat(MONTH);
+  document.getElementById('monthgrid').innerHTML=padded.map((d,i)=>cell(d,'dial',size,sw,i,delay)).join('');
+  document.getElementById('biggrid').innerHTML=padded.map((d,i)=>cell(d,'dial',Math.round(size*1.2),sw,i,0)).join('');
+
+  document.querySelectorAll('[data-opt]').forEach(g=>{
+    const five=MONTH.slice(6,11);
+    g.innerHTML=five.map((d,i)=>cell(d,g.dataset.opt,26,3,i,0)).join('');
+  });
+
+  // states strip
+  const full=MONTH[18], light=MONTH[5];
+  const partial={day:20,total:3.1,runs:(MONTH[8].runs||[]).slice(0,3)};
+  document.getElementById('statestrip').innerHTML=[
+    [cell(full,'dial',size,sw,0,0),'Full day','10h 38m, recorded end to end'],
+    [cell(light,'dial',size,sw,0,0),'Light day','A real but quiet day — small arcs, honest total'],
+    [cell(partial,'dial',size,sw,0,0).replace('class="cell','class="cell today'),'Today, partial','It’s 2pm. The dial stops where now is'],
+    [cell({day:16,gap:true},'dial',size,sw,0,0),'Not recorded','The app wasn’t running. Not your quiet day'],
+    [`<div class="cell" style="--dial-size:${size}px"><span class="dnum">14</span>
+       <div class="gapmark" style="--dial-size:${size}px;border-style:solid;opacity:.45">0</div>
+       <span class="total" style="color:var(--muted)">Nothing</span></div>`,'Nothing happened','Recorded all day, you just didn’t touch it'],
+    [cell({day:26,future:true},'dial',size,sw,0,0),'Not yet','Hasn’t happened. No box, no zero'],
+  ].map(([html,t,c])=>`<div class="state">${html}<div class="cap"><b>${t}</b>${c}</div></div>`).join('');
+}
+
+/* ── sliders ────────────────────────────────────────────────────────── */
+const bind=(sid,vid,prop,unit='px')=>{
+  const s=document.getElementById(sid),v=document.getElementById(vid);
+  const go=()=>{v.textContent=s.value; if(prop) document.body.style.setProperty(prop,s.value+unit); render();};
+  s.addEventListener('input',go); go();
+};
+bind('s-h','v-h','--cell-h'); bind('s-d','v-d','--dial-size'); bind('s-w','v-w',null);
+bind('s-g','v-g','--cell-gap'); bind('s-f','v-f','--fig-size'); bind('s-c','v-c',null);
+
+document.getElementById('tcollapse').addEventListener('click',e=>{
+  const t=document.getElementById('tuner'); t.classList.toggle('collapsed');
+  e.target.textContent=t.classList.contains('collapsed')?'Show':'Hide';
+});
+document.getElementById('tcopy').addEventListener('click',()=>{
+  const g=id=>document.getElementById(id).value;
+  const txt=`cell height ${g('s-h')} · dial ${g('s-d')} · arc ${g('s-w')} · gap ${g('s-g')} · figure ${g('s-f')} · cascade ${g('s-c')}ms`;
+  navigator.clipboard?.writeText(txt);
+  document.getElementById('tcopied').textContent='Copied — paste it back to me.';
+  setTimeout(()=>document.getElementById('tcopied').textContent='',2600);
+});
+
+render();
+</script>
+</body>
+</html>

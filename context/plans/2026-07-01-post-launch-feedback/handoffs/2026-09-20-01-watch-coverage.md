@@ -62,17 +62,34 @@ model prompt is unchanged on a fully-watched day, so **every recap cached under 
    the watermark and the next start reconciles it. Only a real app quit closes the row exactly.
 5. The resulting live gap crossed `GAP_MIN_SECS` at **312 s** and became reportable, on real data.
 
-## ⚠️ Left the machine needing one step — read this first
+## On-device verification, continued — the whole chain, on the real machine
 
-Running `tauri dev` migrated the **live** database to schema 9. `verify_applied_checksums(conn,
-!cfg!(debug_assertions))` makes a **release** build refuse to start when the DB records a
-migration it doesn't ship. So **the installed v0.1.3 will not start against this database** — and
-it fails *silently*: `setup` → `Err` → `eprintln!` + `std::process::exit(1)`, which in a
-`--hidden` login launch means no window, no tray, no notification, no recording.
+6. Restarting produced exactly the outage shape, detected:
 
-Backup taken: `~/Library/Application Support/com.usageos.app/usage.db.pre-coverage.bak`.
+   ```
+   session 1  03:00:51 → 03:02:51   (reconciled closed at its watermark)
+                   ↓  420 s unwatched  ↓
+   session 2  03:09:51 → open
+   ```
 
-Revert (verified on a copy — schema back to 8, all 31,919 activity rows intact):
+   with `[Coverage] closed 1 session(s) left open by a previous run` in the log. 420 s clears
+   `GAP_MIN_SECS`, so this is a gap the dial draws and the recap mentions.
+
+## The machine was left restored — read before re-running dev
+
+Running `tauri dev` migrates the **live** database to schema 9, and
+`verify_applied_checksums(conn, !cfg!(debug_assertions))` makes a **release** build refuse to
+start when the DB records a migration it doesn't ship. So while schema 9 was applied, the
+installed v0.1.3 **could not start** — and would have failed *silently*: `setup` → `Err` →
+`eprintln!` + `std::process::exit(1)`, which in a `--hidden` login launch means no window, no
+tray, no notification, no recording.
+
+**This was reverted at the end of the session.** Verified after: schema **8**, **31,932 activity
+rows**, `watch_coverage` dropped, `PRAGMA integrity_check` **ok**, and the installed app
+relaunched and writing rows again. Backup kept at
+`~/Library/Application Support/com.usageos.app/usage.db.pre-coverage.bak`.
+
+To re-test, run `npm run tauri dev`, and revert afterwards before relying on the installed app:
 
 ```sql
 DROP TABLE IF EXISTS watch_coverage;
@@ -115,4 +132,12 @@ startup failure natively before exiting, and leave a marker the next successful 
 ## Gates at handoff
 
 `cargo clippy -D warnings` clean · `cargo fmt --check` clean · **156 Rust tests** · `tsc` clean ·
-**49 TS tests** (14 files) · bindings regenerated, never hand-edited.
+**51 TS tests** (14 files) · bindings regenerated, never hand-edited.
+
+Committed locally, **not pushed**: `feat/watch-coverage` (`30b0fd4` the feature, `eb02c29` the
+design boards + mockup skill) and `feat/today-button` (`2a6dada`).
+
+**Machine health noted during the session:** swap was 7.2 GB of 8 GB used with a load average
+above 8. That is a hostile environment for a background app, and worth keeping in mind as a
+possible contributor to the app dying twice in five days — though no jetsam report ever named
+`usage-os` as the victim.

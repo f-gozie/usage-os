@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616; --c-personal:#2E8B57;
+  --now:#161616; --casing:#161616; --on-ink:#EEEBE1; --bar-bg:#161616; --bar-fg:#EEEBE1;
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8; --c-personal:#46B97E;
+  --now:#EDE9DD; --casing:transparent; --on-ink:#1A1916; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4; --c-personal:#4FCB8A;
+  --now:#F4F4F2; --casing:transparent; --on-ink:#0E0E0E; --bar-bg:#000000; --bar-fg:#F4F4F2;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);transition:background .25s;}
+body{font-family:'Jost',sans-serif;color:var(--fg);background:var(--bg);padding:30px 20px 100px;}
+
+.board{max-width:1080px;margin:0 auto;}
+.board-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:8px;}
+h1.board-title{font-family:'Anton',sans-serif;font-size:40px;letter-spacing:.02em;text-transform:uppercase;line-height:1;}
+.board-sub{color:var(--muted);font-size:15px;max-width:640px;margin-top:10px;line-height:1.5;}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:var(--muted);font-weight:600;}
+.frame-note{font-size:13.5px;color:var(--muted);line-height:1.55;margin:0 0 14px;max-width:780px;}
+.frame-note b{color:var(--fg);font-weight:600;}
+section.slab{margin-top:52px;}
+section.slab > h2{font-family:'Anton',sans-serif;font-size:21px;text-transform:uppercase;letter-spacing:.03em;border-bottom:3px solid var(--edge);padding-bottom:9px;margin-bottom:8px;}
+.verdict{border:2px solid var(--edge);background:var(--surface);padding:15px 17px;font-size:14px;line-height:1.6;margin:16px 0 0;}
+.verdict .tag{font-family:'Anton',sans-serif;font-size:12px;letter-spacing:.14em;text-transform:uppercase;background:var(--bar-bg);color:var(--bar-fg);padding:3px 8px;margin-right:9px;}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em;background:var(--track);padding:1px 4px;}
+
+.switch{display:flex;border:2px solid var(--edge);}
+.switch button{font-family:'Jost',sans-serif;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  padding:7px 13px;background:transparent;color:var(--fg);border:0;border-right:2px solid var(--edge);cursor:pointer;}
+.switch button:last-child{border-right:0;}
+.switch button[aria-pressed="true"]{background:var(--bar-bg);color:var(--bar-fg);}
+
+.app{max-width:1000px;border:3px solid var(--edge);background:var(--bg);border-radius:5px;overflow:hidden;}
+.titlebar{background:var(--bar-bg);color:var(--bar-fg);display:flex;align-items:center;gap:10px;padding:9px 13px;}
+.dots{display:flex;gap:6px;}
+.dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.wordmark{flex:1;text-align:center;font-family:'Anton',sans-serif;font-size:13px;letter-spacing:.16em;text-transform:uppercase;}
+.tracking{display:flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.82;}
+.tracking em{width:7px;height:7px;border-radius:50%;background:var(--c-personal);font-style:normal;animation:pulse 2.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.28;}}
+.appbody{padding:22px 26px 28px;}
+nav.tabs{display:flex;gap:24px;border-bottom:3px solid var(--edge);padding-bottom:11px;margin-bottom:20px;}
+nav.tabs a{font-family:'Jost',sans-serif;font-size:12.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);text-decoration:none;cursor:pointer;}
+nav.tabs a[aria-current]{color:var(--fg);}
+
+.stepper{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:14px;flex-wrap:wrap;}
+.stepper h2{font-family:'Anton',sans-serif;font-size:22px;letter-spacing:.02em;text-transform:uppercase;}
+.steps{display:flex;align-items:center;gap:8px;}
+.btn{height:34px;display:flex;align-items:center;justify-content:center;padding:0 9px;min-width:36px;
+  border:2px solid var(--edge);background:var(--bg);color:var(--fg);font-family:'Jost',sans-serif;font-weight:700;font-size:15px;cursor:pointer;}
+.btn.wide{font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:0 12px;}
+.btn[disabled]{opacity:.3;cursor:default;}
+
+/* breadcrumb — the drill-down's spine */
+.crumbs{display:flex;align-items:center;gap:9px;font-size:11.5px;font-weight:600;
+  letter-spacing:.13em;text-transform:uppercase;margin-bottom:16px;color:var(--muted);}
+.crumbs a{color:var(--muted);text-decoration:none;cursor:pointer;border-bottom:2px solid var(--rule);padding-bottom:2px;}
+.crumbs a:hover{color:var(--fg);border-color:var(--edge);}
+.crumbs span[aria-current]{color:var(--fg);border-bottom:2px solid var(--edge);padding-bottom:2px;}
+.crumbs i{font-style:normal;opacity:.5;}
+
+/* ── YEAR: 12 month rows × day columns of stacked bars ───────────────── */
+.year{border:2px solid var(--edge);background:var(--surface);padding:14px 16px 10px;}
+.yearhead{display:grid;grid-template-columns:var(--label-w) 1fr;gap:10px;margin-bottom:6px;}
+.yearhead .ticks{display:grid;grid-template-columns:repeat(31,1fr);font-size:9px;color:var(--muted);font-weight:600;}
+.yearhead .ticks span{text-align:center;}
+.mrow{display:grid;grid-template-columns:var(--label-w) 1fr;gap:10px;align-items:end;
+  border-bottom:1px solid var(--rule);padding-bottom:3px;margin-bottom:3px;}
+.mrow:last-child{border-bottom:0;}
+.mrow > .mlabel{font-family:'Anton',sans-serif;font-size:13px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted);padding-bottom:5px;cursor:pointer;}
+.mrow:hover > .mlabel{color:var(--fg);}
+.mrow.current > .mlabel{color:var(--fg);}
+.days{display:grid;grid-template-columns:repeat(31,1fr);align-items:end;height:var(--row-h);}
+.d{height:100%;display:flex;flex-direction:column-reverse;justify-content:flex-start;align-items:center;
+  position:relative;cursor:pointer;}
+.d .stack{width:var(--bar-w);display:flex;flex-direction:column-reverse;border:1px solid var(--casing);}
+.d .stack i{display:block;width:100%;}
+.d:hover .stack{outline:2px solid var(--edge);outline-offset:1px;}
+.d.none .stack{height:2px;background:var(--track);border-color:var(--rule);}
+.d.pad{cursor:default;}
+.d.future{cursor:default;}
+.d.future .stack{height:0;border:0;}
+/* not recorded: a full-height hollow slot — impossible to read as "a quiet day" */
+.d.gap .stack{height:100%;background:transparent;border:1px dashed var(--muted);opacity:.65;}
+
+.ylegend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;align-items:center;}
+.chip{display:flex;align-items:center;gap:7px;border:2px solid var(--edge);padding:5px 10px;font-size:11.5px;
+  font-weight:600;letter-spacing:.1em;text-transform:uppercase;background:var(--bg);}
+.chip b{width:10px;height:10px;display:block;border:1px solid var(--casing);}
+.scale{margin-left:auto;font-size:11px;color:var(--muted);letter-spacing:.06em;}
+
+/* ── YEAR, layout B: twelve miniature month calendars ────────────────── */
+.wall{display:grid;grid-template-columns:repeat(var(--wall-cols),1fr);gap:18px 16px;}
+.mcal > h4{font-family:'Anton',sans-serif;font-size:12px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:5px;cursor:pointer;border-bottom:1px solid var(--rule);padding-bottom:3px;}
+.mcal.current > h4{color:var(--fg);border-bottom:2px solid var(--edge);}
+.mcal .dow{display:grid;grid-template-columns:repeat(7,1fr);font-size:7.5px;color:var(--muted);
+  letter-spacing:.06em;text-align:center;margin-bottom:2px;}
+.mcal .mdays{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.mc{height:var(--mc-h);border:1px solid var(--rule);display:flex;align-items:flex-end;
+  justify-content:center;padding:1px;position:relative;cursor:pointer;}
+.mc:hover{border-color:var(--edge);}
+.mc .stack{width:var(--mc-bar);display:flex;flex-direction:column-reverse;border:1px solid var(--casing);}
+.mc .stack i{display:block;width:100%;}
+.mc.pad{border-color:transparent;cursor:default;}
+.mc.future{border-style:dashed;cursor:default;}
+.mc.none{}
+.mc.none .stack{height:1px;background:var(--track);border-color:var(--rule);}
+.mc.gap{background:repeating-linear-gradient(45deg,transparent 0 3px,var(--rule) 3px 4px);}
+.mc.gap .stack{height:100%;background:transparent;border:1px dashed var(--muted);opacity:.7;}
+.layoutpick{display:flex;border:2px solid var(--edge);height:34px;}
+.layoutpick button{width:36px;display:flex;align-items:center;justify-content:center;
+  background:transparent;color:var(--fg);border:0;border-right:2px solid var(--edge);cursor:pointer;
+  position:relative;padding:0;}
+.layoutpick button:last-child{border-right:0;}
+.layoutpick button[aria-pressed="true"]{background:var(--bar-bg);color:var(--bar-fg);}
+.layoutpick svg{display:block;}
+/* Hover label. The icons carry no text, so the name has to be reachable — this plus the
+   aria-label, never the tooltip alone. */
+.layoutpick button::after{content:attr(data-name);position:absolute;top:calc(100% + 7px);right:0;
+  white-space:nowrap;font-family:'Jost',sans-serif;font-size:10px;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;background:var(--bar-bg);color:var(--bar-fg);padding:4px 7px;
+  opacity:0;pointer-events:none;transition:opacity .12s;z-index:5;}
+.layoutpick button:hover::after,.layoutpick button:focus-visible::after{opacity:1;}
+.stepdiv{width:2px;height:22px;background:var(--rule);margin:0 4px;}
+.hidden{display:none !important;}
+
+/* ── MONTH: the middle rung (dials, verified size) ───────────────────── */
+.grid-head{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;margin-bottom:7px;}
+.grid-head span{font-size:10.5px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);text-align:center;}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;}
+.cell{border:2px solid var(--edge);background:var(--surface);padding:7px 6px 8px;min-height:130px;
+  display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;cursor:pointer;}
+.cell:hover{background:var(--bg);}
+.cell .dnum{position:absolute;top:5px;left:7px;font-size:10.5px;font-weight:600;color:var(--muted);line-height:1;}
+.cell .total{font-family:'Anton',sans-serif;font-size:15px;line-height:1;}
+.cell.out{background:transparent;border-color:var(--rule);cursor:default;}
+.cell.future{background:transparent;border-style:dashed;border-color:var(--rule);cursor:default;}
+.cell.today{border-width:3px;}
+.cell.today .dnum{background:var(--fg);color:var(--on-ink);padding:2px 4px;top:4px;left:5px;}
+.cell.gap{background:repeating-linear-gradient(45deg,transparent 0 5px,var(--rule) 5px 6px);}
+.cell.gap .total{font-family:'Jost',sans-serif;font-size:9.5px;font-weight:600;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted);text-align:center;line-height:1.25;}
+.gapmark{width:80px;height:80px;border:2px dashed var(--rule);border-radius:50%;display:flex;
+  align-items:center;justify-content:center;margin-top:10px;color:var(--muted);font-size:15px;font-weight:600;}
+
+/* states strip */
+.states{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:18px;}
+.state{text-align:center;}
+.statebox{border:2px solid var(--edge);background:var(--surface);height:96px;display:flex;align-items:flex-end;justify-content:center;padding:10px;}
+.statebox .stack{width:16px;display:flex;flex-direction:column-reverse;border:1px solid var(--casing);}
+.statebox .stack i{display:block;width:100%;}
+.state .cap{font-size:11px;color:var(--muted);margin-top:9px;line-height:1.45;}
+.state .cap b{display:block;color:var(--fg);font-weight:600;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;margin-bottom:3px;}
+
+/* tuner */
+.tuner{position:fixed;right:18px;bottom:18px;width:258px;border:3px solid var(--edge);background:var(--surface);
+  padding:13px 14px 14px;z-index:60;max-height:72vh;overflow:auto;}
+.tuner h4{font-family:'Anton',sans-serif;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+  display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
+.tuner h4 button{border:2px solid var(--edge);background:var(--bg);color:var(--fg);font-family:'Jost',sans-serif;
+  font-size:9.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;cursor:pointer;}
+.tune{margin-bottom:11px;}
+.tune label{display:flex;justify-content:space-between;font-size:11px;font-weight:500;margin-bottom:4px;}
+.tune label var{font-style:normal;font-family:'Anton',sans-serif;letter-spacing:.04em;}
+.tune input[type=range]{width:100%;accent-color:var(--c-deep);}
+.tuner .mini{font-size:10.5px;color:var(--muted);line-height:1.45;border-top:1px solid var(--rule);padding-top:9px;}
+.tuner.collapsed .tune,.tuner.collapsed .mini{display:none;}
+
+@media (prefers-reduced-motion: reduce){*{animation:none !important;transition:none !important;}}
+.noanim *{animation:none !important;transition:none !important;}
+.bigtext{font-size:19px;}
+.bigtext .mrow > .mlabel{font-size:17px;}
+.bigtext .crumbs{font-size:14px;}
+.bigtext .stepper h2{font-size:27px;}
+</style>
+</head>
+<body style="--row-h:34px; --bar-w:13px; --label-w:42px; --wall-cols:4; --mc-h:22px; --mc-bar:9px;">
+
+<div class="board">
+
+  <div class="board-head">
+    <div>
+      <div class="eyebrow">Board · proposed surface</div>
+      <h1 class="board-title">Calendar</h1>
+    </div>
+    <div class="switch" role="group" aria-label="Theme">
+      <button data-theme-btn="paper" aria-pressed="true">Paper</button>
+      <button data-theme-btn="warm" aria-pressed="false">Warm</button>
+      <button data-theme-btn="black" aria-pressed="false">Black</button>
+    </div>
+  </div>
+  <p class="board-sub">One surface, three rungs. <b>Year → Month → Day.</b> You zoom until the
+  answer is there and then you stop. Each rung is honest about the days nothing was watching.</p>
+
+  <!-- ════════ 1. THE LADDER ════════ -->
+  <section class="slab">
+    <h2>1 · The ladder</h2>
+    <p class="frame-note">One nav tab — <b>Calendar</b> — not two. Year and Month are zoom levels of
+    the same thing, and Day already exists. The breadcrumb is the whole navigation model: it is
+    always visible, always shows where you are, and every rung above you is one click.</p>
+
+    <div class="verdict" style="margin-top:0">
+      <span class="tag">The rule that shapes everything</span>
+      <b>The mark has to change at each rung, because the dial does not survive the shrink.</b>
+      <code>MiniDial</code> draws its R77 ink casing at 1 unit either side of an 80-unit viewBox —
+      1.25% of rendered size — so the casing is a true 1px only at an <b>80px dial</b>. Month cells
+      come out 126px wide, which fits. A year cell is ~29px. At that size the casing is 0.36px, the
+      arcs are sub-pixel, and a 15-minute run is invisible. So Year gets a different mark, chosen
+      to keep the one rule that matters: <b>colour still encodes category and nothing else.</b>
+    </div>
+  </section>
+
+  <!-- ════════ 2. YEAR ════════ -->
+  <section class="slab">
+    <h2>2 · Year</h2>
+    <p class="frame-note"><b>Two layouts, one toggle</b> — see the note below the grid. Either way:
+    one slim stacked bar per day. Height is hours,
+    segments are categories, and that is the entire vocabulary. <b>Height is geometry, not a second
+    colour channel</b> — which is what keeps this from becoming the contribution graph. Click a bar
+    for that Day; click a month name for that Month.</p>
+
+    <div class="app" id="yearapp">
+      <div class="titlebar">
+        <div class="dots"><i style="background:var(--c-research)"></i><i style="background:var(--c-comms)"></i><i style="background:var(--c-deep)"></i></div>
+        <div class="wordmark">UsageOS</div>
+        <div class="tracking"><em></em> Tracking</div>
+      </div>
+      <div class="appbody">
+        <nav class="tabs"><a>Day</a><a>Week</a><a aria-current="page">Calendar</a><a>Timeline</a><a>Settings</a></nav>
+
+        <div class="crumbs"><span aria-current="page">2026</span></div>
+
+        <div class="stepper">
+          <h2>2026</h2>
+          <div class="steps">
+            <div class="layoutpick" role="group" aria-label="Year layout">
+              <button data-layout="rows" data-name="Month rows" aria-pressed="true" aria-label="Month rows layout">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <g fill="currentColor">
+                    <rect x="1" y="1.5" width="2.5" height="3.5"/><rect x="5" y="2.5" width="2.5" height="2.5"/><rect x="9" y="1" width="2.5" height="4"/><rect x="13" y="2.5" width="2.5" height="2.5"/>
+                    <rect x="1" y="7" width="2.5" height="2.5"/><rect x="5" y="6" width="2.5" height="3.5"/><rect x="9" y="7.5" width="2.5" height="2"/><rect x="13" y="6" width="2.5" height="3.5"/>
+                    <rect x="1" y="11" width="2.5" height="3"/><rect x="5" y="12" width="2.5" height="2"/><rect x="9" y="10.5" width="2.5" height="3.5"/><rect x="13" y="11.5" width="2.5" height="2.5"/>
+                  </g>
+                </svg>
+              </button>
+              <button data-layout="wall" data-name="Wall calendar" aria-pressed="false" aria-label="Wall calendar layout">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <rect x="1" y="2.5" width="14" height="12.5" stroke="currentColor" stroke-width="1.6"/>
+                  <line x1="1" y1="6" x2="15" y2="6" stroke="currentColor" stroke-width="1.6"/>
+                  <line x1="4.5" y1="1" x2="4.5" y2="3.5" stroke="currentColor" stroke-width="1.6"/>
+                  <line x1="11.5" y1="1" x2="11.5" y2="3.5" stroke="currentColor" stroke-width="1.6"/>
+                  <g fill="currentColor">
+                    <rect x="3.2" y="7.8" width="2" height="2"/><rect x="7" y="7.8" width="2" height="2"/><rect x="10.8" y="7.8" width="2" height="2"/>
+                    <rect x="3.2" y="11.3" width="2" height="2"/><rect x="7" y="11.3" width="2" height="2"/><rect x="10.8" y="11.3" width="2" height="2"/>
+                  </g>
+                </svg>
+              </button>
+            </div>
+            <div class="stepdiv"></div>
+            <button class="btn wide">This year</button>
+            <button class="btn" style="margin-left:4px" aria-label="Refresh">↻</button>
+            <button class="btn" aria-label="Previous year">‹</button>
+            <button class="btn" aria-label="Next year" disabled>›</button>
+          </div>
+        </div>
+
+        <div class="year">
+          <div id="rowsLayout">
+            <div class="yearhead"><span></span><div class="ticks" id="yticks"></div></div>
+            <div id="yearrows"></div>
+          </div>
+          <div id="wallLayout" class="wall hidden"></div>
+        </div>
+
+        <div class="ylegend">
+          <div class="chip"><b style="background:var(--c-deep)"></b>Work</div>
+          <div class="chip"><b style="background:var(--c-research)"></b>Browsing</div>
+          <div class="chip"><b style="background:var(--c-comms)"></b>Messaging</div>
+          <div class="chip"><b style="background:var(--c-breaks)"></b>Entertainment</div>
+          <div class="chip"><b style="background:var(--c-personal)"></b>Personal</div>
+          <div class="chip" style="border-style:dashed"><b style="background:transparent;border-style:dashed"></b>Not recorded</div>
+          <span class="scale">Full height = <b id="scalemax">12h</b></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="verdict">
+      <span class="tag">Asks you to decide</span>
+      <b>Which layout?</b> Flip the toggle above the grid — same data, same mark, two readings.
+      <b>Month rows</b> gives you the year as one continuous run: you see a stretch of heavy weeks,
+      a holiday, the month you were ill, and the eye travels left to right without resetting.
+      <b>Wall calendar</b> gives you day-of-week alignment: weekends land in their own columns and
+      your week-shape becomes obvious, at the cost of that continuity — twelve small grids read as
+      twelve things, not one year. Rows is the better <i>instrument</i>; wall is the more familiar
+      <i>object</i>. I'd ship wall, because a surface called Calendar that doesn't look like one
+      has to justify itself every time you open it, and this one doesn't have to.
+    </div>
+
+    <div class="verdict">
+      <span class="tag">Asks you to decide</span>
+      <b>What does full bar height mean?</b> Boarded as a fixed 12h ceiling, so a bar means the same
+      thing in January and in July and the year is honestly comparable to itself. The alternative —
+      scaling to your busiest day — makes every year look equally full and quietly lies. A third
+      option is a fixed ceiling you can’t exceed visually but that clips: drag the slider.
+    </div>
+    <div class="verdict">
+      <span class="tag">Deliberately absent</span>
+      No year total. No “best month”, no monthly averages, no month-over-month anything. This is a
+      field to look at, not a season to beat — and “long-range <b>trends</b>” is the part of the
+      vision’s out-of-scope line that still binds, even once “month view” stops.
+    </div>
+  </section>
+
+  <!-- ════════ 3. YEAR CELL STATES ════════ -->
+  <section class="slab">
+    <h2>3 · What a year cell can say</h2>
+    <p class="frame-note">Five states, and the two that matter most are the middle pair. A day you
+    barely used the Mac and a day the app was dead are <b>opposite facts</b> and get opposite marks:
+    a stub at the baseline versus a hollow slot at full height.</p>
+    <div class="states" id="ystates"></div>
+  </section>
+
+  <!-- ════════ 4. MONTH ════════ -->
+  <section class="slab">
+    <h2>4 · Month — the middle rung</h2>
+    <p class="frame-note">Here the dial comes back, at the size that keeps R77 honest.
+    <b>Measured in the browser: an 80px dial gives 126×130 cells inside a 984px frame</b>, so the
+    compliant size fits the existing window with room to spare. The cost is height — five rows run
+    678px and a six-row month about 813px, so the month scrolls. Scroll it, or break R77.</p>
+
+    <div class="app noanim">
+      <div class="titlebar">
+        <div class="dots"><i style="background:var(--c-research)"></i><i style="background:var(--c-comms)"></i><i style="background:var(--c-deep)"></i></div>
+        <div class="wordmark">UsageOS</div>
+      </div>
+      <div class="appbody">
+        <div class="crumbs"><a>2026</a><i>→</i><span aria-current="page">September</span></div>
+        <div class="stepper">
+          <h2>September 2026</h2>
+          <div class="steps">
+            <button class="btn wide">This month</button>
+            <button class="btn" aria-label="Previous month">‹</button>
+            <button class="btn" aria-label="Next month" disabled>›</button>
+          </div>
+        </div>
+        <div class="grid-head"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+        <div class="grid" id="monthgrid"></div>
+      </div>
+    </div>
+    <div class="verdict">
+      <span class="tag">Carried over from the month board</span>
+      Cells are mini-dials, not heat blocks — heat makes colour encode category <i>and</i> hours at
+      once, which the design system forbids outright, and it is the streak aesthetic this product
+      cut on purpose. <code>design/month.html</code> has the full three-way comparison.
+    </div>
+  </section>
+
+  <!-- ════════ 5. OPEN ════════ -->
+  <section class="slab">
+    <h2>5 · Left open on purpose</h2>
+    <div class="verdict" style="margin-top:14px">
+      <span class="tag">Open</span>
+      <b>Week start.</b> The shipped <code>weekDays()</code> is Sunday-first; these boards draw
+      Monday-first. They must agree, and that is a one-line decision I did not make for you.
+    </div>
+    <div class="verdict">
+      <span class="tag">Open</span>
+      <b>Is Calendar one tab or two?</b> Boarded as one tab with Year and Month as rungs, which keeps
+      the nav at five. The alternative is a separate Month tab and no Year at all. The breadcrumb is
+      what makes one tab work; if it feels thin in the real app, splitting later is cheap.
+    </div>
+    <div class="verdict">
+      <span class="tag">Not boarded</span>
+      Keyboard traversal of a 365-cell grid, the focus ring, and what a screen reader announces per
+      bar. A year grid is the hardest accessibility surface in the app and it needs its own pass
+      before any of this is buildable.
+    </div>
+    <div class="verdict">
+      <span class="tag">Now backed by real data</span>
+      The “not recorded” marks were drawing a fact the app could not know. That shipped: <b>D72</b>
+      adds a <code>watch_coverage</code> row per app run, and the read model hands every surface
+      <code>unwatched_secs</code>. One caveat these boards must respect — <b>days before that
+      migration are unknowable, not failures</b>, and have to render as ordinary days rather than
+      as hatched ones.
+    </div>
+  </section>
+
+</div>
+
+<div class="tuner" id="tuner">
+  <h4>Tune by eye <button id="tcollapse">Hide</button></h4>
+  <div class="tune"><label>Row height <var id="v-r">34</var>px</label>
+    <input type="range" id="s-r" min="16" max="70" value="34"></div>
+  <div class="tune"><label>Bar width <var id="v-b">13</var>px</label>
+    <input type="range" id="s-b" min="3" max="26" value="13"></div>
+  <div class="tune"><label>Full height = <var id="v-m">12</var>h</label>
+    <input type="range" id="s-m" min="4" max="24" value="12"></div>
+  <div class="tune"><label>Month label <var id="v-l">42</var>px</label>
+    <input type="range" id="s-l" min="26" max="80" value="42"></div>
+  <div class="mini" style="border-top:1px solid var(--rule);padding-top:9px;margin-bottom:9px;">Wall-calendar layout</div>
+  <div class="tune"><label>Columns <var id="v-wc">4</var></label>
+    <input type="range" id="s-wc" min="2" max="6" value="4"></div>
+  <div class="tune"><label>Day cell <var id="v-mh">22</var>px</label>
+    <input type="range" id="s-mh" min="12" max="40" value="22"></div>
+  <div class="tune"><label>Day bar <var id="v-mb">9</var>px</label>
+    <input type="range" id="s-mb" min="3" max="20" value="9"></div>
+  <div class="mini">Drag until the year reads right, then <b>Copy values</b> and paste the numbers back.
+    <button id="tcopy" style="margin-top:8px;width:100%;border:2px solid var(--edge);background:var(--bg);color:var(--fg);
+      font-family:'Jost',sans-serif;font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:5px;cursor:pointer;">Copy values</button>
+    <span id="tcopied" style="display:block;margin-top:6px;color:var(--c-personal);font-weight:600;"></span></div>
+</div>
+
+<script>
+document.querySelectorAll('[data-theme-btn]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.documentElement.setAttribute('data-theme',b.dataset.themeBtn);
+    document.querySelectorAll('[data-theme-btn]').forEach(o=>o.setAttribute('aria-pressed',String(o===b)));
+  });
+});
+
+const CATS=['deep','research','comms','breaks','personal'];
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DIM=[31,28,31,30,31,30,31,31,30,31,30,31];
+let seed=4242; const rnd=()=>{seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;};
+
+/* A year of synthetic days, true to the rhythm of real use: weekday-heavy, a quiet
+   August, and the two days in September where nothing was watching. */
+function makeDay(dow,quiet){
+  const weekend=dow===0||dow===6;
+  let total=(weekend?1.6+rnd()*4.2:3.6+rnd()*6.1)*(quiet?0.55:1);
+  if(rnd()<0.06) total*=0.25;                       // the occasional barely-there day
+  const by={}; let left=total;
+  [['deep',weekend?.30:.54],['research',.24],['comms',.09],['personal',.08],['breaks',.09]]
+    .forEach(([c,w])=>{const v=total*w*(0.55+rnd()*0.9); by[c]=Math.min(v,left); left-=by[c];});
+  return {total:Object.values(by).reduce((a,b)=>a+b,0), by};
+}
+const YEAR=[];
+for(let m=0;m<12;m++){
+  const days=[];
+  for(let d=1;d<=DIM[m];d++){
+    const dow=new Date(2026,m,d).getDay();
+    if(m>8 || (m===8&&d>20)) { days.push({future:true}); continue; }   // after Sep 20
+    if(m===8&&(d===16||d===17)) { days.push({gap:true}); continue; }
+    if(m<5) { days.push({none:true}); continue; }                      // before the app existed
+    days.push(makeDay(dow, m===7));
+  }
+  YEAR.push(days);
+}
+
+function stack(d,maxH){
+  if(d.gap||d.none||d.future) return '';
+  const pct=Math.min(d.total/maxH,1)*100;
+  return `<div class="stack" style="height:${pct.toFixed(1)}%">`+
+    CATS.map(c=>d.by[c]>0.02?`<i style="background:var(--c-${c});height:${(d.by[c]/d.total*100).toFixed(1)}%"></i>`:'').join('')+
+    `</div>`;
+}
+function dayCell(d,mi,di,maxH){
+  if(d.future) return `<div class="d future"></div>`;
+  if(d.gap)    return `<div class="d gap" title="UsageOS wasn’t running on this day"><div class="stack"></div></div>`;
+  if(d.none)   return `<div class="d none" title="Before UsageOS was installed"><div class="stack"></div></div>`;
+  const h=Math.floor(d.total), m=Math.round((d.total-h)*60);
+  return `<div class="d" title="${MONTHS[mi]} ${di+1} · ${h}h ${String(m).padStart(2,'0')}m"><div class="stack" style="height:${(Math.min(d.total/maxH,1)*100).toFixed(1)}%">`+
+    CATS.map(c=>d.by[c]>0.02?`<i style="background:var(--c-${c});height:${(d.by[c]/d.total*100).toFixed(1)}%"></i>`:'').join('')+`</div></div>`;
+}
+
+/* Layout B: twelve miniature month calendars — the same mark, laid out the way a wall
+   calendar is. Day-of-week alignment becomes readable (weekends line up in columns), at the
+   cost of the continuous left-to-right run of the year that the strips give you. */
+function renderYearCalendar(){
+  const maxH=+document.getElementById('s-m').value;
+  const DOW=['M','T','W','T','F','S','S'];
+  document.getElementById('wallLayout').innerHTML=YEAR.map((days,mi)=>{
+    const firstDow=(new Date(2026,mi,1).getDay()+6)%7;         // Monday-first
+    const pads=Array.from({length:firstDow},()=>'<div class="mc pad"></div>').join('');
+    const cells=days.map((d,di)=>{
+      if(d.future) return `<div class="mc future"></div>`;
+      if(d.gap)    return `<div class="mc gap" title="${MONTHS[mi]} ${di+1} · UsageOS wasn’t running"><div class="stack"></div></div>`;
+      if(d.none)   return `<div class="mc none" title="${MONTHS[mi]} ${di+1} · before UsageOS was installed"><div class="stack"></div></div>`;
+      const h=Math.floor(d.total), m=Math.round((d.total-h)*60);
+      return `<div class="mc" title="${MONTHS[mi]} ${di+1} · ${h}h ${String(m).padStart(2,'0')}m">`+
+        `<div class="stack" style="height:${(Math.min(d.total/maxH,1)*100).toFixed(1)}%">`+
+        CATS.map(c=>d.by[c]>0.02?`<i style="background:var(--c-${c});height:${(d.by[c]/d.total*100).toFixed(1)}%"></i>`:'').join('')+
+        `</div></div>`;
+    }).join('');
+    return `<div class="mcal${mi===8?' current':''}"><h4>${MONTHS[mi]}</h4>`+
+      `<div class="dow">${DOW.map(x=>`<span>${x}</span>`).join('')}</div>`+
+      `<div class="mdays">${pads}${cells}</div></div>`;
+  }).join('');
+}
+
+function renderYear(){
+  const maxH=+document.getElementById('s-m').value;
+  document.getElementById('scalemax').textContent=maxH+'h';
+  document.getElementById('yticks').innerHTML=
+    Array.from({length:31},(_,i)=>`<span>${(i+1)%5===0||i===0?i+1:''}</span>`).join('');
+  document.getElementById('yearrows').innerHTML=YEAR.map((days,mi)=>{
+    const cells=days.map((d,di)=>dayCell(d,mi,di,maxH)).join('')+
+      Array.from({length:31-days.length},()=>'<div class="d pad"></div>').join('');
+    return `<div class="mrow${mi===8?' current':''}"><div class="mlabel">${MONTHS[mi]}</div><div class="days">${cells}</div></div>`;
+  }).join('');
+}
+
+/* the month rung — dials at the verified-compliant 80px */
+function dial(d,size,sw){
+  const r=(size-sw)/2-1, C=2*Math.PI*r, c=size/2;
+  let s=`<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true" style="margin-top:10px">
+    <g transform="rotate(-90 ${c} ${c})"><circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--track)" stroke-width="${sw}"/>`;
+  d.runs.forEach(run=>{
+    const da=`${(run.len/24*C).toFixed(2)} ${C.toFixed(2)}`, off=(-run.start/24*C).toFixed(2);
+    s+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--casing)" stroke-width="${sw+2}" stroke-dasharray="${da}" stroke-dashoffset="${off}"/>`;
+    s+=`<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--c-${run.cat})" stroke-width="${sw}" stroke-dasharray="${da}" stroke-dashoffset="${off}"/>`;
+  });
+  return s+`</g></svg>`;
+}
+function monthDay(day){
+  let t=8+rnd()*2, left=day.total, runs=[];
+  while(left>0.15&&t<23.5){
+    const r=rnd(); const cat=r<0.5?'deep':r<0.74?'research':r<0.85?'comms':r<0.93?'personal':'breaks';
+    const len=Math.min(left,0.3+rnd()*(cat==='deep'?2.0:0.9));
+    runs.push({cat,start:t,len}); t+=len+rnd()*0.5; left-=len;
+  }
+  return runs;
+}
+function renderMonth(){
+  const sep=YEAR[8]; let html='<div class="cell out"></div>';   // Sep 1 2026 = Tuesday
+  sep.forEach((d,i)=>{
+    const dn=i+1;
+    if(d.gap){ html+=`<div class="cell gap"><span class="dnum">${dn}</span><div class="gapmark">—</div><span class="total">Not recorded</span></div>`; return; }
+    if(d.future){ html+=`<div class="cell future"><span class="dnum">${dn}</span></div>`; return; }
+    const h=Math.floor(d.total), m=Math.round((d.total-h)*60);
+    html+=`<div class="cell${dn===20?' today':''}"><span class="dnum">${dn}</span>${dial({runs:monthDay(d)},80,6)}<span class="total">${h}h ${String(m).padStart(2,'0')}m</span></div>`;
+  });
+  document.getElementById('monthgrid').innerHTML=html;
+}
+
+function renderStates(){
+  const maxH=+document.getElementById('s-m').value;
+  const busy={total:10.4,by:{deep:6.2,research:2.4,comms:.7,personal:.6,breaks:.5}};
+  const light={total:1.3,by:{research:.7,personal:.4,comms:.2}};
+  const box=inner=>`<div class="statebox">${inner}</div>`;
+  document.getElementById('ystates').innerHTML=[
+    [box(stack(busy,maxH)),'Full day','10h 24m. Bar reaches the ceiling'],
+    [box(stack(light,maxH)),'Light day','1h 18m. Short, but real and readable'],
+    [box('<div class="stack" style="height:2px;background:var(--track);border-color:var(--rule)"></div>'),'Nothing happened','Recorded all day. You just didn’t touch it'],
+    [box('<div class="stack" style="height:100%;background:transparent;border:1px dashed var(--muted);opacity:.65"></div>'),'Not recorded','The app wasn’t running. The opposite fact'],
+    [box(''),'Not yet / never','Future, or before you installed it. Empty slot'],
+  ].map(([h,t,c])=>`<div class="state">${h}<div class="cap"><b>${t}</b>${c}</div></div>`).join('');
+}
+
+const bind=(sid,vid,prop,unit='px')=>{
+  const s=document.getElementById(sid),v=document.getElementById(vid);
+  const go=()=>{v.textContent=s.value; if(prop)document.body.style.setProperty(prop,s.value+unit); renderYear(); renderYearCalendar(); renderStates();};
+  s.addEventListener('input',go); go();
+};
+bind('s-r','v-r','--row-h'); bind('s-b','v-b','--bar-w'); bind('s-l','v-l','--label-w'); bind('s-m','v-m',null,'');
+bind('s-wc','v-wc','--wall-cols',''); bind('s-mh','v-mh','--mc-h'); bind('s-mb','v-mb','--mc-bar');
+
+document.getElementById('tcollapse').addEventListener('click',e=>{
+  const t=document.getElementById('tuner'); t.classList.toggle('collapsed');
+  e.target.textContent=t.classList.contains('collapsed')?'Show':'Hide';
+});
+document.getElementById('tcopy').addEventListener('click',()=>{
+  const g=id=>document.getElementById(id).value;
+  navigator.clipboard?.writeText(`rows: row ${g('s-r')} · bar ${g('s-b')} · label ${g('s-l')} | wall: cols ${g('s-wc')} · cell ${g('s-mh')} · bar ${g('s-mb')} | ceiling ${g('s-m')}h`);
+  document.getElementById('tcopied').textContent='Copied — paste it back to me.';
+  setTimeout(()=>document.getElementById('tcopied').textContent='',2600);
+});
+
+document.querySelectorAll('[data-layout]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    const wall=b.dataset.layout==='wall';
+    document.getElementById('rowsLayout').classList.toggle('hidden',wall);
+    document.getElementById('wallLayout').classList.toggle('hidden',!wall);
+    document.querySelectorAll('[data-layout]').forEach(o=>o.setAttribute('aria-pressed',String(o===b)));
+  });
+});
+
+renderYear(); renderYearCalendar(); renderMonth(); renderStates();
+</script>
+</body>
+</html>
