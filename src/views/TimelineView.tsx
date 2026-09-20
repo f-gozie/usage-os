@@ -44,6 +44,8 @@ export function TimelineView({ date, onDateChange }: TimelineViewProps) {
         onPrev={() => onDateChange(addDays(date, -1))}
         onNext={() => onDateChange(addDays(date, 1))}
         onRefresh={refresh}
+        onLatest={() => onDateChange(new Date())}
+        latestLabel="Today"
         prevLabel="Previous day"
         nextLabel="Next day"
       />

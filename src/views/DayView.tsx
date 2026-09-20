@@ -86,6 +86,8 @@ export function DayView({ date, onDateChange }: DayViewProps) {
         onPrev={() => onDateChange(addDays(date, -1))}
         onNext={() => onDateChange(addDays(date, 1))}
         onRefresh={refreshAll}
+        onLatest={() => onDateChange(new Date())}
+        latestLabel="Today"
         prevLabel="Previous day"
         nextLabel="Next day"
       />
