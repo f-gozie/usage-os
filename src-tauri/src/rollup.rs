@@ -356,6 +356,122 @@ pub fn build_week_view(days: Vec<DaySlice>) -> WeekView {
     }
 }
 
+// ── Calendar: the Month and Year rungs (D73) ─────────────────────────────────
+
+/// Everything the Month grid needs: one slice per day plus the two facts that are statements,
+/// not scores. Deliberately no "busiest day" and no category share — a superlative and a
+/// percentage are the first step toward a scoreboard, and this product cut scoring on purpose.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct MonthView {
+    pub days: Vec<DaySlice>,
+    pub total_active_secs: i64,
+    /// Days with any tracked activity at all.
+    pub tracked_days: i64,
+    /// Days UsageOS was not running for essentially the whole of — the count the user is owed.
+    pub unrecorded_days: i64,
+}
+
+/// One day at Year scale: a total, the category split that draws its stacked bar, and whether
+/// anything was watching. No runs — a 24 h dial is illegible at a year cell's ~29px, so the
+/// Year rung deliberately drops "when" rather than drawing it too small to read.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct YearDay {
+    pub day_start: i64,
+    pub active_secs: i64,
+    pub categories: Vec<CategorySlice>,
+    pub unwatched_secs: i64,
+    pub coverage_known: bool,
+}
+
+/// A year of days. No totals, no averages, no best month: this is a field to look at, and
+/// "long-range trends" is the part of the vision's out-of-scope line that still binds.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct YearView {
+    pub days: Vec<YearDay>,
+}
+
+/// A day counts as unrecorded when essentially none of it was watched — the same threshold the
+/// recap uses to decide the day has no story rather than a partial one.
+pub const DAY_UNRECORDED_SECS: i64 = 23 * 3600;
+
+/// Month aggregates from the day slices (numbers in Rust, hard rule 6). Pure.
+pub fn build_month_view(days: Vec<DaySlice>) -> MonthView {
+    let total_active_secs: i64 = days.iter().map(|d| d.active_secs).sum();
+    let tracked_days = days.iter().filter(|d| d.active_secs > 0).count() as i64;
+    let unrecorded_days = days
+        .iter()
+        .filter(|d| d.coverage_known && d.unwatched_secs >= DAY_UNRECORDED_SECS)
+        .count() as i64;
+    MonthView {
+        days,
+        total_active_secs,
+        tracked_days,
+        unrecorded_days,
+    }
+}
+
+/// Turn the repository's per-day/per-category totals into the Year view.
+///
+/// `totals` is indexed by position in `day_starts`; `unwatched` and `known` are parallel to it.
+/// Pure, so the whole shape is testable without a database.
+pub fn build_year_view(
+    day_starts: &[i64],
+    totals: &[crate::db::DayCategoryTotal],
+    categories: &HashMap<i64, CategoryMeta>,
+    unwatched: &[i64],
+    known: &[bool],
+) -> YearView {
+    let mut days: Vec<YearDay> = day_starts
+        .iter()
+        .enumerate()
+        .map(|(i, &day_start)| YearDay {
+            day_start,
+            active_secs: 0,
+            categories: Vec::new(),
+            unwatched_secs: unwatched.get(i).copied().unwrap_or(0),
+            coverage_known: known.get(i).copied().unwrap_or(false),
+        })
+        .collect();
+
+    for total in totals {
+        let Some(day) = days.get_mut(total.day) else {
+            continue;
+        };
+        let (slug, name, color) = match total.category_id.and_then(|id| categories.get(&id)) {
+            Some(meta) => (
+                meta.slug.clone().unwrap_or_default(),
+                meta.name.clone(),
+                meta.slug.is_none().then(|| meta.color.clone()),
+            ),
+            None => (String::new(), OTHER_NAME.to_string(), None),
+        };
+        day.active_secs += total.secs;
+        day.categories.push(CategorySlice {
+            slug,
+            name,
+            secs: total.secs,
+            pct: 0.0,
+            color,
+        });
+    }
+
+    // Percentages last, so each is a share of that day's own total, and longest-first so the
+    // stacked bar is stable and the dominant category reads first.
+    for day in &mut days {
+        for slice in &mut day.categories {
+            slice.pct = if day.active_secs > 0 {
+                slice.secs as f64 / day.active_secs as f64 * 100.0
+            } else {
+                0.0
+            };
+        }
+        day.categories
+            .sort_by(|a, b| b.secs.cmp(&a.secs).then_with(|| a.slug.cmp(&b.slug)));
+    }
+
+    YearView { days }
+}
+
 /// In-progress raw run: consecutive same-category events accumulated as segments. Coalesced
 /// into a [`SegRun`]; the absorb pass (D34a) then merges brief sandwiched excursions.
 struct RawRunBuilder {
@@ -1123,6 +1239,117 @@ mod tests {
         let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![]);
         assert_eq!(day.recap.text, "No activity tracked today yet.");
         assert_eq!(day.recap.generated_by, "template");
+    }
+
+    // ── Calendar rungs (D73) ────────────────────────────────────────────
+
+    fn slice(active: i64, unwatched: i64, known: bool) -> DaySlice {
+        DaySlice {
+            day_start: 0,
+            active_secs: active,
+            deep_secs: 0,
+            runs: vec![],
+            unwatched_secs: unwatched,
+            coverage_known: known,
+        }
+    }
+
+    #[test]
+    fn month_counts_tracked_and_unrecorded_days_separately() {
+        let month = build_month_view(vec![
+            slice(3600, 0, true),   // a normal day
+            slice(0, 0, true),      // watched all day, you just didn't touch it
+            slice(0, 86_400, true), // the app wasn't running
+            slice(0, 0, false),     // predates coverage — unknowable, not a failure
+        ]);
+        assert_eq!(month.total_active_secs, 3600);
+        assert_eq!(month.tracked_days, 1);
+        assert_eq!(
+            month.unrecorded_days, 1,
+            "only the day we KNOW nobody was watching counts"
+        );
+    }
+
+    #[test]
+    fn a_partly_blind_day_is_not_counted_as_unrecorded() {
+        // Six hours missing is a footnote on the day, not a missing day.
+        let month = build_month_view(vec![slice(7200, 6 * 3600, true)]);
+        assert_eq!(month.unrecorded_days, 0);
+        assert_eq!(month.tracked_days, 1);
+    }
+
+    fn total(day: usize, category_id: Option<i64>, secs: i64) -> crate::db::DayCategoryTotal {
+        crate::db::DayCategoryTotal {
+            day,
+            category_id,
+            secs,
+        }
+    }
+
+    #[test]
+    fn year_splits_each_day_into_its_categories_longest_first() {
+        let starts = [0i64, 86_400];
+        let year = build_year_view(
+            &starts,
+            &[
+                total(0, Some(1), 3600),
+                total(0, Some(2), 7200),
+                total(1, Some(1), 1800),
+            ],
+            &ctx_map(),
+            &[0, 0],
+            &[true, true],
+        );
+
+        assert_eq!(year.days.len(), 2);
+        assert_eq!(year.days[0].active_secs, 10_800);
+        assert_eq!(
+            year.days[0].categories[0].secs, 7200,
+            "the dominant category leads the stack"
+        );
+        assert_eq!(year.days[0].categories[1].secs, 3600);
+        // Percentages are a share of that day, never of the year.
+        assert!((year.days[0].categories[0].pct - 66.66).abs() < 0.1);
+        assert_eq!(year.days[1].active_secs, 1800);
+        assert!((year.days[1].categories[0].pct - 100.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn year_keeps_a_day_with_nothing_on_it() {
+        // An empty day still has to occupy its slot, or the calendar misaligns.
+        let starts = [0i64, 86_400, 172_800];
+        let year = build_year_view(
+            &starts,
+            &[total(2, Some(1), 60)],
+            &ctx_map(),
+            &[0; 3],
+            &[true; 3],
+        );
+        assert_eq!(year.days.len(), 3);
+        assert_eq!(year.days[0].active_secs, 0);
+        assert!(year.days[0].categories.is_empty());
+        assert_eq!(year.days[2].active_secs, 60);
+    }
+
+    #[test]
+    fn year_carries_coverage_through_per_day() {
+        let starts = [0i64, 86_400];
+        let year = build_year_view(&starts, &[], &ctx_map(), &[86_400, 0], &[true, false]);
+        assert_eq!(year.days[0].unwatched_secs, 86_400);
+        assert!(year.days[0].coverage_known, "we know nobody was watching");
+        assert_eq!(year.days[1].unwatched_secs, 0);
+        assert!(
+            !year.days[1].coverage_known,
+            "a day before coverage existed must not read as a failure"
+        );
+    }
+
+    #[test]
+    fn year_labels_time_with_no_category_rather_than_dropping_it() {
+        let starts = [0i64];
+        let year = build_year_view(&starts, &[total(0, None, 900)], &ctx_map(), &[0], &[true]);
+        assert_eq!(year.days[0].active_secs, 900);
+        assert_eq!(year.days[0].categories[0].name, "Uncategorized");
     }
 
     #[test]

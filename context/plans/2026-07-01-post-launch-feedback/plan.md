@@ -178,8 +178,24 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
       **80px dial**; at 80px month cells come out 126×130 inside a 984px frame, so the compliant
       size fits the window and the month scrolls. A year cell is ~29px, which is why Year cannot
       use the dial at all.
-- [ ] Owner to pick: the Year cell layout (month-row strips vs a wall-calendar grid), the year
-      bar-height ceiling, and whether Calendar is one tab or two.
-- [ ] `vision.md:63` scopes "long-range trends/month view" out of **v1**. v1 shipped; the line
-      needs amending as part of building this — keeping the ban on *trends*, dropping it for the
-      month view.
+- [x] **Built (D73).** One `Calendar` tab between Week and Timeline, Year and Month as zoom rungs,
+      a breadcrumb as the navigation model, click-through to Day.
+- [x] **Both Year layouts ship and the user switches between them** — month rows (continuity) and
+      wall calendar (day-of-week alignment). Two icon buttons in the stepper row, each with an
+      accessible name *and* a tooltip; the choice persists in `calendar_year_layout`.
+- [x] Year uses a stacked bar per day, not a shrunken dial: at a ~29px cell the R77 casing would
+      render 0.36px and a 15-minute run would be sub-pixel. Height is geometry, so colour still
+      encodes exactly one thing and there is no intensity axis to read as a streak.
+- [x] Month keeps the dial at the verified-compliant 80px, in a Sunday-first grid matching the
+      shipped `weekDays()`. Two tiles only — time tracked and days not recorded.
+- [x] Deliberately absent: year totals, monthly averages, busiest month, category share, any
+      month-over-month comparison, and a month recap.
+- [x] Fixed 12 h bar ceiling — a bar means the same thing in January and July. Scaling to the
+      busiest day would make every year look equally full.
+- [x] Year is ONE bounded scan (`db::get_day_category_totals`), not 365 day reads, and never
+      polls; Month polls only while it is the current month.
+- [x] `vision.md` out-of-scope line amended: the **trends** ban kept verbatim (it is a value), the
+      **month view** exclusion dropped (it was sequencing, and v1 shipped).
+- [ ] Not boarded or built: keyboard traversal of the year grid, its focus ring, and what a
+      screen reader announces cell by cell. Every cell has an accessible name today; 2-D arrow
+      navigation does not exist.

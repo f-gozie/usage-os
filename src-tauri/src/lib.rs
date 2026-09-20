@@ -249,6 +249,83 @@ fn get_week(
     Ok(rollup::build_week_view(days))
 }
 
+/// Build the Month view — one day-slice per day of the month plus the month's honest facts.
+/// `day_starts` are that month's local midnights (DST-correct, computed by the frontend exactly
+/// as `get_week`'s are); `month_end` is the exclusive end of the last day.
+#[tauri::command]
+#[specta::specta]
+fn get_month(
+    db: State<DbState>,
+    day_starts: Vec<i64>,
+    month_end: i64,
+) -> Result<rollup::MonthView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let (categories, projects) = load_lookup_maps(&conn)?;
+    let first_coverage = db::first_coverage_start(&conn)?;
+    let now = db::now_unix();
+    let mut days = Vec::with_capacity(day_starts.len());
+    for (i, &start) in day_starts.iter().enumerate() {
+        let end = day_starts.get(i + 1).copied().unwrap_or(month_end);
+        let events = db::get_activity_logs(&conn, start, end)?;
+        let gaps = db::coverage_gaps(
+            &db::get_coverage(&conn, start, end)?,
+            start,
+            end,
+            now,
+            first_coverage,
+        );
+        days.push(rollup::build_day_slice(
+            start,
+            &events,
+            &categories,
+            &projects,
+            db::unwatched_secs(&gaps),
+            first_coverage.is_some_and(|f| f < end),
+        ));
+    }
+    Ok(rollup::build_month_view(days))
+}
+
+/// Build the Year view — one bar per day for 365-odd days.
+///
+/// Deliberately NOT 365 calls to the day reader: one bounded aggregate scan supplies every day's
+/// category totals, and coverage is read once for the whole year and inverted per day. `runs` are
+/// not computed at all, because a 24 h dial is unreadable at a year cell's size and drawing one
+/// anyway would cost the scan without buying legibility.
+#[tauri::command]
+#[specta::specta]
+fn get_year(
+    db: State<DbState>,
+    day_starts: Vec<i64>,
+    year_end: i64,
+) -> Result<rollup::YearView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let (categories, _projects) = load_lookup_maps(&conn)?;
+    let totals = db::get_day_category_totals(&conn, &day_starts, year_end)?;
+
+    let first_coverage = db::first_coverage_start(&conn)?;
+    let now = db::now_unix();
+    let year_start = day_starts.first().copied().unwrap_or(year_end);
+    let spans = db::get_coverage(&conn, year_start, year_end)?;
+
+    let mut unwatched = Vec::with_capacity(day_starts.len());
+    let mut known = Vec::with_capacity(day_starts.len());
+    for (i, &start) in day_starts.iter().enumerate() {
+        let end = day_starts.get(i + 1).copied().unwrap_or(year_end);
+        let gaps = db::coverage_gaps(&spans, start, end, now, first_coverage);
+        unwatched.push(db::unwatched_secs(&gaps));
+        known.push(first_coverage.is_some_and(|f| f < end));
+    }
+
+    Ok(rollup::build_year_view(
+        &day_starts,
+        &totals,
+        &categories,
+        &unwatched,
+        &known,
+    ))
+}
+
 /// Build the Timeline view — the day's category-runs, each with its inner app-switch
 /// segments (D34) — for a `[start_time, end_time]` Unix-second range. Same read-model
 /// inputs as `get_day`; numbers in Rust (hard rule 6).
@@ -873,6 +950,8 @@ fn make_builder() -> Builder<tauri::Wry> {
         get_day,
         get_recap,
         get_week,
+        get_month,
+        get_year,
         get_timeline,
         get_categories,
         create_category,

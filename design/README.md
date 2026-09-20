@@ -13,13 +13,16 @@ value by eye. The design system itself is the contract; these files are where it
 the shipped UI is built from. `timeline-variants.html` / `timeline-icons.html` /
 `category-palette-5.html` are the option-explorations behind specific choices.
 
-## Proposed, not yet approved
+## Built from these boards
 
 **`calendar.html`** — the Year → Month → Day drill-down. The live board: one `Calendar` tab with
 Year and Month as zoom rungs, a breadcrumb as the navigation model, and an explicit
 “not recorded” state at both scales. **`month.html`** is the earlier Month-only round; it's kept
 for the three-way comparison of cell treatments (mini-dial vs stacked bar vs heat block) and the
-reason heat blocks were ruled out. Neither is built.
+reason heat blocks were ruled out. **Both are now built** (D73) — the shipped Calendar follows these boards, with two differences
+worth recording: the app is **Sunday-first** (matching `weekDays()`; the boards drew Monday-first,
+and the app wins), and both Year layouts ship behind a user-facing switch rather than one being
+chosen.
 
 Two things these boards measured that are worth keeping: an **80px dial** is the smallest size at
 which R77's 1px ink casing is still a real pixel (the casing is 1.25% of rendered size), and at

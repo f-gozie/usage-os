@@ -68,6 +68,35 @@ async getWeek(dayStarts: number[], weekEnd: number) : Promise<Result<WeekView, A
 }
 },
 /**
+ * Build the Month view — one day-slice per day of the month plus the month's honest facts.
+ * `day_starts` are that month's local midnights (DST-correct, computed by the frontend exactly
+ * as `get_week`'s are); `month_end` is the exclusive end of the last day.
+ */
+async getMonth(dayStarts: number[], monthEnd: number) : Promise<Result<MonthView, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_month", { dayStarts, monthEnd }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Build the Year view — one bar per day for 365-odd days.
+ * 
+ * Deliberately NOT 365 calls to the day reader: one bounded aggregate scan supplies every day's
+ * category totals, and coverage is read once for the whole year and inverted per day. `runs` are
+ * not computed at all, because a 24 h dial is unreadable at a year cell's size and drawing one
+ * anyway would cost the scan without buying legibility.
+ */
+async getYear(dayStarts: number[], yearEnd: number) : Promise<Result<YearView, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_year", { dayStarts, yearEnd }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Build the Timeline view — the day's category-runs, each with its inner app-switch
  * segments (D34) — for a `[start_time, end_time]` Unix-second range. Same read-model
  * inputs as `get_day`; numbers in Rust (hard rule 6).
@@ -524,6 +553,20 @@ icon: string | null;
  */
 suggested_slug: string | null }
 /**
+ * Everything the Month grid needs: one slice per day plus the two facts that are statements,
+ * not scores. Deliberately no "busiest day" and no category share — a superlative and a
+ * percentage are the first step toward a scoreboard, and this product cut scoring on purpose.
+ */
+export type MonthView = { days: DaySlice[]; total_active_secs: number; 
+/**
+ * Days with any tracked activity at all.
+ */
+tracked_days: number; 
+/**
+ * Days UsageOS was not running for essentially the whole of — the count the user is owed.
+ */
+unrecorded_days: number }
+/**
  * One permission's state. Accessibility is a plain granted/not (`AXIsProcessTrusted`) so it
  * rides as a bool on [`Permissions`]; Automation is per-target and genuinely tri-state.
  */
@@ -627,6 +670,17 @@ export type WeekView = { days: DaySlice[]; total_active_secs: number; avg_active
  * Index into `days` of the day with the most Deep-work time, or `None` if there was none.
  */
 deepest_day: number | null }
+/**
+ * One day at Year scale: a total, the category split that draws its stacked bar, and whether
+ * anything was watching. No runs — a 24 h dial is illegible at a year cell's ~29px, so the
+ * Year rung deliberately drops "when" rather than drawing it too small to read.
+ */
+export type YearDay = { day_start: number; active_secs: number; categories: CategorySlice[]; unwatched_secs: number; coverage_known: boolean }
+/**
+ * A year of days. No totals, no averages, no best month: this is a field to look at, and
+ * "long-range trends" is the part of the vision's out-of-scope line that still binds.
+ */
+export type YearView = { days: YearDay[] }
 
 /** tauri-specta globals **/
 

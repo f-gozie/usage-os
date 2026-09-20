@@ -10,6 +10,7 @@ import type {
   DayView,
   Exclusion,
   InstalledApp,
+  MonthView,
   Permissions,
   Recap,
   Result,
@@ -20,6 +21,7 @@ import type {
   UncategorizedApp,
   WatcherStatus,
   WeekView,
+  YearView,
 } from '../bindings';
 
 export type {
@@ -34,6 +36,7 @@ export type {
   DayView,
   Exclusion,
   InstalledApp,
+  MonthView,
   Permissions,
   PermissionState,
   ProjectSlice,
@@ -47,6 +50,8 @@ export type {
   UncategorizedApp,
   WatcherStatus,
   WeekView,
+  YearDay,
+  YearView,
 } from '../bindings';
 
 /** Unwrap a generated `Result`, throwing a readable `Error` on the typed failure. */
@@ -82,6 +87,17 @@ export async function getRecap(startTime: number, endTime: number): Promise<Reca
  *  midnights; `weekEnd` is the next midnight after the last day (half-open). */
 export async function getWeek(dayStarts: number[], weekEnd: number): Promise<WeekView> {
   return unwrap(await commands.getWeek(dayStarts, weekEnd));
+}
+
+/** The computed Month view: one day-slice per day, plus the month's honest facts.
+ *  `dayStarts` are that month's local midnights; `monthEnd` is the next midnight after the last. */
+export async function getMonth(dayStarts: number[], monthEnd: number): Promise<MonthView> {
+  return unwrap(await commands.getMonth(dayStarts, monthEnd));
+}
+
+/** The computed Year view: one bar's worth of numbers per day, from a single bounded scan. */
+export async function getYear(dayStarts: number[], yearEnd: number): Promise<YearView> {
+  return unwrap(await commands.getYear(dayStarts, yearEnd));
 }
 
 /** The computed Timeline view: the day's category-runs + their app-switch segments. */

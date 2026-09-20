@@ -247,6 +247,92 @@ mod tests {
         .unwrap();
     }
 
+    const D: i64 = 86_400;
+
+    #[test]
+    fn day_category_totals_bucket_by_day_and_category() {
+        let conn = setup_test_db();
+        let starts = [0, D, 2 * D];
+        span(&conn, "Zed", 100, 3600, Some(1), false);
+        span(&conn, "Chrome", 4000, 1800, Some(2), false);
+        span(&conn, "Zed", D + 100, 600, Some(1), false);
+
+        let totals = get_day_category_totals(&conn, &starts, 3 * D).unwrap();
+        assert_eq!(
+            totals,
+            vec![
+                DayCategoryTotal {
+                    day: 0,
+                    category_id: Some(1),
+                    secs: 3600
+                },
+                DayCategoryTotal {
+                    day: 0,
+                    category_id: Some(2),
+                    secs: 1800
+                },
+                DayCategoryTotal {
+                    day: 1,
+                    category_id: Some(1),
+                    secs: 600
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_span_across_midnight_is_split_between_both_days() {
+        // The same rule get_activity_logs applies — counted where the time was actually spent,
+        // never whole on the day it started.
+        let conn = setup_test_db();
+        let starts = [0, D];
+        span(&conn, "Zed", D - 600, 1200, Some(1), false); // 10 min before, 10 min after
+
+        let totals = get_day_category_totals(&conn, &starts, 2 * D).unwrap();
+        assert_eq!(
+            totals,
+            vec![
+                DayCategoryTotal {
+                    day: 0,
+                    category_id: Some(1),
+                    secs: 600
+                },
+                DayCategoryTotal {
+                    day: 1,
+                    category_id: Some(1),
+                    secs: 600
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn day_category_totals_ignore_idle_and_clip_to_the_range() {
+        let conn = setup_test_db();
+        let starts = [D];
+        span(&conn, "Idle", D + 100, 3600, Some(1), true); // idle: never counted
+        span(&conn, "Zed", D - 300, 600, Some(1), false); // half before the range
+        let totals = get_day_category_totals(&conn, &starts, 2 * D).unwrap();
+        assert_eq!(
+            totals,
+            vec![DayCategoryTotal {
+                day: 0,
+                category_id: Some(1),
+                secs: 300
+            }],
+            "only the in-range, non-idle portion"
+        );
+    }
+
+    #[test]
+    fn day_category_totals_on_an_empty_range_are_empty_not_an_error() {
+        let conn = setup_test_db();
+        assert!(get_day_category_totals(&conn, &[], 0).unwrap().is_empty());
+        assert!(get_day_category_totals(&conn, &[0, D], D * 2)
+            .unwrap()
+            .is_empty());
+    }
+
     #[test]
     fn uncategorized_apps_groups_ranks_and_floors() {
         let conn = setup_test_db();

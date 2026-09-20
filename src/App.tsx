@@ -9,6 +9,7 @@ import { formatDayParts, formatWeekRange } from "@/lib/dates";
 import { getSettings, updateSetting } from "@/lib/tauri";
 import { maybeAutoCheck, type Update } from "@/lib/updater";
 import { ThemeProvider } from "@/providers/ThemeProvider";
+import { CalendarView } from "@/views/CalendarView";
 import { DayView } from "@/views/DayView";
 import { SettingsView } from "@/views/SettingsView";
 import { TimelineView } from "@/views/TimelineView";
@@ -80,6 +81,16 @@ function App() {
           {view === "day" && <DayView date={date} onDateChange={setDate} />}
           {view === "week" && (
             <WeekView
+              date={date}
+              onDateChange={setDate}
+              onOpenDay={(d) => {
+                setDate(d);
+                setView("day");
+              }}
+            />
+          )}
+          {view === "calendar" && (
+            <CalendarView
               date={date}
               onDateChange={setDate}
               onOpenDay={(d) => {

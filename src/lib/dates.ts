@@ -59,3 +59,57 @@ export function formatDayParts(date: Date): { weekday: string; full: string } {
     full: date.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }),
   };
 }
+
+/** Local midnight on the first of `date`'s month. */
+export function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+/** Every local date in `date`'s month, 1st to last. */
+export function monthDays(date: Date): Date[] {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  // Day 0 of the next month is the last day of this one — correct for every month and leap year.
+  const count = new Date(year, month + 1, 0).getDate();
+  return Array.from({ length: count }, (_, i) => new Date(year, month, i + 1));
+}
+
+/** Local midnight on 1 January of `date`'s year. */
+export function startOfYear(date: Date): Date {
+  return new Date(date.getFullYear(), 0, 1);
+}
+
+/** Every local date in `date`'s year — 365 or 366 of them. */
+export function yearDays(date: Date): Date[] {
+  const year = date.getFullYear();
+  const days: Date[] = [];
+  for (let month = 0; month < 12; month++) {
+    const count = new Date(year, month + 1, 0).getDate();
+    for (let d = 1; d <= count; d++) days.push(new Date(year, month, d));
+  }
+  return days;
+}
+
+/** Step whole months, clamping the day so 31 Jan → 28/29 Feb rather than overflowing to March. */
+export function addMonths(date: Date, months: number): Date {
+  const target = new Date(date.getFullYear(), date.getMonth() + months, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  return new Date(target.getFullYear(), target.getMonth(), Math.min(date.getDate(), lastDay));
+}
+
+/** Step whole years, clamping 29 Feb to the 28th in a common year. */
+export function addYears(date: Date, years: number): Date {
+  const year = date.getFullYear() + years;
+  const lastDay = new Date(year, date.getMonth() + 1, 0).getDate();
+  return new Date(year, date.getMonth(), Math.min(date.getDate(), lastDay));
+}
+
+/** True when both dates fall in the same local month. */
+export function isSameMonth(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+/** "September 2026". */
+export function formatMonthYear(date: Date): string {
+  return date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
