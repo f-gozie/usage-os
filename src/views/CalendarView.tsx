@@ -126,7 +126,10 @@ export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProp
 
   return (
     <div>
-      <Breadcrumb rung={rung} date={date} onYear={() => setRung("year")} />
+      <div className="mb-4 flex items-center justify-between">
+        <Breadcrumb rung={rung} date={date} onYear={() => setRung("year")} />
+        <RungPicker rung={rung} onChange={setRung} />
+      </div>
 
       <DateStepper
         title={rung === "year" ? String(date.getFullYear()) : formatMonthYear(date)}
@@ -155,7 +158,9 @@ export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProp
             months={yearModel}
             currentMonth={currentMonth}
             onOpenMonth={openMonth}
-            onOpenDay={openDay}
+            // One rung at a time: a bar in the Year opens its Month, and the Month opens the Day.
+            // Jumping from a 13px bar straight to a Day skipped the rung the ladder is named for.
+            onOpenDay={openMonth}
           />
         ) : (
           <YearWall
@@ -163,7 +168,7 @@ export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProp
             months={yearModel}
             currentMonth={currentMonth}
             onOpenMonth={openMonth}
-            onOpenDay={openDay}
+            onOpenDay={openMonth}
           />
         )
       ) : rung === "month" && month.data ? (
@@ -185,7 +190,7 @@ export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProp
 /** The drill-down's spine: always visible, every rung above you one click away. */
 function Breadcrumb({ rung, date, onYear }: { rung: Rung; date: Date; onYear: () => void }) {
   return (
-    <div className="mb-4 flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.13em] text-muted">
+    <div className="flex items-center gap-2.5 text-[11px] font-semibold uppercase tracking-[0.13em] text-muted">
       {rung === "year" ? (
         <span aria-current="page" className="border-b-2 border-edge pb-0.5 text-fg">
           {date.getFullYear()}
@@ -207,6 +212,29 @@ function Breadcrumb({ rung, date, onYear }: { rung: Rung; date: Date; onYear: ()
           </span>
         </>
       )}
+    </div>
+  );
+}
+
+/** Year | Month, always visible. The breadcrumb tells you where you are; this lets you go to the
+ *  other rung without first discovering that a month name is clickable. */
+function RungPicker({ rung, onChange }: { rung: Rung; onChange: (next: Rung) => void }) {
+  return (
+    <div className="flex border-2 border-edge" role="group" aria-label="Calendar zoom">
+      {(["year", "month"] as const).map((value) => (
+        <button
+          key={value}
+          type="button"
+          aria-pressed={rung === value}
+          onClick={() => onChange(value)}
+          className={cn(
+            "cal-rung border-r-2 border-edge px-3 py-[5px] text-[10.5px] font-semibold uppercase tracking-[0.13em] last:border-r-0",
+            rung === value ? "bg-bar-bg text-bar-fg" : "text-fg",
+          )}
+        >
+          {value}
+        </button>
+      ))}
     </div>
   );
 }

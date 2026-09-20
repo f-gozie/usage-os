@@ -99,6 +99,41 @@ describe("CalendarView", () => {
     expect(getByRole("button", { name: "2026" })).toBeInTheDocument();
   });
 
+  it("drills one rung at a time: a bar in the Year opens its Month, never the Day", () => {
+    const onOpenDay = vi.fn();
+    const { getAllByRole, getByRole } = setup({ onOpenDay });
+
+    const bar = getAllByRole("button").find((b) => b.hasAttribute("data-day")) as HTMLElement;
+    fireEvent.click(bar);
+
+    expect(onOpenDay).not.toHaveBeenCalled();
+    expect(getByRole("button", { name: "2026" })).toBeInTheDocument(); // on the Month rung
+  });
+
+  it("opens the Day only from the Month rung", () => {
+    const onOpenDay = vi.fn();
+    const { getAllByRole } = setup({ onOpenDay });
+
+    fireEvent.click(getAllByRole("button", { name: "Sep" })[0]);
+    const dayCell = getAllByRole("button").find((b) => b.hasAttribute("data-day")) as HTMLElement;
+    fireEvent.click(dayCell);
+
+    expect(onOpenDay).toHaveBeenCalledTimes(1);
+  });
+
+  it("reaches the Month rung from a visible switch, without finding a month name", () => {
+    const { getByRole } = setup();
+    const month = getByRole("button", { name: "month" });
+    expect(month).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(month);
+    expect(month).toHaveAttribute("aria-pressed", "true");
+    expect(getByRole("button", { name: "2026" })).toBeInTheDocument();
+
+    fireEvent.click(getByRole("button", { name: "year" }));
+    expect(getByRole("button", { name: "Wall calendar" })).toBeInTheDocument();
+  });
+
   it("names the month's unrecorded days rather than hiding them", () => {
     const { getByRole, getByText, getAllByRole } = setup();
     fireEvent.click(getAllByRole("button", { name: "Sep" })[0]);

@@ -286,3 +286,15 @@
     opacity 120ms ease-out,
     transform 120ms ease-out;
 }
+
+/* The Year | Month switch: same press-and-settle as the layout picker, but it has visible text,
+   so it must NOT inherit the picker's tooltip chip. */
+.cal-rung {
+  transition:
+    background-color 120ms ease-out,
+    color 120ms ease-out,
+    transform 100ms ease-out;
+}
+.cal-rung:active {
+  transform: scale(0.97);
+}
