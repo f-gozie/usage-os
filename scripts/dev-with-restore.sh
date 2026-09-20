@@ -25,11 +25,19 @@ restore() {
   echo "── restoring ─────────────────────────────────────────────"
   # Stop only our own dev binary, matched by exact process name — never by argv.
   pkill -x usage-os 2>/dev/null || true
+  # `tauri dev` can leave its Vite server behind on exit, which blocks the next run with
+  # "Port 1420 is already in use". Stop it only if it is this repo's Vite.
+  local vite_pid
+  vite_pid="$(lsof -nP -tiTCP:1420 -sTCP:LISTEN 2>/dev/null || true)"
+  if [[ -n "$vite_pid" ]] && ps -p "$vite_pid" -o command= | grep -q "$REPO/node_modules"; then
+    kill "$vite_pid" 2>/dev/null || true
+  fi
   sleep 1
 
   if [[ -f "$DB" ]]; then
     local now
     now="$(sqlite3 "$DB" 'SELECT max(version) FROM schema_migrations;')"
+    sqlite3 "$DB" 'PRAGMA wal_checkpoint(TRUNCATE);' >/dev/null 2>&1 || true
     if (( now > INSTALLED_SCHEMA )); then
       # 0009 is purely additive (one table), so reverting it loses only dev-session coverage rows.
       sqlite3 "$DB" "DROP TABLE IF EXISTS watch_coverage;
