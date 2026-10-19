@@ -63,7 +63,7 @@ export function UncategorizedApps({
       await reprocessLogs();
       await onAssigned();
     } catch (e) {
-      onError(e instanceof Error ? e.message : "Couldn't sort that app.");
+      onError(e instanceof Error ? e.message : "Couldn’t sort that app.");
     } finally {
       setBusy(null);
     }

@@ -72,7 +72,7 @@ function App() {
     dayFrom === "calendar"
       ? { label: formatMonthYear(date), onBack: () => changeView("calendar") }
       : dayFrom === "week"
-        ? { label: `Week of ${formatWeekRange(date)}`, onBack: () => changeView("week") }
+        ? { label: formatWeekRange(date), onBack: () => changeView("week") }
         : undefined;
 
   const parts = formatDayParts(date);

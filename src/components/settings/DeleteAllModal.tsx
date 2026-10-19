@@ -33,7 +33,7 @@ export function DeleteAllModal({ open, onClose, onDeleted }: DeleteAllModalProps
       await onDeleted();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't delete the data.");
+      setError(e instanceof Error ? e.message : "Couldn’t delete the data.");
     } finally {
       setBusy(false);
     }

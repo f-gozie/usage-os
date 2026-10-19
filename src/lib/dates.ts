@@ -74,11 +74,6 @@ export function monthDays(date: Date): Date[] {
   return Array.from({ length: count }, (_, i) => new Date(year, month, i + 1));
 }
 
-/** Local midnight on 1 January of `date`'s year. */
-export function startOfYear(date: Date): Date {
-  return new Date(date.getFullYear(), 0, 1);
-}
-
 /** Every local date in `date`'s year — 365 or 366 of them. */
 export function yearDays(date: Date): Date[] {
   const year = date.getFullYear();

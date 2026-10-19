@@ -57,7 +57,7 @@ export function useSettingsData(): SettingsDataState {
         settings: Object.fromEntries(settings.map((s) => [s.key, s.value])),
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't load settings.");
+      setError(e instanceof Error ? e.message : "Couldn’t load settings.");
     } finally {
       setLoading(false);
     }

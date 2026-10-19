@@ -16,5 +16,5 @@ export function useWeekData(dayStarts: number[], weekEnd: number, live: boolean)
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [key, weekEnd],
   );
-  return useViewData(fetchWeek, [key, weekEnd], live, "Couldn't load this week.");
+  return useViewData(fetchWeek, [key, weekEnd], live, "Couldn’t load this week.");
 }

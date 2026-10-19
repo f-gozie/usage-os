@@ -26,10 +26,8 @@ const ICON_BTN = `w-9 ${BTN}`;
 /** The date navigator shared by the Day, Week and Timeline views: title on the left, a
  *  jump-to-latest button, a refresh button and prev/next steppers on the right.
  *
- *  The app runs for weeks at a time and the viewed date is session state, so wandering
- *  into the past and coming back later used to mean stepping day-by-day home. The latest
- *  button is always rendered and merely disabled at the latest range — same as "next" —
- *  so the control row never changes width. */
+ *  The latest button is always rendered and merely disabled at the latest range — same as
+ *  "next" — so the control row never changes width. */
 export function DateStepper({
   title,
   atLatest,
@@ -61,7 +59,7 @@ export function DateStepper({
         <button
           type="button"
           aria-label="Refresh"
-          title="Refresh (updates automatically every 30s)"
+          title="Refresh"
           onClick={onRefresh}
           className={`mr-1 text-sm ${ICON_BTN}`}
         >

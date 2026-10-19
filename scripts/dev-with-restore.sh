@@ -59,7 +59,8 @@ trap restore EXIT
 pkill -x usage-os 2>/dev/null || true
 sleep 1
 
-cp "$DB" "$DB.pre-dev.bak"
+# A consistent copy: recent writes may still sit in the WAL file, which `cp` alone would miss.
+sqlite3 "$DB" ".backup '$DB.pre-dev.bak'"
 echo "backup: $DB.pre-dev.bak"
 echo "starting dev — quit the app or press Ctrl-C here when you're done; everything is restored."
 echo

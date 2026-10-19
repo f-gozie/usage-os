@@ -15,6 +15,7 @@ vi.mock("@/hooks/useCalendarData", () => {
     categories: i % 7 === 0 ? [] : [{ slug: "deep", name: "Work", secs: 3600, pct: 100, color: null }],
     unwatched_secs: i === 40 ? d : 0,
     coverage_known: true,
+    unrecorded: i === 40,
   });
   const YEAR = { days: Array.from({ length: 365 }, (_, i) => yearDay(i)) };
   const MONTH = {
@@ -25,6 +26,7 @@ vi.mock("@/hooks/useCalendarData", () => {
       runs: [],
       unwatched_secs: i === 15 ? d : 0,
       coverage_known: true,
+      unrecorded: i === 15,
     })),
     total_active_secs: 29 * 3600,
     tracked_days: 29,
@@ -40,6 +42,8 @@ const updateSetting = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/tauri", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/tauri")>()),
   getSettings: () => Promise.resolve([]),
+  getCategories: () =>
+    Promise.resolve([{ id: 1, slug: "deep", name: "Deep focus", color: "#1B45BE" }]),
   updateSetting: (...args: unknown[]) => updateSetting(...args),
 }));
 
@@ -167,5 +171,12 @@ describe("CalendarView", () => {
   it("offers a jump back to the current range, named for the rung", () => {
     const { getByRole } = setup({ date: new Date(2026, 8, 16) });
     expect(getByRole("button", { name: "Go to this month" })).toBeInTheDocument();
+  });
+
+  it("names categories the way the user renamed them, and the month it tracks", async () => {
+    const { findByText, getByText } = setup();
+    expect(await findByText("Deep focus")).toBeInTheDocument();
+    expect(getByText("Browsing")).toBeInTheDocument();
+    expect(getByText("Tracked in September")).toBeInTheDocument();
   });
 });

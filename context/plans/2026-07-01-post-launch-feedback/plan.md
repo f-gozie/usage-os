@@ -243,3 +243,22 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
 - [ ] Later, needs its own decision: an opt-in narrator using a model the user already runs
       locally (Ollama / LM Studio), held to the same six days and a Rust check that every name,
       number and time in its output appears in the facts.
+
+## Review follow-ups for 0.1.5 (branch `fix/review-followups`)
+
+- [x] Calendar legend follows renamed categories (D47); the Month tile names its month
+      ("Tracked in September").
+- [x] Coverage: a running app reads as covered up to now (no false gap after wake); a heartbeat
+      reopens a session a second launch closed; no sub-5-minute gap at a day's edge (D72 addendum).
+- [x] Recap: a browser is never named as a place, even one that records no sites (Firefox);
+      "The longest break was 3h, starting around 11 in the morning."; "The usageos project
+      took the most time."
+- [x] Copy: curly apostrophes in error messages; the refresh tooltip no longer promises polling;
+      the week back link reads "← 12–18 October 2026".
+- [x] One source for "not recorded": an `unrecorded` flag from Rust replaces four TS copies.
+      The Month grid reuses the Year's day state, labels, date formatter and click handling;
+      the Year layouts take one `onOpen`; `get_week`/`get_month` share `day_slices`.
+- [x] Dead code and backstory comments removed; `dev-with-restore.sh` backs up with
+      `sqlite3 .backup` (WAL-safe).
+- [ ] Not seen on device: the Calendar legend with a renamed category, the wake-from-sleep case.
+

@@ -20,6 +20,7 @@ function day(over: Partial<YearDay> = {}): YearDay {
     categories: [],
     unwatched_secs: 0,
     coverage_known: true,
+    unrecorded: false,
     ...over,
   };
 }
@@ -28,12 +29,12 @@ const work = (secs: number) => [{ slug: "deep", name: "Work", secs, pct: 100, co
 
 describe("dayState", () => {
   it("tells a day nobody watched from a day you simply didn't use", () => {
-    expect(dayState(day({ unwatched_secs: DAY }), NOW)).toBe("unrecorded");
+    expect(dayState(day({ unwatched_secs: DAY, unrecorded: true }), NOW)).toBe("unrecorded");
     expect(dayState(day({ active_secs: 0 }), NOW)).toBe("recorded");
   });
 
   it("refuses to blame a day that predates coverage", () => {
-    expect(dayState(day({ coverage_known: false, unwatched_secs: DAY }), NOW)).toBe("unknown");
+    expect(dayState(day({ coverage_known: false, unwatched_secs: DAY, unrecorded: true }), NOW)).toBe("unknown");
   });
 
   it("does not call a partly-blind day unrecorded", () => {
@@ -47,7 +48,7 @@ describe("dayState", () => {
 
 describe("dayLabel", () => {
   it("says plainly which of the two empty days it is", () => {
-    expect(dayLabel(day({ unwatched_secs: DAY }), "unrecorded", "Wed 16 September")).toBe(
+    expect(dayLabel(day({ unwatched_secs: DAY, unrecorded: true }), "unrecorded", "Wed 16 September")).toBe(
       "Wed 16 September · UsageOS wasn’t running",
     );
     expect(dayLabel(day(), "recorded", "Wed 16 September")).toBe("Wed 16 September · nothing tracked");
@@ -143,7 +144,7 @@ describe("YearCell", () => {
 
   it("gives every cell a name a screen reader can read", () => {
     const { getByRole } = render(
-      <YearCell model={model({ unwatched_secs: DAY })} index={0} barWidthClass="w-[13px]" />,
+      <YearCell model={model({ unwatched_secs: DAY, unrecorded: true })} index={0} barWidthClass="w-[13px]" />,
     );
     expect(getByRole("button").getAttribute("aria-label")).toMatch(/UsageOS wasn’t running$/);
   });
@@ -156,28 +157,24 @@ describe.each([
   const months = buildYearModel(
     [
       day({ day_start: at(8, 15), active_secs: 3600, categories: work(3600) }),
-      day({ day_start: at(8, 16), unwatched_secs: DAY }),
+      day({ day_start: at(8, 16), unwatched_secs: DAY, unrecorded: true }),
     ],
     NOW,
   );
 
-  it("opens a day from one delegated listener, not a handler per cell", () => {
-    const onOpenDay = vi.fn();
-    const { getAllByRole } = render(
-      <Layout months={months} currentMonth={8} onOpenMonth={() => {}} onOpenDay={onOpenDay} />,
-    );
+  it("opens a day's month from one delegated listener, not a handler per cell", () => {
+    const onOpen = vi.fn();
+    const { getAllByRole } = render(<Layout months={months} currentMonth={8} onOpen={onOpen} />);
     const bar = getAllByRole("button").find((b) => b.getAttribute("data-day") === String(at(8, 15)));
     fireEvent.click(bar as HTMLElement);
-    expect(onOpenDay).toHaveBeenCalledWith(at(8, 15));
+    expect(onOpen).toHaveBeenCalledWith(at(8, 15));
   });
 
   it("opens a month from its name", () => {
-    const onOpenMonth = vi.fn();
-    const { getByRole } = render(
-      <Layout months={months} currentMonth={8} onOpenMonth={onOpenMonth} onOpenDay={() => {}} />,
-    );
+    const onOpen = vi.fn();
+    const { getByRole } = render(<Layout months={months} currentMonth={8} onOpen={onOpen} />);
     fireEvent.click(getByRole("button", { name: "Sep" }));
-    expect(onOpenMonth).toHaveBeenCalledWith(at(8, 15));
+    expect(onOpen).toHaveBeenCalledWith(at(8, 15));
   });
 });
 
@@ -213,14 +210,13 @@ describe("render cost", () => {
     // The regression this pins: `Date.now()` in render plus a closure per cell meant ANY parent
     // state change re-ran all 365 cells.
     const { months, reads } = countingYear();
-    const onOpenDay = () => {};
-    const onOpenMonth = () => {};
+    const onOpen = () => {};
 
     let bump = () => {};
     function Parent() {
       const [, setTick] = useState(0);
       bump = () => setTick((t) => t + 1);
-      return <YearRows months={months} currentMonth={8} onOpenMonth={onOpenMonth} onOpenDay={onOpenDay} />;
+      return <YearRows months={months} currentMonth={8} onOpen={onOpen} />;
     }
 
     render(<Parent />);
@@ -245,7 +241,7 @@ describe("render cost", () => {
       const fresh = months.map((month) =>
         month.map((m) => Object.defineProperties({}, Object.getOwnPropertyDescriptors(m)) as DayModel),
       );
-      return <YearRows months={fresh} currentMonth={8} onOpenMonth={() => {}} onOpenDay={() => {}} />;
+      return <YearRows months={fresh} currentMonth={8} onOpen={() => {}} />;
     }
 
     render(<Parent />);

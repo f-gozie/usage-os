@@ -15,5 +15,5 @@ export function useTimelineData(
     () => getTimeline(startUnix, endUnix),
     [startUnix, endUnix],
   );
-  return useViewData(fetchTimeline, [startUnix, endUnix], live, "Couldn't load this timeline.");
+  return useViewData(fetchTimeline, [startUnix, endUnix], live, "Couldn’t load this timeline.");
 }
