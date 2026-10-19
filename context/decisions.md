@@ -356,6 +356,12 @@ _D72 addendum (2026-10-19, review follow-up — `reviews/2026-10-19-watch-covera
 
 The time and the app still count, and the window is *not* marked private, because nothing says it was. With this, the README's promise holds for every browser, and the copy now says what it costs: Safari and Firefox are recorded as time only, as is any browser without Automation (Onboarding, Settings, README). Terminals are excluded from the registry check because some register for web links and HTML; they would otherwise lose their titles.
 
+**The title must come from the window that was checked.** The Accessibility title was read first and the AppleScript privacy check ran a moment later, as separate reads. Switching from a private window to a normal one in between could let the private title through, and `front window` was even resolved twice inside the script. Now:
+- the script binds `front window` once;
+- it returns that window's tab URL and title together;
+- the app records that title instead of the Accessibility one;
+- "no window" also fails closed, since it proves nothing about the title read just before.
+
 **Rejected:**
 - Keeping titles and softening the README. It makes the privacy promise weaker to fit the code.
 - Per-browser heuristics, e.g. Firefox's private-window title suffix. They're locale- and version-fragile, and Safari has none.
@@ -367,5 +373,5 @@ The time and the app still count, and the window is *not* marked private, becaus
 - A Firefox integration (#44, native messaging) would be the way to bring Firefox detail back safely, because its `incognito` flag can prove a window normal.
 - Titles recorded before this release are left as they are. They can't be told apart after the fact either, and erasing every Safari/Firefox title ever recorded is a separate call.
 
-_Changed: `src-tauri/src/capture/macos/browser.rs` (`Unverified`, `opens_web_pages`, `is_unverifiable_browser`, `classify`, 3 tests), `src-tauri/src/capture/macos/terminal.rs` (`is_terminal`), `src-tauri/src/capture/macos/mod.rs`, `src-tauri/Cargo.toml` (`objc2-uniform-type-identifiers`, NSURL/NSArray features), `README.md`, `src/components/onboarding/Onboarding.tsx`, `src/views/SettingsView.tsx`._
+_Changed: `src-tauri/src/capture/macos/browser.rs` (`Unverified`, `Normal { url, title }` from one script call, `opens_web_pages`, `is_unverifiable_browser`, `classify`, 3 tests), `src-tauri/src/capture/macos/terminal.rs` (`is_terminal`), `src-tauri/src/capture/macos/mod.rs`, `src-tauri/Cargo.toml` (`objc2-uniform-type-identifiers`, NSURL/NSArray features), `README.md`, `src/components/onboarding/Onboarding.tsx`, `src/views/SettingsView.tsx`._
 

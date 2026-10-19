@@ -280,7 +280,11 @@ titles from private windows, against the README's promise.
       window non-private; the time and app still count.
 - [x] README, Onboarding and Settings copy say Safari and Firefox (and any browser without
       Automation) are recorded as time only.
+- [x] Any app macOS lists as opening web links and HTML files counts as a browser (Comet, Dia
+      were on no list); terminals excepted. Chromium titles now come from the same script call
+      as the private-window check; "no window" fails closed.
 - [ ] Open: titles recorded before 0.1.6 are untouched — decide whether to clear past
       Safari/Firefox titles.
-- [ ] Not verified on device: a Safari and a Firefox window recording no title in the signed build.
+- [ ] Not verified on device: Safari/Firefox/Comet/Dia recording no title, and Chrome/Brave/Arc
+      titles arriving from the script, in the signed build.
 

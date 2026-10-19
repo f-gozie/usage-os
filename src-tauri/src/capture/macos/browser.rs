@@ -21,8 +21,10 @@ const OSASCRIPT: &str = "/usr/bin/osascript";
 pub enum BrowserUrl {
     /// Not a browser — keep the AX title, no URL.
     NotBrowser,
-    /// A normal (non-private) window: the front-tab URL if it could be read.
-    Normal(Option<String>),
+    /// A proven normal (non-private) window. `title` and `url` come from the same script call
+    /// that checked the window, so they can't belong to a different one (D76); the caller uses
+    /// this title, not the one Accessibility read a moment earlier.
+    Normal { url: String, title: String },
     /// A private/incognito window — the caller MUST omit BOTH the URL and the title.
     Private,
     /// A browser window that can't be proven non-private — the caller MUST omit BOTH the URL and
@@ -57,9 +59,10 @@ pub fn inspect(bundle_id: &str) -> BrowserUrl {
     let script = format!(
         "tell application \"{app}\"\n\
          if (count of windows) is 0 then return \"NOWIN\"\n\
-         set m to mode of front window\n\
-         if m is not \"normal\" then return \"PRIVATE\"\n\
-         return \"URL\t\" & (URL of active tab of front window)\n\
+         set w to front window\n\
+         if mode of w is not \"normal\" then return \"PRIVATE\"\n\
+         set t to active tab of w\n\
+         return \"URL\t\" & (URL of t) & \"\t\" & (title of t)\n\
          end tell"
     );
     classify(run_osa(&script).as_deref())
@@ -125,14 +128,20 @@ fn is_unverifiable_browser(bundle_id: &str) -> bool {
     )
 }
 
-/// What the Chromium script's output proves. Only an explicit normal-window answer keeps the
-/// title; a failure (Automation denied, a spawn error) or anything unexpected fails closed.
+/// What the Chromium script's output proves. Only an explicit normal-window answer keeps a
+/// title; no window, a failure (Automation denied, a spawn error) or anything unexpected fails
+/// closed, since none of them proves the title read a moment earlier wasn't a private window's.
 fn classify(output: Option<&str>) -> BrowserUrl {
     match output {
         Some("PRIVATE") => BrowserUrl::Private,
-        Some("NOWIN") => BrowserUrl::Normal(None),
-        Some(s) => match s.strip_prefix("URL\t") {
-            Some(u) => BrowserUrl::Normal(Some(u.to_string())),
+        Some(s) => match s
+            .strip_prefix("URL\t")
+            .and_then(|rest| rest.split_once('\t'))
+        {
+            Some((url, title)) => BrowserUrl::Normal {
+                url: url.to_string(),
+                title: title.to_string(),
+            },
             None => BrowserUrl::Unverified,
         },
         None => BrowserUrl::Unverified,
@@ -174,10 +183,19 @@ mod tests {
     #[test]
     fn only_a_proven_normal_window_keeps_its_title() {
         assert_eq!(
-            classify(Some("URL\thttps://github.com/x")),
-            BrowserUrl::Normal(Some("https://github.com/x".into()))
+            classify(Some("URL\thttps://github.com/x\tIssues · x")),
+            BrowserUrl::Normal {
+                url: "https://github.com/x".into(),
+                title: "Issues · x".into()
+            }
         );
-        assert_eq!(classify(Some("NOWIN")), BrowserUrl::Normal(None));
+        // No window left by the time the script ran: the title read earlier is unproven.
+        assert_eq!(classify(Some("NOWIN")), BrowserUrl::Unverified);
+        // A URL without the window's own title isn't enough either.
+        assert_eq!(
+            classify(Some("URL\thttps://github.com/x")),
+            BrowserUrl::Unverified
+        );
         assert_eq!(classify(Some("PRIVATE")), BrowserUrl::Private);
         // Automation denied or the script failed: can't prove it isn't private.
         assert_eq!(classify(None), BrowserUrl::Unverified);

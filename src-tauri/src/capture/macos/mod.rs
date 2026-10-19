@@ -207,7 +207,11 @@ impl CallbackContext {
             }
             // D76: a browser window that can't be proven non-private keeps no title either.
             browser::BrowserUrl::Unverified => title = None,
-            browser::BrowserUrl::Normal(u) => url = u,
+            // The title and URL of the window that was checked, not the Accessibility title.
+            browser::BrowserUrl::Normal { url: u, title: t } => {
+                url = Some(u);
+                title = Some(t);
+            }
             browser::BrowserUrl::NotBrowser => {}
         }
         let cwd = terminal::front_cwd(&self.bundle_id, self.pid);
