@@ -2,7 +2,7 @@
 
 ## v0.1.6 — private windows stay private in every browser (2026)
 
-- **Private windows stay private in every browser** — UsageOS promised it never stores the title or address of a private window, but it could only tell a private window apart in Chrome, Brave, Edge, Arc, Vivaldi and Opera, and only with the Automation permission. In Safari and Firefox, or without that permission, it kept page titles whether the window was private or not. Now, when it can't tell, it records only the browser and the time. That means Safari and Firefox show as time only, with no page titles. Titles recorded before this version are left as they were.
+- **Private windows stay private in every browser** — UsageOS promised it never stores the title or address of a private window, but it could only tell a private window apart in Chrome, Brave, Edge, Arc, Vivaldi and Opera, and only with the Automation permission. In Safari, Firefox and newer browsers like Comet and Dia, or without that permission, it kept page titles whether the window was private or not. Now, when it can't tell, it records only the browser and the time. That means those browsers show as time only, with no page titles. Titles recorded before this version are left as they were.
 
 ## v0.1.5 — small fixes after the calendar (2026)
 
