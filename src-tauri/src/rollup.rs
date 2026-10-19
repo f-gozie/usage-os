@@ -98,6 +98,8 @@ pub struct DayView {
     pub gaps: Vec<CoverageGap>,
     /// Seconds of this day nobody was watching — the sum of `gaps`, computed in Rust (rule 6).
     pub unwatched_secs: i64,
+    /// Essentially none of the day was watched (the threshold lives in Rust only — rule 6).
+    pub unrecorded: bool,
 }
 
 /// One day's compact summary for the Week view: a mini-dial's arcs plus the two totals
@@ -115,6 +117,8 @@ pub struct DaySlice {
     /// Whether coverage was being recorded at all on this day. False for days that predate the
     /// coverage log: we cannot say what happened, and must not imply failure.
     pub coverage_known: bool,
+    /// Essentially none of the day was watched (the threshold lives in Rust only — rule 6).
+    pub unrecorded: bool,
 }
 
 /// Everything the Week view needs: 7 day-slices + week-level aggregates (numbers in Rust).
@@ -170,6 +174,8 @@ pub struct TimelineView {
     /// Seconds of this day UsageOS wasn't running, so an empty timeline can say which of the
     /// two reasons it is (computed in Rust, hard rule 6).
     pub unwatched_secs: i64,
+    /// Essentially none of the day was watched (the threshold lives in Rust only — rule 6).
+    pub unrecorded: bool,
 }
 
 fn duration(event: &ActivityLog) -> i64 {
@@ -257,6 +263,7 @@ pub fn build_day_view(
         recap,
         gaps,
         unwatched_secs,
+        unrecorded: is_unrecorded(unwatched_secs),
     }
 }
 
@@ -360,6 +367,7 @@ pub fn build_day_slice(
         deep_secs,
         unwatched_secs,
         coverage_known,
+        unrecorded: is_unrecorded(unwatched_secs),
         runs: build_runs(events, categories, projects),
     }
 }
@@ -410,6 +418,8 @@ pub struct YearDay {
     pub categories: Vec<CategorySlice>,
     pub unwatched_secs: i64,
     pub coverage_known: bool,
+    /// Essentially none of the day was watched (the threshold lives in Rust only — rule 6).
+    pub unrecorded: bool,
 }
 
 /// A year of days. No totals, no averages, no best month: this is a field to look at, and
@@ -461,6 +471,7 @@ pub fn build_year_view(
             categories: Vec::new(),
             unwatched_secs: unwatched.get(i).copied().unwrap_or(0),
             coverage_known: known.get(i).copied().unwrap_or(false),
+            unrecorded: is_unrecorded(unwatched.get(i).copied().unwrap_or(0)),
         })
         .collect();
 
@@ -766,6 +777,7 @@ pub fn build_timeline(
     TimelineView {
         runs: build_segmented_runs(events, categories, projects),
         unwatched_secs,
+        unrecorded: is_unrecorded(unwatched_secs),
     }
 }
 
@@ -1167,7 +1179,7 @@ fn day_parts(
             }
             _ => continue,
         };
-        // Neighbouring parts that say the same thing merge: "afternoon and evening".
+        // Parts that say the same thing merge, adjacent or not: "morning and evening".
         match parts.last_mut() {
             Some(prev) if prev.what == what => prev.part = format!("{} and {name}", prev.part),
             _ => parts.push(PartFact {
@@ -1186,10 +1198,13 @@ fn places_of(
     active: &[&ActivityLog],
     categories: &HashMap<i64, CategoryMeta>,
 ) -> Option<PlacesFact> {
+    // A browser is one we know by name, or any app that recorded a site today (Firefox and
+    // Safari never record one, so the list is what keeps "mostly in Firefox" out).
     let browsers: Vec<&str> = active
         .iter()
         .filter(|e| e.site.is_some())
         .map(|e| e.process_name.as_str())
+        .chain(BROWSER_APPS.iter().copied())
         .collect();
     let mut totals: HashMap<(String, bool), i64> = HashMap::new();
     for e in active {
@@ -1220,6 +1235,27 @@ fn places_of(
         places,
     })
 }
+
+/// Browsers by the app name capture records. A browser's own name says nothing the category
+/// doesn't, so it is never named as a place.
+const BROWSER_APPS: &[&str] = &[
+    "Safari",
+    "Safari Technology Preview",
+    "Google Chrome",
+    "Google Chrome Canary",
+    "Chromium",
+    "Brave Browser",
+    "Arc",
+    "Microsoft Edge",
+    "Firefox",
+    "Firefox Developer Edition",
+    "Firefox Nightly",
+    "Opera",
+    "Vivaldi",
+    "Orion",
+    "Zen",
+    "DuckDuckGo",
+];
 
 /// App names can carry invisible direction marks (WhatsApp's starts with U+200E); a recap
 /// sentence must not.
@@ -1267,6 +1303,12 @@ const RECAP_GAP_MENTION_SECS: i64 = 30 * 60;
 /// A whole day is "not recorded" only when essentially none of it was watched. Below this the
 /// day still has a story; the missing stretch is a clause, not the headline.
 const MOSTLY_UNWATCHED_SECS: i64 = 23 * 3600;
+
+/// A day is "not recorded" only when essentially none of it was watched. The one place the
+/// threshold lives; every view reads the flag.
+fn is_unrecorded(unwatched_secs: i64) -> bool {
+    unwatched_secs >= MOSTLY_UNWATCHED_SECS
+}
 
 /// The recap: the shape of the day in plain sentences — when it ran, what each part went to,
 /// where, and how the time came. Purely descriptive, never evaluative (the calm rear-view
@@ -1369,13 +1411,13 @@ pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
             }
             if let Some(gap) = &facts.longest_break {
                 out.push(format!(
-                    "The longest break was {}, from {}.",
+                    "The longest break was {}, starting {}.",
                     prose_secs(gap.secs),
                     clock_phrase(gap.from)
                 ));
             }
             if let Some(project) = &facts.leading_project {
-                out.push(format!("Mostly on {project}."));
+                out.push(format!("Most of it was on the {project} project."));
             }
             // Appended, never prepended: the day still had a shape, and this is a footnote about
             // the recorder, not a verdict on you. Stated plainly so the totals read as partial.
@@ -1742,6 +1784,7 @@ mod tests {
             runs: vec![],
             unwatched_secs: unwatched,
             coverage_known: known,
+            unrecorded: is_unrecorded(unwatched),
         }
     }
 
@@ -1962,7 +2005,10 @@ mod tests {
         assert!(t.contains("Deep work led at"), "leading category: {t}");
         assert!(t.contains("then Comms at"), "runner-up category: {t}");
         assert!(t.contains("Your longest stretch ran"), "focus stretch: {t}");
-        assert!(t.contains("Mostly on usageos."), "leading project: {t}");
+        assert!(
+            t.contains("Most of it was on the usageos project."),
+            "leading project: {t}"
+        );
     }
 
     #[test]
@@ -2042,7 +2088,7 @@ mod tests {
         assert!(
             day.recap
                 .text
-                .contains("The longest break was 3h, from around 11 in the morning."),
+                .contains("The longest break was 3h, starting around 11 in the morning."),
             "{}",
             day.recap.text
         );
@@ -2081,7 +2127,7 @@ mod tests {
         assert!(
             day.recap
                 .text
-                .contains("The longest break was 1h 57m, from around noon."),
+                .contains("The longest break was 1h 57m, starting around noon."),
             "{}",
             day.recap.text
         );
@@ -2102,7 +2148,7 @@ mod tests {
         let t = &day.recap.text;
         assert!(t.contains("until around 9 at night"), "{t}");
         assert!(
-            t.contains("The longest break was 5h 50m, from around 2 in the afternoon."),
+            t.contains("The longest break was 5h 50m, starting around 2 in the afternoon."),
             "{t}"
         );
     }
@@ -2208,6 +2254,29 @@ mod tests {
     }
 
     #[test]
+    fn a_browser_that_records_no_sites_is_still_not_a_place() {
+        let events = vec![ev(9 * H, 11 * H, "Firefox", Some(3), None)];
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
+        assert!(!day.recap.text.contains("Firefox"), "{}", day.recap.text);
+    }
+
+    #[test]
+    fn parts_that_agree_merge_even_with_a_quiet_one_between() {
+        let events = vec![
+            ev(9 * H, 11 * H, "Cursor", Some(1), None),
+            ev(19 * H, 21 * H, "Cursor", Some(1), None),
+        ];
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
+        assert!(
+            day.recap
+                .text
+                .contains("The morning and evening went to Deep work."),
+            "{}",
+            day.recap.text
+        );
+    }
+
+    #[test]
     fn neighbouring_parts_that_agree_merge() {
         let events = vec![ev(9 * H, 16 * H, "Cursor", Some(1), None)];
         let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
@@ -2287,6 +2356,7 @@ mod tests {
             runs: vec![],
             unwatched_secs: 0,
             coverage_known: true,
+            unrecorded: false,
         };
         // 7 days; index 3 is the deepest (1800s).
         let week = build_week_view(vec![
@@ -2312,6 +2382,7 @@ mod tests {
             runs: vec![],
             unwatched_secs: 0,
             coverage_known: true,
+            unrecorded: false,
         };
         let week = build_week_view(vec![flat.clone(), flat.clone(), flat]);
         assert_eq!(week.deepest_day, None);

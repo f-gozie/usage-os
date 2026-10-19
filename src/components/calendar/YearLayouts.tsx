@@ -17,8 +17,8 @@ export interface YearLayoutProps {
   months: DayModel[][];
   /** Index of the current month when this is the current year, else -1. */
   currentMonth: number;
-  onOpenMonth: (dayStart: number) => void;
-  onOpenDay: (dayStart: number) => void;
+  /** Opens the month containing `dayStart`: a month name or a day's bar, one rung at a time. */
+  onOpen: (dayStart: number) => void;
 }
 
 /** Running count of days before each month, so a cell's stagger index is its day-of-year. */
@@ -34,18 +34,16 @@ function monthOffsets(months: DayModel[][]): number[] {
 
 /** One listener for the whole grid. A click on a bar bubbles here and is resolved from
  *  `data-day`; month names carry `data-month-start` and resolve the same way. */
-function useGridClick(onOpenDay: (d: number) => void, onOpenMonth: (d: number) => void) {
+function useGridClick(onOpen: (d: number) => void) {
   return useCallback(
     (event: React.MouseEvent<HTMLElement>) => {
       const monthEl = (event.target as HTMLElement).closest<HTMLElement>("[data-month-start]");
-      if (monthEl?.dataset.monthStart) {
-        onOpenMonth(Number(monthEl.dataset.monthStart));
-        return;
-      }
-      const day = dayFromEvent(event);
-      if (day !== null) onOpenDay(day);
+      const day = monthEl?.dataset.monthStart
+        ? Number(monthEl.dataset.monthStart)
+        : dayFromEvent(event);
+      if (day !== null) onOpen(day);
     },
-    [onOpenDay, onOpenMonth],
+    [onOpen],
   );
 }
 
@@ -58,10 +56,9 @@ function useGridClick(onOpenDay: (d: number) => void, onOpenMonth: (d: number) =
 export const YearRows = memo(function YearRows({
   months,
   currentMonth,
-  onOpenMonth,
-  onOpenDay,
+  onOpen,
 }: YearLayoutProps) {
-  const onClick = useGridClick(onOpenDay, onOpenMonth);
+  const onClick = useGridClick(onOpen);
   const offsets = monthOffsets(months);
 
   return (
@@ -112,17 +109,15 @@ export const YearRows = memo(function YearRows({
  * Day-of-week alignment: weekends land in their own columns, so the shape of your week is
  * obvious. What it gives up is continuity — twelve small grids read as twelve things.
  *
- * Four columns, fixed. The app window is ~1000px, so viewport breakpoints like `lg:` (1024px)
- * never fire inside it — the first build used them and silently shipped three columns where
- * the board draws four.
+ * Four columns, fixed: the app window is ~1000px, so viewport breakpoints like `lg:` (1024px)
+ * never fire inside it.
  */
 export const YearWall = memo(function YearWall({
   months,
   currentMonth,
-  onOpenMonth,
-  onOpenDay,
+  onOpen,
 }: YearLayoutProps) {
-  const onClick = useGridClick(onOpenDay, onOpenMonth);
+  const onClick = useGridClick(onOpen);
   const offsets = monthOffsets(months);
 
   return (

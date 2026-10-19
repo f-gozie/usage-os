@@ -130,9 +130,10 @@ fn day_coverage_gaps(
     start: i64,
     end: i64,
 ) -> Result<Vec<db::CoverageGap>, AppError> {
-    let spans = db::get_coverage(conn, start, end)?;
+    let now = db::now_unix();
+    let spans = db::get_coverage(conn, start, end, now)?;
     let first = db::first_coverage_start(conn)?;
-    Ok(db::coverage_gaps(&spans, start, end, db::now_unix(), first))
+    Ok(db::coverage_gaps(&spans, start, end, now, first))
 }
 
 /// Build the Day view — per-axis category aggregates, category-runs, and the template
@@ -232,64 +233,23 @@ async fn get_recap(
     Ok(recap)
 }
 
-/// Build the Week view — 7 day-slices (each a mini-dial's runs + totals) plus week-level
-/// aggregates (D34, hard rule 6). `day_starts` are the 7 local midnights (DST-correct,
-/// computed by the frontend like `get_day`'s bounds); `week_end` is the exclusive end of
-/// the last day. Each day's events are read for `[day_start, next_day_start | week_end)`.
-#[tauri::command]
-#[specta::specta]
-fn get_week(
-    db: State<DbState>,
-    day_starts: Vec<i64>,
-    week_end: i64,
-) -> Result<rollup::WeekView, AppError> {
-    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    let (categories, projects) = load_lookup_maps(&conn)?;
+/// One slice per day for the Week and Month views. `day_starts` are local midnights (DST-correct,
+/// from the frontend); `range_end` closes the last day.
+fn day_slices(
+    conn: &Connection,
+    day_starts: &[i64],
+    range_end: i64,
+) -> Result<Vec<rollup::DaySlice>, AppError> {
+    let (categories, projects) = load_lookup_maps(conn)?;
     // One lookup for the whole range: a day predating it can't be judged either way.
-    let first_coverage = db::first_coverage_start(&conn)?;
-    let mut days = Vec::with_capacity(day_starts.len());
-    for (i, &start) in day_starts.iter().enumerate() {
-        let end = day_starts.get(i + 1).copied().unwrap_or(week_end);
-        let events = db::get_activity_logs(&conn, start, end)?;
-        let gaps = db::coverage_gaps(
-            &db::get_coverage(&conn, start, end)?,
-            start,
-            end,
-            db::now_unix(),
-            first_coverage,
-        );
-        days.push(rollup::build_day_slice(
-            start,
-            &events,
-            &categories,
-            &projects,
-            db::unwatched_secs(&gaps),
-            first_coverage.is_some_and(|f| f < end),
-        ));
-    }
-    Ok(rollup::build_week_view(days))
-}
-
-/// Build the Month view — one day-slice per day of the month plus the month's honest facts.
-/// `day_starts` are that month's local midnights (DST-correct, computed by the frontend exactly
-/// as `get_week`'s are); `month_end` is the exclusive end of the last day.
-#[tauri::command]
-#[specta::specta]
-fn get_month(
-    db: State<DbState>,
-    day_starts: Vec<i64>,
-    month_end: i64,
-) -> Result<rollup::MonthView, AppError> {
-    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    let (categories, projects) = load_lookup_maps(&conn)?;
-    let first_coverage = db::first_coverage_start(&conn)?;
+    let first_coverage = db::first_coverage_start(conn)?;
     let now = db::now_unix();
     let mut days = Vec::with_capacity(day_starts.len());
     for (i, &start) in day_starts.iter().enumerate() {
-        let end = day_starts.get(i + 1).copied().unwrap_or(month_end);
-        let events = db::get_activity_logs(&conn, start, end)?;
+        let end = day_starts.get(i + 1).copied().unwrap_or(range_end);
+        let events = db::get_activity_logs(conn, start, end)?;
         let gaps = db::coverage_gaps(
-            &db::get_coverage(&conn, start, end)?,
+            &db::get_coverage(conn, start, end, now)?,
             start,
             end,
             now,
@@ -304,7 +264,38 @@ fn get_month(
             first_coverage.is_some_and(|f| f < end),
         ));
     }
-    Ok(rollup::build_month_view(days, month_end, now))
+    Ok(days)
+}
+
+/// Build the Week view — 7 day-slices (each a mini-dial's runs + totals) plus week-level
+/// aggregates (D34, hard rule 6). `day_starts` are the 7 local midnights (DST-correct,
+/// computed by the frontend like `get_day`'s bounds); `week_end` is the exclusive end of
+/// the last day. Each day's events are read for `[day_start, next_day_start | week_end)`.
+#[tauri::command]
+#[specta::specta]
+fn get_week(
+    db: State<DbState>,
+    day_starts: Vec<i64>,
+    week_end: i64,
+) -> Result<rollup::WeekView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let days = day_slices(&conn, &day_starts, week_end)?;
+    Ok(rollup::build_week_view(days))
+}
+
+/// Build the Month view — one day-slice per day of the month plus the month's honest facts.
+/// `day_starts` are that month's local midnights (DST-correct, computed by the frontend exactly
+/// as `get_week`'s are); `month_end` is the exclusive end of the last day.
+#[tauri::command]
+#[specta::specta]
+fn get_month(
+    db: State<DbState>,
+    day_starts: Vec<i64>,
+    month_end: i64,
+) -> Result<rollup::MonthView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let days = day_slices(&conn, &day_starts, month_end)?;
+    Ok(rollup::build_month_view(days, month_end, db::now_unix()))
 }
 
 /// Build the Year view — one bar per day for 365-odd days.
@@ -327,7 +318,7 @@ fn get_year(
     let first_coverage = db::first_coverage_start(&conn)?;
     let now = db::now_unix();
     let year_start = day_starts.first().copied().unwrap_or(year_end);
-    let spans = db::get_coverage(&conn, year_start, year_end)?;
+    let spans = db::get_coverage(&conn, year_start, year_end, db::now_unix())?;
 
     let mut unwatched = Vec::with_capacity(day_starts.len());
     let mut known = Vec::with_capacity(day_starts.len());

@@ -236,7 +236,7 @@ export function CategoryEditorModal({
       await onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't save this category.");
+      setError(e instanceof Error ? e.message : "Couldn’t save this category.");
     } finally {
       setSaving(false);
     }
@@ -252,7 +252,7 @@ export function CategoryEditorModal({
       await onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't delete this category.");
+      setError(e instanceof Error ? e.message : "Couldn’t delete this category.");
     } finally {
       setSaving(false);
     }

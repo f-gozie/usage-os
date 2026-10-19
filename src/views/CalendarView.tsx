@@ -1,7 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { YearRows, YearWall } from "@/components/calendar/YearLayouts";
-import { buildYearModel } from "@/components/calendar/yearModel";
+import { dayFromEvent } from "@/components/calendar/YearGrid";
+import { buildYearModel, DAY_DATE_FMT, dayLabel, dayState } from "@/components/calendar/yearModel";
 import { DateStepper } from "@/components/common/DateStepper";
 import { ErrorState } from "@/components/common/ErrorState";
 import { MiniDial } from "@/components/dial/MiniDial";
@@ -19,8 +20,9 @@ import {
   monthDays,
   yearDays,
 } from "@/lib/dates";
+import { CANONICAL_CATEGORIES, categoryColorVar, categoryDisplayName } from "@/lib/categories";
 import { formatDuration } from "@/lib/format";
-import { getSettings, updateSetting, type DaySlice } from "@/lib/tauri";
+import { getCategories, getSettings, updateSetting, type DaySlice } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
 
 /** Which rung of the calendar you're on. Day is the existing view, reached by clicking through. */
@@ -33,9 +35,6 @@ const LAYOUT_KEY = "calendar_year_layout";
 /** Sunday-first, matching the shipped `weekDays()` and the Week view. */
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/** A day is "not recorded" only when essentially none of it was watched (mirrors the Rust
- *  `MOSTLY_UNWATCHED_SECS`, which owns the number). */
-const UNRECORDED_SECS = 23 * 3600;
 
 export interface CalendarViewProps {
   date: Date;
@@ -65,6 +64,16 @@ export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProp
         const stored = rows.find((r) => r.key === LAYOUT_KEY)?.value;
         if (stored === "rows" || stored === "wall") setLayout(stored);
       })
+      .catch(() => undefined);
+  }, []);
+
+  // Slug → the user's name for each canonical category, so the legend follows a rename (D47).
+  const [dbNames, setDbNames] = useState<ReadonlyMap<string, string>>(new Map());
+  useEffect(() => {
+    void getCategories()
+      .then((rows) =>
+        setDbNames(new Map(rows.flatMap((c) => (c.slug ? [[c.slug, c.name] as const] : [])))),
+      )
       .catch(() => undefined);
   }, []);
 
@@ -164,18 +173,14 @@ export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProp
               key="rows"
               months={yearModel}
               currentMonth={currentMonth}
-              onOpenMonth={openMonth}
-              // One rung at a time: a bar in the Year opens its Month, and the Month opens the Day.
-              // Jumping from a 13px bar straight to a Day skipped the rung the ladder is named for.
-              onOpenDay={openMonth}
+              onOpen={openMonth}
             />
           ) : (
             <YearWall
               key="wall"
               months={yearModel}
               currentMonth={currentMonth}
-              onOpenMonth={openMonth}
-              onOpenDay={openMonth}
+              onOpen={openMonth}
             />
           )
         ) : rung === "month" && month.data ? (
@@ -190,7 +195,7 @@ export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProp
         ) : null}
       </div>
 
-      <Legend />
+      <Legend dbNames={dbNames} />
     </div>
   );
 }
@@ -322,13 +327,7 @@ function WallIcon() {
   );
 }
 
-// One formatter for every month cell, for the app's lifetime — constructing one per cell per
-// render is what `toLocaleDateString` does, and it is the slow part.
-const MONTH_DATE_FMT = new Intl.DateTimeFormat(undefined, {
-  weekday: "short",
-  day: "numeric",
-  month: "long",
-});
+const MONTH_NAME_FMT = new Intl.DateTimeFormat(undefined, { month: "long" });
 
 /** The middle rung: a dial per day, at the size that keeps R77's casing a real pixel. */
 const MonthGrid = memo(function MonthGrid({
@@ -351,21 +350,16 @@ const MonthGrid = memo(function MonthGrid({
     const today = new Date(now * 1000);
     return days.map((day) => {
       const date = new Date(day.day_start * 1000);
-      const future = day.day_start > now;
-      const unrecorded = day.coverage_known && day.unwatched_secs >= UNRECORDED_SECS;
-      const dateText = MONTH_DATE_FMT.format(date);
+      const state = dayState(day, now);
+      const dateText = DAY_DATE_FMT.format(date);
       return {
         day,
         date,
-        future,
-        unrecorded,
+        future: state === "future",
+        unrecorded: state === "unrecorded",
         isToday: isSameDay(date, today),
         dateText,
-        label: future
-          ? dateText
-          : unrecorded
-            ? `${dateText} · UsageOS wasn’t running`
-            : `${dateText} · ${day.active_secs > 0 ? formatDuration(day.active_secs) : "nothing tracked"}`,
+        label: dayLabel(day, state, dateText),
       };
     });
   }, [days, now]);
@@ -373,8 +367,8 @@ const MonthGrid = memo(function MonthGrid({
   // One listener for the grid; cells carry `data-day`.
   const onClick = useCallback(
     (event: React.MouseEvent<HTMLElement>) => {
-      const cell = (event.target as HTMLElement).closest<HTMLElement>("[data-day]");
-      if (cell?.dataset.day) onOpenDay(Number(cell.dataset.day));
+      const day = dayFromEvent(event);
+      if (day !== null) onOpenDay(day);
     },
     [onOpenDay],
   );
@@ -382,7 +376,11 @@ const MonthGrid = memo(function MonthGrid({
   return (
     <div className="cal-view">
       <div className="mb-5 flex border-[3px] border-edge">
-        <StatTile value={formatDuration(totalActive)} label="Tracked this month" className="px-[18px]" />
+        <StatTile
+          value={formatDuration(totalActive)}
+          label={days.length > 0 ? `Tracked in ${MONTH_NAME_FMT.format(new Date(days[0].day_start * 1000))}` : "Tracked"}
+          className="px-[18px]"
+        />
         <StatTile
           value={String(emptyDays)}
           label={emptyDays === 1 ? "Day with nothing tracked" : "Days with nothing tracked"}
@@ -468,23 +466,19 @@ const MonthGrid = memo(function MonthGrid({
 });
 
 /** Colour is category and nothing else, and every swatch carries its word (WCAG 1.4.1). */
-function Legend() {
-  const items = [
-    { label: "Work", var: "var(--c-deep)" },
-    { label: "Browsing", var: "var(--c-research)" },
-    { label: "Messaging", var: "var(--c-comms)" },
-    { label: "Entertainment", var: "var(--c-breaks)" },
-    { label: "Personal", var: "var(--c-personal)" },
-  ];
+function Legend({ dbNames }: { dbNames: ReadonlyMap<string, string> }) {
   return (
     <div className="mt-[18px] flex flex-wrap gap-2">
-      {items.map((item) => (
+      {CANONICAL_CATEGORIES.map((c) => (
         <span
-          key={item.label}
+          key={c.slug}
           className="flex items-center gap-[7px] border-2 border-edge bg-bg px-2.5 py-[5px] text-[11.5px] font-semibold uppercase tracking-[0.1em]"
         >
-          <span className="block h-2.5 w-2.5 border border-casing" style={{ background: item.var }} />
-          {item.label}
+          <span
+            className="block h-2.5 w-2.5 border border-casing"
+            style={{ background: categoryColorVar(c.slug) }}
+          />
+          {categoryDisplayName(c.slug, dbNames)}
         </span>
       ))}
       <span className="flex items-center gap-[7px] border-2 border-dashed border-edge bg-bg px-2.5 py-[5px] text-[11.5px] font-semibold uppercase tracking-[0.1em]">

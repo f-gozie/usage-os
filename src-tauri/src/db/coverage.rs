@@ -41,10 +41,11 @@ pub fn open_session(conn: &Connection, now: i64, version: &str) -> Result<i64> {
     Ok(conn.last_insert_rowid())
 }
 
-/// Bump this session's watermark. Called on the capture tick, throttled by the caller.
+/// Bump this session's watermark. Called on the capture tick, throttled by the caller. A beat
+/// also reopens the session if another launch of the app closed it as dead while it was running.
 pub fn touch_session(conn: &Connection, id: i64, now: i64) -> Result<()> {
     conn.execute(
-        "UPDATE watch_coverage SET last_seen = ?2 WHERE id = ?1",
+        "UPDATE watch_coverage SET last_seen = ?2, ended_at = NULL WHERE id = ?1",
         (id, now),
     )?;
     Ok(())
@@ -70,15 +71,21 @@ pub fn reconcile_open_sessions(conn: &Connection, except: i64) -> Result<usize> 
     Ok(n)
 }
 
-/// Coverage spans overlapping `[start, end)`, oldest first. A still-open session reads as covered
-/// up to its watermark.
-pub fn get_coverage(conn: &Connection, start: i64, end: i64) -> Result<Vec<CoverageSpan>> {
+/// Coverage spans overlapping `[start, end)`, oldest first. A still-open session belongs to a
+/// running app (startup closes any a dead process left open), so it reads as covered up to `now`:
+/// a Mac that slept doesn't read as an app that stopped, in the seconds before the next beat.
+pub fn get_coverage(
+    conn: &Connection,
+    start: i64,
+    end: i64,
+    now: i64,
+) -> Result<Vec<CoverageSpan>> {
     let mut stmt = conn.prepare(
-        "SELECT started_at, COALESCE(ended_at, last_seen) FROM watch_coverage
-         WHERE started_at < ?2 AND COALESCE(ended_at, last_seen) > ?1
+        "SELECT started_at, COALESCE(ended_at, MAX(last_seen, ?3)) FROM watch_coverage
+         WHERE started_at < ?2 AND COALESCE(ended_at, MAX(last_seen, ?3)) > ?1
          ORDER BY started_at",
     )?;
-    let rows = stmt.query_map((start, end), |row| {
+    let rows = stmt.query_map((start, end, now), |row| {
         Ok(CoverageSpan {
             start: row.get(0)?,
             end: row.get(1)?,
@@ -132,7 +139,8 @@ pub fn coverage_gaps(
         if span.end <= cursor {
             continue; // already covered, or entirely before the window
         }
-        if span.start > cursor && span.start - cursor >= GAP_MIN_SECS {
+        // Measured after clipping to the window, so a sliver at the day's edge isn't reported.
+        if span.start.min(to) - cursor >= GAP_MIN_SECS {
             gaps.push(CoverageGap {
                 start: cursor,
                 end: span.start.min(to),
@@ -270,15 +278,15 @@ mod tests {
         let id = open_session(&conn, T0, "0.1.3").unwrap();
         touch_session(&conn, id, T0 + 600).unwrap();
 
-        let spans = get_coverage(&conn, T0 - 10, T0 + DAY).unwrap();
+        let spans = get_coverage(&conn, T0 - 10, T0 + DAY, T0 + 700).unwrap();
         assert_eq!(
             spans,
-            vec![span(T0, T0 + 600)],
-            "an open session reads to its watermark"
+            vec![span(T0, T0 + 700)],
+            "an open session is a running app: covered up to now"
         );
 
         close_session(&conn, id, T0 + 900).unwrap();
-        let spans = get_coverage(&conn, T0 - 10, T0 + DAY).unwrap();
+        let spans = get_coverage(&conn, T0 - 10, T0 + DAY, T0 + 2000).unwrap();
         assert_eq!(spans, vec![span(T0, T0 + 900)]);
     }
 
@@ -292,7 +300,7 @@ mod tests {
         let live = open_session(&conn, T0 + DAY * 3, "0.1.3").unwrap();
         assert_eq!(reconcile_open_sessions(&conn, live).unwrap(), 1);
 
-        let spans = get_coverage(&conn, T0, T0 + DAY * 4).unwrap();
+        let spans = get_coverage(&conn, T0, T0 + DAY * 4, T0 + DAY * 3).unwrap();
         assert_eq!(
             spans,
             vec![span(T0, T0 + 1800), span(T0 + DAY * 3, T0 + DAY * 3)]
@@ -301,7 +309,7 @@ mod tests {
         // The days in between are wholly unrecorded — the bug this table exists for.
         let day2 = T0 + DAY;
         let gaps = coverage_gaps(
-            &get_coverage(&conn, day2, day2 + DAY).unwrap(),
+            &get_coverage(&conn, day2, day2 + DAY, T0 + DAY * 4).unwrap(),
             day2,
             day2 + DAY,
             T0 + DAY * 4,
@@ -321,9 +329,38 @@ mod tests {
         assert_eq!(reconcile_open_sessions(&conn, live).unwrap(), 0);
         touch_session(&conn, live, T0 + 60).unwrap();
         assert_eq!(
-            get_coverage(&conn, T0, T0 + DAY).unwrap(),
+            get_coverage(&conn, T0, T0 + DAY, T0 + 60).unwrap(),
             vec![span(T0, T0 + 60)]
         );
+    }
+
+    #[test]
+    fn a_running_app_closed_by_a_second_launch_reopens_on_its_next_beat() {
+        let conn = db();
+        let first = open_session(&conn, T0, "0.1.4").unwrap();
+        touch_session(&conn, first, T0 + 60).unwrap();
+        // A second launch reconciles the first as if it had died.
+        let second = open_session(&conn, T0 + 120, "0.1.4").unwrap();
+        reconcile_open_sessions(&conn, second).unwrap();
+        close_session(&conn, second, T0 + 130).unwrap();
+
+        // The first is still running; its next beat undoes that.
+        touch_session(&conn, first, T0 + 600).unwrap();
+        assert_eq!(
+            get_coverage(&conn, T0, T0 + DAY, T0 + 900).unwrap(),
+            vec![span(T0, T0 + 900), span(T0 + 120, T0 + 130)]
+        );
+    }
+
+    #[test]
+    fn a_sliver_at_the_edge_of_the_day_is_not_a_gap() {
+        // Covered until 100s before midnight; the next session starts the following day.
+        let spans = [
+            span(T0, T0 + DAY - 100),
+            span(T0 + DAY + 1000, T0 + DAY + 2000),
+        ];
+        let gaps = coverage_gaps(&spans, T0, T0 + DAY, T0 + DAY * 2, Some(T0));
+        assert!(gaps.is_empty(), "got {gaps:?}");
     }
 
     #[test]

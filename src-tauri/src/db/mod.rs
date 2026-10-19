@@ -1321,7 +1321,7 @@ mod tests {
         assert_eq!(first_coverage_start(&conn).unwrap(), Some(2000));
         // The live session's heartbeat still lands.
         touch_session(&conn, live, 2600).unwrap();
-        let spans = get_coverage(&conn, 0, 10_000).unwrap();
+        let spans = get_coverage(&conn, 0, 10_000, 2600).unwrap();
         assert_eq!(spans.len(), 1);
         assert_eq!((spans[0].start, spans[0].end), (2000, 2600));
     }

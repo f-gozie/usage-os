@@ -22,7 +22,7 @@ export function useMonthData(
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [key, monthEnd],
   );
-  return useViewData(fetchMonth, [key, monthEnd], live, "Couldn't load this month.", enabled);
+  return useViewData(fetchMonth, [key, monthEnd], live, "Couldn’t load this month.", enabled);
 }
 
 /** The computed Year view. Never polls: a year is 365 days of arithmetic and all but one of
@@ -37,5 +37,5 @@ export function useYearData(dayStarts: number[], yearEnd: number, enabled: boole
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [key, yearEnd],
   );
-  return useViewData(fetchYear, [key, yearEnd], false, "Couldn't load this year.", enabled);
+  return useViewData(fetchYear, [key, yearEnd], false, "Couldn’t load this year.", enabled);
 }

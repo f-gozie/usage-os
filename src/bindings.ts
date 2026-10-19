@@ -519,7 +519,11 @@ unwatched_secs: number;
  * Whether coverage was being recorded at all on this day. False for days that predate the
  * coverage log: we cannot say what happened, and must not imply failure.
  */
-coverage_known: boolean }
+coverage_known: boolean; 
+/**
+ * Essentially none of the day was watched (the threshold lives in Rust only — rule 6).
+ */
+unrecorded: boolean }
 /**
  * Everything the Day view needs, computed from one day of events.
  */
@@ -532,7 +536,11 @@ gaps: CoverageGap[];
 /**
  * Seconds of this day nobody was watching — the sum of `gaps`, computed in Rust (rule 6).
  */
-unwatched_secs: number }
+unwatched_secs: number; 
+/**
+ * Essentially none of the day was watched (the threshold lives in Rust only — rule 6).
+ */
+unrecorded: boolean }
 /**
  * A sensitive-handling rule (D8): match an app/site/title and either drop the
  * event (`mode = "exclude"`) or record time without title/url (`mode = "private"`).
@@ -645,7 +653,11 @@ export type TimelineView = { runs: TimelineRun[];
  * Seconds of this day UsageOS wasn't running, so an empty timeline can say which of the
  * two reasons it is (computed in Rust, hard rule 6).
  */
-unwatched_secs: number }
+unwatched_secs: number; 
+/**
+ * Essentially none of the day was watched (the threshold lives in Rust only — rule 6).
+ */
+unrecorded: boolean }
 /**
  * An app with tracked time that matches no rule — its `category_id` is NULL, so it
  * rolls up as "Uncategorized" (Other). Surfaced in Settings so the user can sort it
@@ -680,7 +692,11 @@ deepest_day: number | null }
  * anything was watching. No runs — a 24 h dial is illegible at a year cell's ~29px, so the
  * Year rung deliberately drops "when" rather than drawing it too small to read.
  */
-export type YearDay = { day_start: number; active_secs: number; categories: CategorySlice[]; unwatched_secs: number; coverage_known: boolean }
+export type YearDay = { day_start: number; active_secs: number; categories: CategorySlice[]; unwatched_secs: number; coverage_known: boolean; 
+/**
+ * Essentially none of the day was watched (the threshold lives in Rust only — rule 6).
+ */
+unrecorded: boolean }
 /**
  * A year of days. No totals, no averages, no best month: this is a field to look at, and
  * "long-range trends" is the part of the vision's out-of-scope line that still binds.

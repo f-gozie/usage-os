@@ -51,7 +51,7 @@ export function ExclusionModal({ open, onClose, onSaved }: ExclusionModalProps) 
       await onSaved();
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't add this exclusion.");
+      setError(e instanceof Error ? e.message : "Couldn’t add this exclusion.");
     } finally {
       setSaving(false);
     }

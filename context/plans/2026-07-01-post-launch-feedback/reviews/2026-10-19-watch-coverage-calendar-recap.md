@@ -72,10 +72,10 @@ Re-run after the auto-fixes below: all still green.
 - [x] "Delete all data" clears `watch_coverage`; the live session keeps its row, restarted at the wipe (+ test).
 - [x] Recap range from first/last activity, short end groups ignored; minimum measured inside the range; no "from X until X" (+ 3 tests).
 - [x] Past empty day: "Nothing was tracked on this day." (+ unwatched sentence, + test).
-- [x] Recap wording: prose durations without "0m", "including", "The time came…; the longest ran …". Not done: "starting around", the project sentence.
+- [x] Recap wording: prose durations without "0m", "including", "The time came…; the longest ran …". "starting around" and the project sentence done on `fix/review-followups`.
 - [x] Real day end for "still going"; local clock time for phrases (DST).
 - [x] `useViewData` stale data on range change / hidden rung.
-- [ ] Simplify: shared threshold, `MonthGrid` reuse of `yearModel`, legend from `CANONICAL_CATEGORIES`, shared per-day loop, split `compute_recap_facts`.
+- [x] Simplify: shared threshold, `MonthGrid` reuse of `yearModel`, legend from `CANONICAL_CATEGORIES`, shared per-day loop, split `compute_recap_facts` (the last done on the branch; the rest on `fix/review-followups`).
 
 ## Definition of Done
 
@@ -108,4 +108,8 @@ Then the two remaining behaviour Warnings:
 Gates after: fmt ✅ · clippy `--all-features` ✅ · cargo test ✅ 181 · tsc ✅ · vitest ✅ 96 · bindings fresh ✅.
 
 Still open from the Warnings: the duplicated 23-hour threshold, `MonthGrid` reuse, the hardcoded legend, the shared per-day loop, and the Info items.
+
+## Second follow-up (`fix/review-followups`, after v0.1.4 shipped)
+
+Every remaining Warning and the Info items with a user-visible effect, each tested: the Calendar legend follows renamed categories; "Tracked in {month}"; coverage reads a running app to now (wake from sleep), a heartbeat reopens a session a second launch closed, no edge slivers; browsers never named as places; break and project wording; curly apostrophes; the refresh tooltip; the week back-link label; one Rust-owned `unrecorded` flag; `MonthGrid` reuses `yearModel`; one `onOpen` for the Year layouts; `day_slices` shared by `get_week`/`get_month`; dead code and backstory comments; a WAL-safe dev backup. Left as is, deliberately: parts of the day that agree merge even when not adjacent ("The morning and evening went to Work"), which reads better than repeating the category; the comment now says so. Not addressed: `text-[7.5px]` in `YearLayouts.tsx` (legibility, needs eyes on device).
 
