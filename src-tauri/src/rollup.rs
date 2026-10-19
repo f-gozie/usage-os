@@ -201,16 +201,39 @@ fn category_of(
     }
 }
 
-/// Build the Day view from a day's events plus category/project name lookups. `day_start`
-/// is the day's local midnight (Unix secs, owned by the caller like `get_day`) — used only
-/// to phrase the recap's time-of-day ("in the morning"), never for bucketing.
+/// The day being read: its local bounds (owned by the caller, DST-correct, like `get_day`'s),
+/// the time now, and how to read a timestamp as local clock time — so a 23- or 25-hour day
+/// still phrases its hours right.
+#[derive(Clone, Copy)]
+pub struct DayFrame {
+    pub start: i64,
+    pub end: i64,
+    pub now: i64,
+    /// Seconds since local midnight at a Unix time (`local_clock::secs_of_day` in the app).
+    pub clock: fn(i64) -> i64,
+}
+
+impl DayFrame {
+    /// The Unix time at `secs` past local midnight on this day, from 0 up to 24h (the end).
+    fn at(&self, secs: i64) -> i64 {
+        let guess = self.start + secs;
+        (guess + secs - (self.clock)(guess)).clamp(self.start, self.end)
+    }
+
+    /// Seconds past local midnight at `t`.
+    fn clock_of(&self, t: i64) -> i64 {
+        (self.clock)(t)
+    }
+}
+
+/// Build the Day view from a day's events plus category/project name lookups. `day` frames
+/// the recap's clock phrases ("in the morning") — never the bucketing.
 pub fn build_day_view(
     events: &[ActivityLog],
     categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
-    day_start: i64,
+    day: DayFrame,
     gaps: Vec<CoverageGap>,
-    now: i64,
 ) -> DayView {
     let (active_secs, idle_secs, category_slices) = aggregate_categories(events, categories);
     let runs = build_runs(events, categories, projects);
@@ -221,8 +244,7 @@ pub fn build_day_view(
         slices: &category_slices,
         runs: &runs,
         gaps: &gaps,
-        day_start,
-        now,
+        frame: day,
         active_secs,
     });
     let recap = render_template_recap(&facts);
@@ -293,9 +315,8 @@ pub(crate) fn build_recap_facts(
     events: &[ActivityLog],
     categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
-    day_start: i64,
+    day: DayFrame,
     gaps: &[CoverageGap],
-    now: i64,
 ) -> RecapFacts {
     let (active_secs, _idle_secs, category_slices) = aggregate_categories(events, categories);
     let runs = build_runs(events, categories, projects);
@@ -305,8 +326,7 @@ pub(crate) fn build_recap_facts(
         slices: &category_slices,
         runs: &runs,
         gaps,
-        day_start,
-        now,
+        frame: day,
         active_secs,
     })
 }
@@ -959,9 +979,7 @@ struct DayInput<'a> {
     slices: &'a [CategorySlice],
     runs: &'a [CategoryRun],
     gaps: &'a [CoverageGap],
-    /// The local midnight, so `t - day_start` is the local time of day.
-    day_start: i64,
-    now: i64,
+    frame: DayFrame,
     active_secs: i64,
 }
 
@@ -979,7 +997,7 @@ fn compute_recap_facts(day: &DayInput) -> RecapFacts {
         .filter(|r| r.secs >= RECAP_MIN_FOCUS_SECS)
         .map(|r| FocusFact {
             secs: r.secs,
-            when: time_of_day_phrase((r.start - day.day_start) / 3600),
+            when: time_of_day_phrase(day.frame.clock_of(r.start) / 3600),
         });
 
     let mut active: Vec<&ActivityLog> = day
@@ -989,19 +1007,19 @@ fn compute_recap_facts(day: &DayInput) -> RecapFacts {
         .collect();
     active.sort_by_key(|e| e.start_time);
 
-    let (tail, main) = active.split_at(night_tail_len(&active, day.day_start));
+    let (tail, main) = active.split_at(night_tail_len(&active, day.frame.at(NIGHT_ENDS_SECS)));
     let tail_secs: i64 = tail.iter().map(|e| duration(e)).sum();
 
     let bounds = active_bounds(main);
     let span = bounds.and_then(|(from, to, inside)| {
-        let ongoing = day.now >= day.day_start && day.now < day.day_start + 86_400;
-        let (from, to) = (from - day.day_start, to - day.day_start);
+        let ongoing = day.frame.now >= day.frame.start && day.frame.now < day.frame.end;
+        let (from, to) = (day.frame.clock_of(from), day.frame.clock_of(to));
         // "From around 10 until around 10" says nothing; neither does a range around a few minutes.
         let says_something = ongoing || clock_phrase(from) != clock_phrase(to);
         (inside >= SPAN_MIN_ACTIVE_SECS && says_something).then_some(SpanFact { from, to, ongoing })
     });
     let longest_break =
-        bounds.and_then(|(from, to, _)| longest_break(main, from, to, day.gaps, day.day_start));
+        bounds.and_then(|(from, to, _)| longest_break(main, from, to, day.gaps, &day.frame));
 
     RecapFacts {
         active_secs: day.active_secs,
@@ -1016,9 +1034,9 @@ fn compute_recap_facts(day: &DayInput) -> RecapFacts {
             .filter(|_| tail_secs >= AFTER_MIDNIGHT_MIN_SECS)
             .map(|last| AfterMidnightFact {
                 secs: tail_secs,
-                until: last.end_time - day.day_start,
+                until: day.frame.clock_of(last.end_time),
             }),
-        parts: day_parts(&active, day.categories, day.day_start),
+        parts: day_parts(&active, day.categories, &day.frame),
         places: day
             .slices
             .iter()
@@ -1028,14 +1046,13 @@ fn compute_recap_facts(day: &DayInput) -> RecapFacts {
             .collect(),
         texture: texture_of(day.runs, day.active_secs),
         longest_break,
-        day_over: day.now >= day.day_start + 86_400,
+        day_over: day.frame.now >= day.frame.end,
     }
 }
 
 /// How many of the (sorted) events belong to the night before: activity ending before 5am that a
 /// gap of 3h+ separates from the rest of the day.
-fn night_tail_len(active: &[&ActivityLog], day_start: i64) -> usize {
-    let night_ends = day_start + NIGHT_ENDS_SECS;
+fn night_tail_len(active: &[&ActivityLog], night_ends: i64) -> usize {
     active
         .windows(2)
         .rposition(|w| {
@@ -1076,7 +1093,7 @@ fn longest_break(
     from: i64,
     to: i64,
     gaps: &[CoverageGap],
-    day_start: i64,
+    day: &DayFrame,
 ) -> Option<BreakFact> {
     let mut away_from = from;
     let mut best: Option<BreakFact> = None;
@@ -1092,7 +1109,7 @@ fn longest_break(
         {
             best = Some(BreakFact {
                 secs: back - away_from,
-                from: away_from - day_start,
+                from: day.clock_of(away_from),
             });
         }
         away_from = away_from.max(e.end_time);
@@ -1125,11 +1142,11 @@ fn texture_of(runs: &[CategoryRun], active_secs: i64) -> Option<Texture> {
 fn day_parts(
     active: &[&ActivityLog],
     categories: &HashMap<i64, CategoryMeta>,
-    day_start: i64,
+    day: &DayFrame,
 ) -> Vec<PartFact> {
     let mut parts: Vec<PartFact> = Vec::new();
     for (name, from, to) in PARTS {
-        let (from, to) = (day_start + from, day_start + to);
+        let (from, to) = (day.at(from), day.at(to));
         let mut totals: HashMap<String, i64> = HashMap::new();
         for e in active {
             let overlap = e.end_time.min(to) - e.start_time.max(from);
@@ -1498,6 +1515,20 @@ mod tests {
     /// A `now` long after the test day, so it reads as a finished day.
     const LATER: i64 = 10 * 86_400;
 
+    fn utc(t: i64) -> i64 {
+        t.rem_euclid(86_400)
+    }
+
+    /// The test day: midnight at 0, 24 hours long, read in UTC, seen at `now`.
+    fn day_at(now: i64) -> DayFrame {
+        DayFrame {
+            start: 0,
+            end: 86_400,
+            now,
+            clock: utc,
+        }
+    }
+
     /// Minimal event builder for tests.
     fn ev(
         start: i64,
@@ -1568,7 +1599,7 @@ mod tests {
             ev(600, 900, "Slack", Some(2), None),   // 5m comms
             idle(900, 1200),                        // 5m idle
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         assert_eq!(day.active_secs, 900);
         assert_eq!(day.idle_secs, 300);
         assert_eq!(day.categories.len(), 2);
@@ -1585,7 +1616,7 @@ mod tests {
             ev(300, 600, "Cursor", Some(1), Some(2)),
             ev(600, 900, "iTerm", Some(1), Some(1)),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         assert_eq!(day.runs.len(), 1);
         let run = &day.runs[0];
         assert_eq!(run.category_slug, "deep");
@@ -1604,7 +1635,7 @@ mod tests {
             ev(600, 900, "Slack", Some(2), None),
             ev(900, 1200, "Cursor", Some(1), Some(1)),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         assert_eq!(day.runs.len(), 3);
         assert_eq!(day.runs[1].category_slug, "comms");
         assert_eq!(day.runs[1].projects[0].name, "No project");
@@ -1623,14 +1654,14 @@ mod tests {
                 Some(1),
             ),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         assert_eq!(day.runs.len(), 2);
     }
 
     #[test]
     fn uncategorized_active_time_becomes_other_category() {
         let events = vec![ev(0, 600, "Unknown", None, None)];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         assert_eq!(day.categories[0].slug, "other");
         assert_eq!(day.categories[0].name, "Uncategorized");
         assert_eq!(day.runs[0].category_slug, "other");
@@ -1666,7 +1697,7 @@ mod tests {
             ev(600, 1200, "Books", Some(11), None), // Reading
             ev(1200, 1500, "Unknown", None, None),  // truly uncategorized
         ];
-        let day = build_day_view(&events, &cats, &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &cats, &proj_map(), day_at(LATER), vec![]);
         let by_name: HashMap<&str, &CategorySlice> = day
             .categories
             .iter()
@@ -1690,7 +1721,13 @@ mod tests {
 
     #[test]
     fn recap_is_empty_when_no_active_time() {
-        let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![], 3600);
+        let day = build_day_view(
+            &[idle(0, 600)],
+            &ctx_map(),
+            &proj_map(),
+            day_at(3600),
+            vec![],
+        );
         assert_eq!(day.recap.text, "No activity tracked today yet.");
         assert_eq!(day.recap.generated_by, "template");
     }
@@ -1821,7 +1858,7 @@ mod tests {
             start: 0,
             end: 86_400,
         }];
-        let day = build_day_view(&[], &ctx_map(), &proj_map(), 0, whole_day, LATER);
+        let day = build_day_view(&[], &ctx_map(), &proj_map(), day_at(LATER), whole_day);
         assert_eq!(
             day.recap.text,
             "UsageOS wasn’t running on this day, so there’s nothing to show."
@@ -1831,7 +1868,13 @@ mod tests {
 
     #[test]
     fn a_quiet_but_watched_day_still_reads_as_quiet() {
-        let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(
+            &[idle(0, 600)],
+            &ctx_map(),
+            &proj_map(),
+            day_at(LATER),
+            vec![],
+        );
         assert_eq!(day.recap.text, "Nothing was tracked on this day.");
         assert_eq!(day.unwatched_secs, 0);
     }
@@ -1846,9 +1889,8 @@ mod tests {
             &[ev(0, 7200, "Zed", Some(1), None)],
             &ctx_map(),
             &proj_map(),
-            0,
+            day_at(LATER),
             gaps,
-            LATER,
         );
         assert!(
             day.recap.text.starts_with("You were active from"),
@@ -1873,9 +1915,8 @@ mod tests {
             &[ev(0, 7200, "Zed", Some(1), None)],
             &ctx_map(),
             &proj_map(),
-            0,
+            day_at(LATER),
             gaps,
-            LATER,
         );
         assert!(
             !day.recap.text.contains("wasn’t running"),
@@ -1891,20 +1932,18 @@ mod tests {
             &[ev(0, 7200, "Zed", Some(1), None)],
             &ctx_map(),
             &proj_map(),
-            0,
+            day_at(LATER),
             &[],
-            LATER,
         );
         let with_sliver = build_recap_facts(
             &[ev(0, 7200, "Zed", Some(1), None)],
             &ctx_map(),
             &proj_map(),
-            0,
+            day_at(LATER),
             &[CoverageGap {
                 start: 50_000,
                 end: 50_060,
             }],
-            LATER,
         );
         assert_eq!(
             format_recap_prompt(&base),
@@ -1918,7 +1957,7 @@ mod tests {
             ev(0, 3600, "Cursor", Some(1), Some(1)), // 1h deep on usageos
             ev(3600, 4200, "Slack", Some(2), None),  // 10m comms
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         let t = &day.recap.text;
         assert!(t.contains("Deep work led at"), "leading category: {t}");
         assert!(t.contains("then Comms at"), "runner-up category: {t}");
@@ -1933,9 +1972,8 @@ mod tests {
             &[ev(0, 720, "Spotify", Some(2), None)],
             &ctx_map(),
             &proj_map(),
-            0,
+            day_at(LATER),
             vec![],
-            LATER,
         );
         let t = &day.recap.text;
         assert_eq!(t, "12m tracked. All of it was Comms.", "single category");
@@ -1968,7 +2006,7 @@ mod tests {
         let mut events = vec![ev(0, H, "Cursor", Some(1), None)];
         events.extend(alternating(9 * H, 12 * H));
         events.push(ev(17 * H, 23 * H, "Cursor", Some(1), None));
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         let t = &day.recap.text;
         assert!(
             t.starts_with("You were active from around 9 in the morning until around 11 at night, 10h in all, including 1h between midnight and around 1 at night."),
@@ -1985,7 +2023,7 @@ mod tests {
     fn today_is_still_going_so_it_never_says_until() {
         let events = vec![ev(8 * H, 10 * H, "Cursor", Some(1), None)];
         let now = 10 * H + 600;
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], now);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(now), vec![]);
         let t = &day.recap.text;
         assert!(
             t.starts_with("You’ve been active since around 8 in the morning, 2h so far."),
@@ -2000,7 +2038,7 @@ mod tests {
             ev(9 * H, 11 * H, "Cursor", Some(1), None),
             ev(14 * H, 16 * H, "Cursor", Some(1), None),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         assert!(
             day.recap
                 .text
@@ -2013,7 +2051,7 @@ mod tests {
             start: 12 * H,
             end: 13 * H,
         }];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, blind, LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), blind);
         assert!(!day.recap.text.contains("break"), "{}", day.recap.text);
     }
 
@@ -2024,7 +2062,7 @@ mod tests {
             ev(10 * H, 11 * H, "\u{200E}WhatsApp", Some(2), None),
             ev(11 * H, 11 * H + 300, "Arc", Some(3), None), // a browser with no site: not a place
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         let t = &day.recap.text;
         assert!(t.contains("Research was mostly on github.com"), "{t}");
         assert!(t.contains("Comms mostly in WhatsApp."), "{t}");
@@ -2039,7 +2077,7 @@ mod tests {
             ev(12 * H, 12 * H + 180, "Slack", Some(2), None), // too short to be a run of its own
             ev(14 * H, 16 * H, "Cursor", Some(1), None),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         assert!(
             day.recap
                 .text
@@ -2060,7 +2098,7 @@ mod tests {
             let t = 20 * H + i * 240;
             ev(t, t + 240, "Slack", Some(2 + i % 2), None)
         }));
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         let t = &day.recap.text;
         assert!(t.contains("until around 9 at night"), "{t}");
         assert!(
@@ -2075,7 +2113,7 @@ mod tests {
             ev(1800, 3 * H + 1800, "Cursor", Some(1), None),
             ev(10 * H, 10 * H + 600, "Cursor", Some(1), None),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         let t = &day.recap.text;
         assert!(!t.contains("active from"), "{t}");
         assert!(t.starts_with("3h 10m tracked."), "{t}");
@@ -2088,7 +2126,7 @@ mod tests {
             .map(|i| ev(i * 1260, i * 1260 + 900, "Claude", Some(1), None))
             .collect();
         events.push(ev(8 * H, 11 * H, "Claude", Some(1), None));
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         assert!(
             day.recap
                 .text
@@ -2098,13 +2136,55 @@ mod tests {
         );
     }
 
+    /// Spring forward at 2am: the clock jumps to 3am, so the day is 23 hours long.
+    fn spring_forward(t: i64) -> i64 {
+        if t < 2 * H {
+            t
+        } else {
+            (t + H).rem_euclid(86_400)
+        }
+    }
+
+    #[test]
+    fn a_23_hour_day_phrases_clock_times_and_parts_by_the_clock() {
+        // 8am on the clock is 7 hours after midnight on the day the clocks go forward.
+        let events = vec![ev(7 * H, 11 * H, "Cursor", Some(1), None)];
+        let day = DayFrame {
+            start: 0,
+            end: 23 * H,
+            now: LATER,
+            clock: spring_forward,
+        };
+        let view = build_day_view(&events, &ctx_map(), &proj_map(), day, vec![]);
+        assert!(
+            view.recap
+                .text
+                .starts_with("You were active from around 8 in the morning until around noon"),
+            "{}",
+            view.recap.text
+        );
+        assert!(
+            view.recap.text.contains("The morning went to Deep work."),
+            "{}",
+            view.recap.text
+        );
+
+        // An hour into the next day, the 23-hour day is over, not "so far".
+        let next_morning = DayFrame {
+            now: 23 * H + 1800,
+            ..day
+        };
+        let view = build_day_view(&events, &ctx_map(), &proj_map(), next_morning, vec![]);
+        assert!(!view.recap.text.contains("so far"), "{}", view.recap.text);
+    }
+
     #[test]
     fn a_glance_at_the_clock_does_not_start_the_day() {
         let events = vec![
             ev(6 * H, 6 * H + 60, "Clock", Some(2), None),
             ev(9 * H, 12 * H, "Cursor", Some(1), None),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         assert!(
             day.recap
                 .text
@@ -2120,7 +2200,7 @@ mod tests {
             start: 0,
             end: 20 * H,
         }];
-        let day = build_day_view(&[], &ctx_map(), &proj_map(), 0, gaps, LATER);
+        let day = build_day_view(&[], &ctx_map(), &proj_map(), day_at(LATER), gaps);
         assert_eq!(
             day.recap.text,
             "Nothing was tracked on this day. UsageOS wasn’t running for 20h of it."
@@ -2130,7 +2210,7 @@ mod tests {
     #[test]
     fn neighbouring_parts_that_agree_merge() {
         let events = vec![ev(9 * H, 16 * H, "Cursor", Some(1), None)];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         assert!(
             day.recap
                 .text
@@ -2155,7 +2235,7 @@ mod tests {
                 )
             })
             .collect();
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         assert!(
             day.recap
                 .text
@@ -2328,7 +2408,7 @@ mod tests {
             "the absorbed segment keeps its real category"
         );
         // Totals are independent of segmentation (D34): the 50s is still Comms in the ledger.
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         let comms_total = day
             .categories
             .iter()
@@ -2420,7 +2500,7 @@ mod tests {
             ev(650, 1200, "Cursor", Some(1), Some(1)),
             ev(1200, 1500, "Slack", Some(2), None), // tail comms — its own run
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), day_at(LATER), vec![]);
         let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(day.runs.len(), tl.runs.len());
         for (cr, tr) in day.runs.iter().zip(tl.runs.iter()) {

@@ -34,35 +34,12 @@ const FRAMES: [&[u8]; 24] = [
     include_bytes!("../icons/tray/now-23.png"),
 ];
 
-/// Current local hour (0..23). On macOS via libc `localtime_r` (no timezone crate — libc is already
-/// linked for `proc_pidinfo`). Any clock error falls back to 0; this only selects an icon frame.
-#[cfg(target_os = "macos")]
+/// Current local hour (0..23). It only selects an icon frame.
 pub fn local_hour() -> usize {
-    let secs = std::time::SystemTime::now()
+    let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0) as libc::time_t;
-    // SAFETY: `tm` is zero-initialised before the call; `localtime_r` fills it from a valid time_t
-    // and returns null only on failure, which we handle by falling back to hour 0.
-    let hour = unsafe {
-        let mut tm: libc::tm = std::mem::zeroed();
-        if libc::localtime_r(&secs, &mut tm).is_null() {
-            return 0;
-        }
-        tm.tm_hour
-    };
-    hour.rem_euclid(24) as usize
-}
-
-/// Non-macOS is not a shipped target (the product is macOS-only); the UTC hour just keeps the CI
-/// build compiling and runnable.
-#[cfg(not(target_os = "macos"))]
-pub fn local_hour() -> usize {
-    let secs = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    ((secs / 3600) % 24) as usize
+        .map_or(0, |d| d.as_secs() as i64);
+    (crate::local_clock::secs_of_day(now) / 3600).rem_euclid(24) as usize
 }
 
 /// The template image for a given hour (wraps at 24). `None` only if an embedded PNG fails to

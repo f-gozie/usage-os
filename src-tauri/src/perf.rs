@@ -614,19 +614,18 @@ mod tests {
 
             let (mut get_day, mut timeline, mut recap, mut week, mut day_build) =
                 (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+            let frame = rollup::DayFrame {
+                start: day_start,
+                end: day_end,
+                now: day_end,
+                clock: crate::local_clock::secs_of_day,
+            };
             for _ in 0..REPS {
                 // Each command is timed the way it actually runs: it re-runs get_activity_logs
                 // (commands don't share a fetched Vec — they each lock + query independently).
                 let t = Instant::now();
                 let events = db::get_activity_logs(&conn, day_start, day_end).expect("events");
-                let _ = rollup::build_day_view(
-                    &events,
-                    &categories,
-                    &projects,
-                    day_start,
-                    vec![],
-                    day_end,
-                );
+                let _ = rollup::build_day_view(&events, &categories, &projects, frame, vec![]);
                 get_day.push(ms_since(t));
 
                 let t = Instant::now();
@@ -636,8 +635,7 @@ mod tests {
 
                 let t = Instant::now();
                 let ev = db::get_activity_logs(&conn, day_start, day_end).expect("events");
-                let _ =
-                    rollup::build_recap_facts(&ev, &categories, &projects, day_start, &[], day_end);
+                let _ = rollup::build_recap_facts(&ev, &categories, &projects, frame, &[]);
                 recap.push(ms_since(t));
 
                 // week = 7 day-reads + build_day_slice each + build_week_view.
@@ -662,14 +660,7 @@ mod tests {
                 // day_build = pure rollup over the SAME pre-fetched events (no query) — isolates
                 // build cost so the query-vs-build split is unambiguous in the table.
                 let t = Instant::now();
-                let _ = rollup::build_day_view(
-                    &events,
-                    &categories,
-                    &projects,
-                    day_start,
-                    vec![],
-                    day_end,
-                );
+                let _ = rollup::build_day_view(&events, &categories, &projects, frame, vec![]);
                 day_build.push(ms_since(t));
             }
 

@@ -20,6 +20,8 @@ mod apps;
 mod permissions;
 // The menubar tray icon: the mono Contexts mark + a now-triangle pointing at the current hour.
 mod tray_icon;
+// Local time of day, for the tray hour and the recap's clock phrases.
+mod local_clock;
 // Start-at-login via SMAppService — the bundled agent keeps Login Items branded as UsageOS (D69).
 mod login_item;
 // macOS NSPanel reclass so the menubar glance floats over full-screen Spaces (D56).
@@ -151,10 +153,19 @@ fn get_day(
         &events,
         &categories,
         &projects,
-        start_time,
+        day_frame(start_time, end_time),
         gaps,
-        db::now_unix(),
     ))
+}
+
+/// The day `[start, end)` as the recap reads it: real bounds, now, and the local clock.
+fn day_frame(start: i64, end: i64) -> rollup::DayFrame {
+    rollup::DayFrame {
+        start,
+        end,
+        now: db::now_unix(),
+        clock: local_clock::secs_of_day,
+    }
 }
 
 /// Not called by the app since D74: the on-device model couldn't narrate the day-shape facts
@@ -192,9 +203,8 @@ async fn get_recap(
             &events,
             &categories,
             &projects,
-            start_time,
+            day_frame(start_time, end_time),
             &gaps,
-            db::now_unix(),
         );
         let fingerprint = rollup::recap_fingerprint(&facts);
         let cached = db::get_cached_recap(&conn, start_time, &fingerprint)?;
