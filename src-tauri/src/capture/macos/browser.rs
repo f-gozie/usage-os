@@ -2,8 +2,9 @@
 //!
 //! D8 invariant: an incognito/private window must never have its URL OR title recorded — the
 //! Chromium ladder reads `mode of front window` first and drops both if it isn't `"normal"`.
-//! Safari has no scriptable private-window property, so we treat it as a non-browser (keep its
-//! AX title, read no URL) rather than risk leaking a private one — the R18 safe default.
+//! A browser window that can't be proven non-private records neither either (D76): Safari and
+//! Firefox have no scriptable private-window property, and a Chromium browser whose script fails
+//! (Automation denied) can't be asked. The app and the time still count.
 
 use std::process::Command;
 
@@ -12,16 +13,19 @@ const OSASCRIPT: &str = "/usr/bin/osascript";
 /// What the front browser window is. Drives whether the caller keeps the AX title.
 #[derive(Debug, PartialEq, Eq)]
 pub enum BrowserUrl {
-    /// Not a scriptable Chromium browser (incl. Safari) — keep the AX title, no URL.
+    /// Not a browser — keep the AX title, no URL.
     NotBrowser,
     /// A normal (non-private) window: the front-tab URL if it could be read.
     Normal(Option<String>),
     /// A private/incognito window — the caller MUST omit BOTH the URL and the title.
     Private,
+    /// A browser window that can't be proven non-private — the caller MUST omit BOTH the URL and
+    /// the title, but it isn't marked private: nothing says it was.
+    Unverified,
 }
 
 /// Browser bundle id → its exact AppleScript application name (a wrong name silently fails).
-/// Chromium-family only; Safari is intentionally absent (the R18 safe default).
+/// Chromium-family only: the browsers that can say whether the front window is private.
 fn chromium_app_name(bundle_id: &str) -> Option<&'static str> {
     match bundle_id {
         "com.google.Chrome" | "com.google.Chrome.canary" => Some("Google Chrome"),
@@ -38,7 +42,11 @@ fn chromium_app_name(bundle_id: &str) -> Option<&'static str> {
 /// private window is classified without ever touching its URL (D8).
 pub fn inspect(bundle_id: &str) -> BrowserUrl {
     let Some(app) = chromium_app_name(bundle_id) else {
-        return BrowserUrl::NotBrowser;
+        return if is_unverifiable_browser(bundle_id) {
+            BrowserUrl::Unverified
+        } else {
+            BrowserUrl::NotBrowser
+        };
     };
     let script = format!(
         "tell application \"{app}\"\n\
@@ -48,16 +56,37 @@ pub fn inspect(bundle_id: &str) -> BrowserUrl {
          return \"URL\t\" & (URL of active tab of front window)\n\
          end tell"
     );
-    match run_osa(&script).as_deref() {
+    classify(run_osa(&script).as_deref())
+}
+
+/// Browsers with no scriptable private-window flag, so a window's privacy can never be proven.
+fn is_unverifiable_browser(bundle_id: &str) -> bool {
+    matches!(
+        bundle_id,
+        "com.apple.Safari"
+            | "com.apple.SafariTechnologyPreview"
+            | "org.mozilla.firefox"
+            | "org.mozilla.firefoxdeveloperedition"
+            | "org.mozilla.nightly"
+            | "org.torproject.torbrowser"
+            | "app.zen-browser.zen"
+            | "com.kagi.kagimacOS"
+            | "com.duckduckgo.macos.browser"
+            | "org.chromium.Chromium"
+    )
+}
+
+/// What the Chromium script's output proves. Only an explicit normal-window answer keeps the
+/// title; a failure (Automation denied, a spawn error) or anything unexpected fails closed.
+fn classify(output: Option<&str>) -> BrowserUrl {
+    match output {
         Some("PRIVATE") => BrowserUrl::Private,
+        Some("NOWIN") => BrowserUrl::Normal(None),
         Some(s) => match s.strip_prefix("URL\t") {
             Some(u) => BrowserUrl::Normal(Some(u.to_string())),
-            None => BrowserUrl::Normal(None), // NOWIN / unexpected — a normal browser, no URL
+            None => BrowserUrl::Unverified,
         },
-        // Denied Automation (-1743) / spawn error: a browser we couldn't read. Keep the AX title
-        // (can't prove it's private), no URL — the R18 safe default. The denial itself was
-        // already latched by `run_osa` so the health monitor can surface it (D71).
-        None => BrowserUrl::Normal(None),
+        None => BrowserUrl::Unverified,
     }
 }
 
@@ -91,7 +120,28 @@ fn run_osa(script: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::stderr_is_automation_denial;
+    use super::{classify, inspect, stderr_is_automation_denial, BrowserUrl};
+
+    #[test]
+    fn only_a_proven_normal_window_keeps_its_title() {
+        assert_eq!(
+            classify(Some("URL\thttps://github.com/x")),
+            BrowserUrl::Normal(Some("https://github.com/x".into()))
+        );
+        assert_eq!(classify(Some("NOWIN")), BrowserUrl::Normal(None));
+        assert_eq!(classify(Some("PRIVATE")), BrowserUrl::Private);
+        // Automation denied or the script failed: can't prove it isn't private.
+        assert_eq!(classify(None), BrowserUrl::Unverified);
+        assert_eq!(classify(Some("something else")), BrowserUrl::Unverified);
+    }
+
+    #[test]
+    fn safari_and_firefox_windows_are_never_trusted() {
+        // No osascript runs for these: they can't say whether a window is private.
+        assert_eq!(inspect("com.apple.Safari"), BrowserUrl::Unverified);
+        assert_eq!(inspect("org.mozilla.firefox"), BrowserUrl::Unverified);
+        assert_eq!(inspect("com.microsoft.VSCode"), BrowserUrl::NotBrowser);
+    }
 
     #[test]
     fn denial_stderr_is_recognised() {

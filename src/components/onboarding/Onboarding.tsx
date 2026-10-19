@@ -166,7 +166,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
                   items={[
                     ["var(--c-deep)", "It reads the address of the page you’re on — so it knows you were reading docs, not scrolling Reddit."],
                     ["var(--c-comms)", "You’re asked once for each browser. Private and incognito windows are never read."],
-                    ["var(--c-research)", "Optional — without it, UsageOS just uses the site name from the window title."],
+                    ["var(--c-research)", "Optional — without it, your browser time still counts, just not which pages it went to."],
                   ]}
                 />
                 <GrantBox

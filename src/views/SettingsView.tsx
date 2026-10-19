@@ -234,7 +234,7 @@ export function SettingsView() {
         </SettingRow>
         <SettingRow
           label="Automation"
-          description="Optional — lets it read the address of the page you're on, so a browser shows the site, not just “Browsing.” Private windows are never read."
+          description="Optional — lets it check a browser window isn’t private and read the page you’re on, so a browser shows the site, not just “Browsing.” Private windows are never read. Safari and Firefox can’t be checked, so they’re recorded as time only."
         >
           {permissions?.automation === "granted" ? (
             <GrantedPill />
