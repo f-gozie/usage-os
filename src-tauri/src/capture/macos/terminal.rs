@@ -9,6 +9,22 @@ use std::ffi::c_void;
 use std::process::Command;
 
 /// Resolve the cwd of the front terminal session, or `None`.
+/// Terminals. Some register to open web links and HTML files, so they would otherwise pass for a
+/// browser and lose their window titles (D76).
+pub fn is_terminal(bundle_id: &str) -> bool {
+    matches!(
+        bundle_id,
+        "com.apple.Terminal"
+            | "com.googlecode.iterm2"
+            | "com.mitchellh.ghostty"
+            | "dev.warp.Warp-Stable"
+            | "net.kovidgoyal.kitty"
+            | "io.alacritty"
+            | "com.github.wez.wezterm"
+            | "com.cmuxterm.app"
+    )
+}
+
 pub fn front_cwd(bundle_id: &str, terminal_pid: i32) -> Option<String> {
     match bundle_id {
         "com.googlecode.iterm2" => iterm2_cwd().or_else(|| newest_child_cwd(terminal_pid)),

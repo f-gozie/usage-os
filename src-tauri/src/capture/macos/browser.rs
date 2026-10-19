@@ -6,7 +6,13 @@
 //! Firefox have no scriptable private-window property, and a Chromium browser whose script fails
 //! (Automation denied) can't be asked. The app and the time still count.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::process::Command;
+
+use objc2_app_kit::NSWorkspace;
+use objc2_foundation::{NSBundle, NSString, NSURL};
+use objc2_uniform_type_identifiers::UTType;
 
 const OSASCRIPT: &str = "/usr/bin/osascript";
 
@@ -42,7 +48,7 @@ fn chromium_app_name(bundle_id: &str) -> Option<&'static str> {
 /// private window is classified without ever touching its URL (D8).
 pub fn inspect(bundle_id: &str) -> BrowserUrl {
     let Some(app) = chromium_app_name(bundle_id) else {
-        return if is_unverifiable_browser(bundle_id) {
+        return if is_unverifiable_browser(bundle_id) || opens_web_pages(bundle_id) {
             BrowserUrl::Unverified
         } else {
             BrowserUrl::NotBrowser
@@ -59,7 +65,50 @@ pub fn inspect(bundle_id: &str) -> BrowserUrl {
     classify(run_osa(&script).as_deref())
 }
 
+thread_local! {
+    /// Bundle id → whether macOS lists it as opening web pages. Asked once per app; a browser
+    /// installed later arrives under a new id, so it is still asked about.
+    static OPENS_WEB_PAGES: RefCell<HashMap<String, bool>> = RefCell::new(HashMap::new());
+}
+
+/// Any app that macOS lists as opening both web links and HTML files, other than a terminal, is a
+/// browser. A list of names can't keep up with new browsers (Comet, Dia, …); this can.
+fn opens_web_pages(bundle_id: &str) -> bool {
+    if super::terminal::is_terminal(bundle_id) {
+        return false;
+    }
+    if let Some(known) = OPENS_WEB_PAGES.with(|c| c.borrow().get(bundle_id).copied()) {
+        return known;
+    }
+    let found = handlers_of_web_pages().iter().any(|id| id == bundle_id);
+    OPENS_WEB_PAGES.with(|c| c.borrow_mut().insert(bundle_id.to_string(), found));
+    found
+}
+
+/// Bundle ids of the apps registered to open `https` links AND `public.html` files.
+fn handlers_of_web_pages() -> Vec<String> {
+    let workspace = NSWorkspace::sharedWorkspace();
+    let ids = |apps: &objc2_foundation::NSArray<NSURL>| -> Vec<String> {
+        apps.iter()
+            .filter_map(|app| NSBundle::bundleWithURL(&app)?.bundleIdentifier())
+            .map(|id| id.to_string())
+            .collect()
+    };
+    let Some(link) = NSURL::URLWithString(&NSString::from_str("https://example.com")) else {
+        return Vec::new();
+    };
+    let Some(html) = UTType::typeWithIdentifier(&NSString::from_str("public.html")) else {
+        return Vec::new();
+    };
+    let opens_html = ids(&workspace.URLsForApplicationsToOpenContentType(&html));
+    ids(&workspace.URLsForApplicationsToOpenURL(&link))
+        .into_iter()
+        .filter(|id| opens_html.contains(id))
+        .collect()
+}
+
 /// Browsers with no scriptable private-window flag, so a window's privacy can never be proven.
+/// A backstop for the registry check above, in case macOS can't answer it.
 fn is_unverifiable_browser(bundle_id: &str) -> bool {
     matches!(
         bundle_id,
@@ -133,6 +182,23 @@ mod tests {
         // Automation denied or the script failed: can't prove it isn't private.
         assert_eq!(classify(None), BrowserUrl::Unverified);
         assert_eq!(classify(Some("something else")), BrowserUrl::Unverified);
+    }
+
+    #[test]
+    fn a_browser_missing_from_every_list_is_still_found() {
+        // Comet and Dia are on neither list; on a Mac that has them, macOS says they open web
+        // pages. Skipped where they aren't installed.
+        for id in ["ai.perplexity.comet", "company.thebrowser.dia"] {
+            if super::handlers_of_web_pages().iter().any(|h| h == id) {
+                assert_eq!(inspect(id), BrowserUrl::Unverified, "{id}");
+            }
+        }
+        // The registry query itself works: Safari ships with every Mac.
+        assert!(super::handlers_of_web_pages()
+            .iter()
+            .any(|h| h == "com.apple.Safari"));
+        // A terminal that registers for web links keeps its titles.
+        assert_eq!(inspect("com.googlecode.iterm2"), BrowserUrl::NotBrowser);
     }
 
     #[test]
