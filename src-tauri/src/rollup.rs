@@ -375,8 +375,9 @@ pub struct MonthView {
     pub total_active_secs: i64,
     /// Days with any tracked activity at all.
     pub tracked_days: i64,
-    /// Days UsageOS was not running for essentially the whole of — the count the user is owed.
-    pub unrecorded_days: i64,
+    /// Finished days with nothing tracked at all, whatever the reason (D75). Only what is certain
+    /// is counted; where the reason is known, the day's own cell says "UsageOS wasn't running".
+    pub empty_days: i64,
 }
 
 /// One day at Year scale: a total, the category split that draws its stacked bar, and whether
@@ -398,23 +399,25 @@ pub struct YearView {
     pub days: Vec<YearDay>,
 }
 
-/// A day counts as unrecorded when essentially none of it was watched — the same threshold the
-/// recap uses to decide the day has no story rather than a partial one.
-pub const DAY_UNRECORDED_SECS: i64 = 23 * 3600;
-
-/// Month aggregates from the day slices (numbers in Rust, hard rule 6). Pure.
-pub fn build_month_view(days: Vec<DaySlice>) -> MonthView {
+/// Month aggregates from the day slices (numbers in Rust, hard rule 6). Pure. A day counts as
+/// empty only once it has ended (`month_end` closes the last day), so neither today nor the rest
+/// of the month is counted as nothing.
+pub fn build_month_view(days: Vec<DaySlice>, month_end: i64, now: i64) -> MonthView {
     let total_active_secs: i64 = days.iter().map(|d| d.active_secs).sum();
     let tracked_days = days.iter().filter(|d| d.active_secs > 0).count() as i64;
-    let unrecorded_days = days
+    let empty_days = days
         .iter()
-        .filter(|d| d.coverage_known && d.unwatched_secs >= DAY_UNRECORDED_SECS)
+        .enumerate()
+        .filter(|(i, d)| {
+            let end = days.get(i + 1).map_or(month_end, |next| next.day_start);
+            end <= now && d.active_secs == 0
+        })
         .count() as i64;
     MonthView {
         days,
         total_active_secs,
         tracked_days,
-        unrecorded_days,
+        empty_days,
     }
 }
 
@@ -1646,26 +1649,33 @@ mod tests {
     }
 
     #[test]
-    fn month_counts_tracked_and_unrecorded_days_separately() {
-        let month = build_month_view(vec![
-            slice(3600, 0, true),   // a normal day
-            slice(0, 0, true),      // watched all day, you just didn't touch it
-            slice(0, 86_400, true), // the app wasn't running
-            slice(0, 0, false),     // predates coverage — unknowable, not a failure
-        ]);
+    fn month_counts_finished_days_with_nothing_tracked_whatever_the_reason() {
+        let d = 86_400;
+        let mut days = vec![
+            slice(3600, 0, true), // a normal day
+            slice(0, 0, true),    // watched all day, you just didn't touch it
+            slice(0, d, true),    // the app wasn't running
+            slice(0, 0, false),   // predates coverage — the reason is unknowable, the fact isn't
+            slice(0, 0, true),    // today, not over yet
+            slice(0, 0, true),    // the rest of the month
+        ];
+        for (i, day) in days.iter_mut().enumerate() {
+            day.day_start = i as i64 * d;
+        }
+        let now = 4 * d + 3600;
+        let month = build_month_view(days, 6 * d, now);
         assert_eq!(month.total_active_secs, 3600);
         assert_eq!(month.tracked_days, 1);
         assert_eq!(
-            month.unrecorded_days, 1,
-            "only the day we KNOW nobody was watching counts"
+            month.empty_days, 3,
+            "only finished days, and every reason counts"
         );
     }
 
     #[test]
-    fn a_partly_blind_day_is_not_counted_as_unrecorded() {
-        // Six hours missing is a footnote on the day, not a missing day.
-        let month = build_month_view(vec![slice(7200, 6 * 3600, true)]);
-        assert_eq!(month.unrecorded_days, 0);
+    fn a_partly_blind_day_with_activity_is_not_empty() {
+        let month = build_month_view(vec![slice(7200, 6 * 3600, true)], 86_400, 2 * 86_400);
+        assert_eq!(month.empty_days, 0);
         assert_eq!(month.tracked_days, 1);
     }
 

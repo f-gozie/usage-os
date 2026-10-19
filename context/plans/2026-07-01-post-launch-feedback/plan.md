@@ -208,6 +208,10 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
       filter and leaving it restored the already-committed value, so it stuck; isolation is now
       click-only, which also means a cursor passing over rows while scrolling does nothing.
 - [x] Owner checked in the running app: Month default, back link, hover — "look good".
+- [x] **D75:** the Month tile read "0 days not recorded" above five empty days, because days
+      before the coverage log began are unknown and counted as zero. It now counts finished days
+      with nothing tracked ("Days with nothing tracked"); cells keep "Not recorded" for days the
+      log proves.
 
 ## Daily recap — the shape of the day (D74)
 

@@ -34,7 +34,7 @@ const LAYOUT_KEY = "calendar_year_layout";
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /** A day is "not recorded" only when essentially none of it was watched (mirrors the Rust
- *  `DAY_UNRECORDED_SECS`, which owns the number). */
+ *  `MOSTLY_UNWATCHED_SECS`, which owns the number). */
 const UNRECORDED_SECS = 23 * 3600;
 
 export interface CalendarViewProps {
@@ -176,7 +176,7 @@ export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProp
           key={monthStarts[0]}
           days={month.data.days}
           totalActive={month.data.total_active_secs}
-          unrecordedDays={month.data.unrecorded_days}
+          emptyDays={month.data.empty_days}
           now={now}
           onOpenDay={openDay}
         />
@@ -326,13 +326,13 @@ const MONTH_DATE_FMT = new Intl.DateTimeFormat(undefined, {
 const MonthGrid = memo(function MonthGrid({
   days,
   totalActive,
-  unrecordedDays,
+  emptyDays,
   now,
   onOpenDay,
 }: {
   days: DaySlice[];
   totalActive: number;
-  unrecordedDays: number;
+  emptyDays: number;
   now: number;
   onOpenDay: (dayStart: number) => void;
 }) {
@@ -376,8 +376,8 @@ const MonthGrid = memo(function MonthGrid({
       <div className="mb-5 flex border-[3px] border-edge">
         <StatTile value={formatDuration(totalActive)} label="Tracked this month" className="px-[18px]" />
         <StatTile
-          value={String(unrecordedDays)}
-          label={unrecordedDays === 1 ? "Day not recorded" : "Days not recorded"}
+          value={String(emptyDays)}
+          label={emptyDays === 1 ? "Day with nothing tracked" : "Days with nothing tracked"}
           className="border-l-2 border-edge px-[18px]"
         />
       </div>

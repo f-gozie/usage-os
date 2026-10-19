@@ -28,7 +28,7 @@ vi.mock("@/hooks/useCalendarData", () => {
     })),
     total_active_secs: 29 * 3600,
     tracked_days: 29,
-    unrecorded_days: 1,
+    empty_days: 1,
   };
   return {
     useYearData: () => ({ data: YEAR, loading: false, error: null, refresh: () => {} }),
@@ -144,10 +144,10 @@ describe("CalendarView", () => {
     expect(getByRole("button", { name: "2026" })).toBeInTheDocument();
   });
 
-  it("names the month's unrecorded days rather than hiding them", () => {
+  it("counts empty days, and says which ones UsageOS wasn’t running for", () => {
     const { getByRole, getByText } = setup();
 
-    expect(getByText("Day not recorded")).toBeInTheDocument();
+    expect(getByText("Day with nothing tracked")).toBeInTheDocument();
     expect(getByRole("button", { name: /UsageOS wasn’t running/ })).toBeInTheDocument();
   });
 

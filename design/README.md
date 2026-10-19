@@ -22,7 +22,8 @@ for the three-way comparison of cell treatments (mini-dial vs stacked bar vs hea
 reason heat blocks were ruled out. **Both are now built** (D73) — the shipped Calendar follows these boards, with two differences
 worth recording: the app is **Sunday-first** (matching `weekDays()`; the boards drew Monday-first,
 and the app wins), and both Year layouts ship behind a user-facing switch rather than one being
-chosen.
+chosen. Since then the Month tile counts **days with nothing tracked** rather than days
+the app knows it missed (D75), and the Calendar opens on Month rather than Year.
 
 Two things these boards measured that are worth keeping: an **80px dial** is the smallest size at
 which R77's 1px ink casing is still a real pixel (the casing is 1.25% of rendered size), and at

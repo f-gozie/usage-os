@@ -294,7 +294,7 @@ fn get_month(
             first_coverage.is_some_and(|f| f < end),
         ));
     }
-    Ok(rollup::build_month_view(days))
+    Ok(rollup::build_month_view(days, month_end, now))
 }
 
 /// Build the Year view — one bar per day for 365-odd days.

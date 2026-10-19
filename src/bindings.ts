@@ -567,9 +567,10 @@ export type MonthView = { days: DaySlice[]; total_active_secs: number;
  */
 tracked_days: number; 
 /**
- * Days UsageOS was not running for essentially the whole of — the count the user is owed.
+ * Finished days with nothing tracked at all, whatever the reason (D75). Only what is certain
+ * is counted; where the reason is known, the day's own cell says "UsageOS wasn't running".
  */
-unrecorded_days: number }
+empty_days: number }
 /**
  * One permission's state. Accessibility is a plain granted/not (`AXIsProcessTrusted`) so it
  * rides as a bool on [`Permissions`]; Automation is per-target and genuinely tri-state.
