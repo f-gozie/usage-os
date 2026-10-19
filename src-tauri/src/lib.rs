@@ -153,9 +153,14 @@ fn get_day(
         &projects,
         start_time,
         gaps,
+        db::now_unix(),
     ))
 }
 
+/// Not called by the app since D74: the on-device model couldn't narrate the day-shape facts
+/// faithfully, so the recap `get_day` returns is the recap. Kept so a better model can be
+/// re-evaluated against the same seam.
+///
 /// Narrate the day's recap for a `[start_time, end_time]` range with the on-device Foundation
 /// Models sidecar, falling back to the deterministic template (D48) on any failure (hard rule
 /// 6 / C5). Async + lazy by design (D11): `get_day` already returns the instant template
@@ -182,9 +187,15 @@ async fn get_recap(
         let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
         let events = db::get_activity_logs(&conn, start_time, end_time)?;
         let (categories, projects) = load_lookup_maps(&conn)?;
-        let unwatched = db::unwatched_secs(&day_coverage_gaps(&conn, start_time, end_time)?);
-        let facts =
-            rollup::build_recap_facts(&events, &categories, &projects, start_time, unwatched);
+        let gaps = day_coverage_gaps(&conn, start_time, end_time)?;
+        let facts = rollup::build_recap_facts(
+            &events,
+            &categories,
+            &projects,
+            start_time,
+            &gaps,
+            db::now_unix(),
+        );
         let fingerprint = rollup::recap_fingerprint(&facts);
         let cached = db::get_cached_recap(&conn, start_time, &fingerprint)?;
         (facts, fingerprint, cached)
@@ -1094,14 +1105,10 @@ pub fn run() {
 
             app.manage(db_conn.clone());
 
-            // Recap narrator: the FM sidecar behind `ai::Narrator`, managed for the lazy
-            // `get_recap` command. Prewarm off the main thread — best-effort; the template
-            // recap always covers a cold/missing model (D49/C5).
+            // Recap narrator: the FM sidecar behind `ai::Narrator`, managed for `get_recap`. The
+            // app doesn't call it (D74: the recap is written from the facts), so it is not
+            // prewarmed either — the model stays asleep unless something asks for it.
             app.manage(ai::sidecar::SidecarNarrator::new(app.handle().clone()));
-            let warm_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                ai::sidecar::prewarm(&warm_handle).await;
-            });
 
             // Claim this run in the coverage log before capture starts, and close out any session
             // a previous process left open — it died without saying so, so its last heartbeat is

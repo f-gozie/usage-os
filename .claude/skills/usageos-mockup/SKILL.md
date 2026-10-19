@@ -112,7 +112,7 @@ states that actually matter:
   inside the real component shape. Headers and labels never shimmer.
 - **error / retry**
 - **degraded** — a permission that was granted is now gone (the banner, the tray affordance)
-- **AI-on (prose recap) vs AI-off (`≡ Template`)** — both always
+- **the recap** on a full day, a day still going (“so far”), a tiny day and a partly-unwatched day — the app writes it from the facts (D74), so there is no AI-on/off pair
 - **private / excluded entries** — time and app only, never a title (D8)
 - hover · focus · active · disabled
 

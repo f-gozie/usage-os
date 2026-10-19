@@ -29,8 +29,15 @@ which R77's 1px ink casing is still a real pixel (the casing is 1.25% of rendere
 80px the month cells come out 126×130 inside a 984px frame — so the compliant size fits the
 window, at the cost of the month scrolling. Below that, the casing silently stops doing its job.
 
+**`recap.html`** — the daily recap as the shape of the day (D74). Six synthetic days with live
+thresholds; the facts and recaps on the board come from `recap-shape.js`, which mirrors the Rust.
+It also keeps the evidence for the decision: real on-device model output for the same facts, with
+each mistake marked. Option C (the app writes the recap) is built; A (the model narrates the richer
+facts) and B (the model polishes the app's draft) were set aside. The board loads its script by
+relative path, so open it from Finder or a local server; a pasted-in preview renders it empty.
+
 > **Palette drift:** most boards here predate D47 and still carry the four-category palette —
-> only `category-palette-5.html`, `menubar.html`, `month.html` and `calendar.html` have
+> only `category-palette-5.html`, `menubar.html`, `month.html`, `calendar.html` and `recap.html` have
 > `--c-personal`. Take your token preamble from one of those, not from the nearest file.
 
 ## `logo/` — the mark system

@@ -10,16 +10,18 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Template: Story = {
+export const FullDay: Story = {
   args: {
-    generatedBy: "template",
-    text: "4h 49m tracked. Deep work led at 3h 30m. Most of it on usageos.",
+    text: "You were active from around 8 in the morning until around midnight, 12h 45m in all, counting 1h 9m just after midnight. The morning went to Messaging and Browsing, the afternoon to Work and Browsing, and the evening to Work. Work was mostly in Figma and Linear; Browsing mostly on x.com. Your longest stretch ran 1h 46m at night.",
   },
 };
 
-export const OnDevice: Story = {
+export const SoFar: Story = {
   args: {
-    generatedBy: "foundation-models",
-    text: "A focused day. You gave usageos a clean 90-minute deep-work block before 9:30, then split the afternoon with nudge.",
+    text: "You’ve been active since around 8 in the morning, 3h 16m so far. The morning went to Work and Messaging. Work was mostly in Google Docs and Notion; Messaging mostly in Messages. It came in short pieces; the longest ran 30m in the morning.",
   },
+};
+
+export const Short: Story = {
+  args: { text: "8m tracked. Work led at 5m, then Messaging at 3m." },
 };

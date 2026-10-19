@@ -12,7 +12,6 @@ import { StatTile } from "@/components/ui/StatTile";
 import { Dial } from "@/components/dial/Dial";
 import { useCaptureHealth } from "@/hooks/useCaptureHealth";
 import { useDayData } from "@/hooks/useDayData";
-import { useRecap } from "@/hooks/useRecap";
 import { CANONICAL_CATEGORIES, categoryColorVar, categoryDisplayName } from "@/lib/categories";
 import { addDays, dayBounds, isSameDay } from "@/lib/dates";
 import { formatClock, formatDuration } from "@/lib/format";
@@ -33,9 +32,6 @@ export function DayView({ date, onDateChange, back }: DayViewProps) {
 
   const { data, loading, error, refresh } = useDayData(start, end, isToday);
   const { problem: captureProblem, refetch: recheckHealth } = useCaptureHealth([start]);
-  // The AI recap is fetched lazily, off the day-load path (D11); the card shows the instant
-  // template recap from `getDay` until this resolves, then upgrades in place.
-  const { recap: aiRecap, refetch: refetchRecap } = useRecap(start, end);
 
   const [selectedRun, setSelectedRun] = useState<CategoryRun | null>(null);
   const [isolated, setIsolated] = useState<string | null>(null);
@@ -47,13 +43,12 @@ export function DayView({ date, onDateChange, back }: DayViewProps) {
   }, [start]);
 
   // One refresh path — re-run the day data, re-check capture health (so the degraded banner
-  // clears once the watcher recovers — A9fe), and re-narrate the recap (un-polled). Used by the
-  // ↻ button, the degraded-banner Retry, and the error retry.
+  // clears once the watcher recovers — A9fe). Used by the ↻ button, the degraded-banner Retry,
+  // and the error retry.
   const refreshAll = useCallback(() => {
     refresh();
     recheckHealth();
-    refetchRecap();
-  }, [refresh, recheckHealth, refetchRecap]);
+  }, [refresh, recheckHealth]);
 
   const deepSecs = data?.categories.find((c) => c.slug === "deep")?.secs ?? 0;
   const researchSecs = data?.categories.find((c) => c.slug === "research")?.secs ?? 0;
@@ -124,12 +119,7 @@ export function DayView({ date, onDateChange, back }: DayViewProps) {
       ) : data ? (
         <>
           <div className="mb-5">
-            {/* Prefer the on-device AI prose once it lands; the template (always present) is
-                the instant floor until then, and the fallback if narration fails. */}
-            <RecapCard
-              text={(aiRecap ?? data.recap).text}
-              generatedBy={(aiRecap ?? data.recap).generated_by}
-            />
+            <RecapCard text={data.recap.text} />
           </div>
 
           <div className="grid grid-cols-1 items-center gap-[30px] md:grid-cols-[330px_1fr]">

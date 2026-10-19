@@ -26,7 +26,6 @@ vi.mock("@/hooks/useDayData", () => ({
 vi.mock("@/hooks/useCaptureHealth", () => ({
   useCaptureHealth: () => ({ healthy: true, problem: null, refetch: () => {} }),
 }));
-vi.mock("@/hooks/useRecap", () => ({ useRecap: () => ({ recap: null, refetch: () => {} }) }));
 vi.mock("@/lib/appIcons", () => ({ loadIconMap: () => Promise.resolve(), iconFor: () => null }));
 
 /** Ledger rows are the only `div` buttons on the page (chips and steppers are real buttons). */

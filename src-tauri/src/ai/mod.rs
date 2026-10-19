@@ -98,6 +98,7 @@ mod tests {
                 secs: 4320, // 1h 12m
                 when: "in the morning",
             }),
+            ..Default::default()
         }
     }
 
@@ -159,6 +160,7 @@ mod tests {
             second: None,
             leading_project: None,
             longest_focus: None,
+            ..Default::default()
         };
         // Even a "successful" model is bypassed — there's nothing to narrate.
         let fake = FakeNarrator::Prose("should not be used".into());

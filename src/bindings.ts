@@ -32,6 +32,10 @@ async getDay(startTime: number, endTime: number) : Promise<Result<DayView, AppEr
 }
 },
 /**
+ * Not called by the app since D74: the on-device model couldn't narrate the day-shape facts
+ * faithfully, so the recap `get_day` returns is the recap. Kept so a better model can be
+ * re-evaluated against the same seam.
+ * 
  * Narrate the day's recap for a `[start_time, end_time]` range with the on-device Foundation
  * Models sidecar, falling back to the deterministic template (D48) on any failure (hard rule
  * 6 / C5). Async + lazy by design (D11): `get_day` already returns the instant template

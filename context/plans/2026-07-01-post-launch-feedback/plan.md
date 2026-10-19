@@ -209,3 +209,24 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
       click-only, which also means a cursor passing over rows while scrolling does nothing.
 - [x] Owner checked in the running app: Month default, back link, hover — "look good".
 
+## Daily recap — the shape of the day (D74)
+
+- [x] Board: `design/recap.html` — six synthetic days with live thresholds (facts and recaps
+      computed by `design/recap-shape.js`, which mirrors the Rust), and the on-device model's
+      real output for the same facts with each mistake marked.
+- [x] Measured: the on-device model got 9 of 12 runs wrong when given the richer facts, echoed
+      a draft word for word in 17 of 18 polish runs, and failed a short shape-only prompt too.
+- [x] **Built option C:** Rust computes the day's span, after-midnight time, parts of the day,
+      apps/sites, long-stretches vs short-pieces, and the longest break, and writes the recap
+      from them. The Day view no longer calls `get_recap`; the model is not prewarmed; the recap
+      card has no badge.
+- [x] Checked against a copy of the real database (Oct 12–18); that run caught breaks being
+      measured between 5-minute runs only, fixed and pinned by a test.
+- [x] `perf.rs` (feature-gated) compiles again — it had fallen behind D72's signature changes,
+      which `clippy --all-features` (a merge gate) catches.
+- [x] Owner checked the new recap in the running app.
+- [ ] Open: every real day so far reads "It came in short pieces". True, but it may read as
+      repetitive; revisit the texture thresholds after a week of use.
+- [ ] Later, needs its own decision: an opt-in narrator using a model the user already runs
+      locally (Ollama / LM Studio), held to the same six days and a Rust check that every name,
+      number and time in its output appears in the facts.

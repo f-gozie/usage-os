@@ -210,17 +210,21 @@ pub fn build_day_view(
     projects: &HashMap<i64, String>,
     day_start: i64,
     gaps: Vec<CoverageGap>,
+    now: i64,
 ) -> DayView {
     let (active_secs, idle_secs, category_slices) = aggregate_categories(events, categories);
     let runs = build_runs(events, categories, projects);
     let unwatched_secs = crate::db::unwatched_secs(&gaps);
-    let facts = compute_recap_facts(
-        active_secs,
+    let facts = compute_recap_facts(&DayInput {
+        events,
+        categories,
+        slices: &category_slices,
+        runs: &runs,
+        gaps: &gaps,
         day_start,
-        &category_slices,
-        &runs,
-        unwatched_secs,
-    );
+        now,
+        active_secs,
+    });
     let recap = render_template_recap(&facts);
 
     DayView {
@@ -290,17 +294,21 @@ pub(crate) fn build_recap_facts(
     categories: &HashMap<i64, CategoryMeta>,
     projects: &HashMap<i64, String>,
     day_start: i64,
-    unwatched_secs: i64,
+    gaps: &[CoverageGap],
+    now: i64,
 ) -> RecapFacts {
     let (active_secs, _idle_secs, category_slices) = aggregate_categories(events, categories);
     let runs = build_runs(events, categories, projects);
-    compute_recap_facts(
-        active_secs,
+    compute_recap_facts(&DayInput {
+        events,
+        categories,
+        slices: &category_slices,
+        runs: &runs,
+        gaps,
         day_start,
-        &category_slices,
-        &runs,
-        unwatched_secs,
-    )
+        now,
+        active_secs,
+    })
 }
 
 /// One day's slice for the Week grid: per-day active + deep totals and the dial arcs. Reuses
@@ -792,11 +800,9 @@ pub struct FocusFact {
     pub when: &'static str,
 }
 
-/// The deterministic *facts* of a day — computed in Rust (hard rule 6). The template recap
-/// below phrases these; the Foundation Models sidecar (Phase 3 step 2 — see `ai`) reuses the
-/// same struct to narrate them, with the template as the always-available fallback. Only
-/// fields the recap actually uses live here (kept honest — we don't compute what we don't say).
-#[derive(Debug, Clone)]
+/// The deterministic *facts* of a day — computed in Rust (hard rule 6). The app writes the recap
+/// from these ([`render_template_recap`]); the on-device model is not called for it (D74).
+#[derive(Debug, Clone, Default)]
 pub struct RecapFacts {
     pub active_secs: i64,
     /// The biggest category by time, if any activity was tracked.
@@ -807,10 +813,93 @@ pub struct RecapFacts {
     pub leading_project: Option<String>,
     /// The longest continuous stretch, only when it's substantial (≥ [`RECAP_MIN_FOCUS_SECS`]).
     pub longest_focus: Option<FocusFact>,
-    /// Seconds of the day UsageOS wasn't running. A fact like any other: the narrator may phrase
-    /// it but never speculates about it, and the template always states it plainly.
+    /// Seconds of the day UsageOS wasn't running. A fact like any other: the recap states it
+    /// plainly and never speculates about it.
     pub unwatched_secs: i64,
+    /// When the day ran, from its first to its last real stretch of activity.
+    pub span: Option<SpanFact>,
+    /// Activity just after midnight that the night's sleep separates from the day proper.
+    pub after_midnight_secs: Option<i64>,
+    /// What each part of the day mostly went to, neighbouring parts that agree merged.
+    pub parts: Vec<PartFact>,
+    /// The apps and sites the top two categories mostly happened in.
+    pub places: Vec<PlacesFact>,
+    pub texture: Option<Texture>,
+    /// The longest time away inside the span — never a stretch UsageOS wasn't running.
+    pub longest_break: Option<BreakFact>,
 }
+
+/// Seconds since the day's local midnight, so the phrasing needs no time-zone library.
+#[derive(Debug, Clone)]
+pub struct SpanFact {
+    pub from: i64,
+    pub to: i64,
+    /// The day isn't over yet: the recap says "so far", never "until".
+    pub ongoing: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PartFact {
+    /// "morning", or merged: "morning and afternoon".
+    pub part: String,
+    /// One category, or two: "Messaging and Browsing".
+    pub what: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlacesFact {
+    pub category: String,
+    pub places: Vec<Place>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Place {
+    pub name: String,
+    /// A website ("on x.com") rather than an app ("in Figma").
+    pub is_site: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Texture {
+    LongStretches,
+    ShortPieces,
+}
+
+#[derive(Debug, Clone)]
+pub struct BreakFact {
+    pub secs: i64,
+    /// Seconds since midnight when it began.
+    pub from: i64,
+}
+
+// Day-shape thresholds (D74), tuned on `design/recap.html`.
+/// A day needs this much activity before its start and end are worth saying.
+const SPAN_MIN_ACTIVE_SECS: i64 = 3600;
+/// Runs shorter than this don't move the start or end (a glance at the clock at 6am).
+const SPAN_RUN_MIN_SECS: i64 = 5 * 60;
+/// Activity ending before this, then a long gap, belongs to the night before.
+const NIGHT_ENDS_SECS: i64 = 5 * 3600;
+const OVERNIGHT_GAP_SECS: i64 = 3 * 3600;
+const AFTER_MIDNIGHT_MIN_SECS: i64 = 15 * 60;
+/// Morning, afternoon and evening, in seconds since midnight. Before 5am is the night's.
+const PARTS: [(&str, i64, i64); 3] = [
+    ("morning", 5 * 3600, 12 * 3600),
+    ("afternoon", 12 * 3600, 17 * 3600),
+    ("evening", 17 * 3600, 24 * 3600),
+];
+const PART_MIN_ACTIVE_SECS: i64 = 45 * 60;
+/// One category is "mostly" a part at this share; two together at the second.
+const PART_ONE_PCT: i64 = 55;
+const PART_TWO_PCT: i64 = 65;
+/// An app or site is named only with this much time, and this share of its category.
+const PLACE_MIN_SECS: i64 = 20 * 60;
+const PLACE_MIN_PCT: i64 = 20;
+const LONG_STRETCH_SECS: i64 = 30 * 60;
+const TEXTURE_MIN_ACTIVE_SECS: i64 = 90 * 60;
+const TEXTURE_LONG_PCT: i64 = 60;
+const TEXTURE_SHORT_PCT: i64 = 25;
+const TEXTURE_SHORT_MIN_RUNS: usize = 8;
+const BREAK_MIN_SECS: i64 = 75 * 60;
 
 /// A rough, local time-of-day phrase for the recap, from the hour-of-day (0–23) of a run's
 /// start. Deliberately coarse — an honest "in the morning", not a false-precision clock time.
@@ -825,49 +914,286 @@ fn time_of_day_phrase(hour: i64) -> &'static str {
     }
 }
 
-/// Compute the day's recap facts from the already-aggregated slices/runs. `day_start` is the
-/// local midnight, so `(run.start - day_start) / 3600` is the local hour without a TZ library.
-fn compute_recap_facts(
-    active_secs: i64,
+/// A clock time rounded to the half hour, with a coarse part of day: "around 8:30 in the
+/// morning", "around noon", "around midnight". `secs` is seconds since midnight.
+fn clock_phrase(secs: i64) -> String {
+    let mins = (secs.clamp(0, 86_400) + 900) / 1800 * 30;
+    let (hour, minute) = ((mins / 60) % 24, mins % 60);
+    match (hour, minute) {
+        (0, 0) => return "around midnight".to_string(),
+        (12, 0) => return "around noon".to_string(),
+        _ => {}
+    }
+    let h12 = if hour % 12 == 0 { 12 } else { hour % 12 };
+    let clock = if minute == 0 {
+        h12.to_string()
+    } else {
+        format!("{h12}:30")
+    };
+    let part = match hour {
+        0..=4 => "at night",
+        5..=11 => "in the morning",
+        12..=16 => "in the afternoon",
+        17..=20 => "in the evening",
+        _ => "at night",
+    };
+    format!("around {clock} {part}")
+}
+
+/// Everything the facts are computed from. One struct so the two callers can't drift.
+struct DayInput<'a> {
+    events: &'a [ActivityLog],
+    categories: &'a HashMap<i64, CategoryMeta>,
+    slices: &'a [CategorySlice],
+    runs: &'a [CategoryRun],
+    gaps: &'a [CoverageGap],
+    /// The local midnight, so `t - day_start` is the local time of day.
     day_start: i64,
-    categories: &[CategorySlice],
-    runs: &[CategoryRun],
-    unwatched_secs: i64,
-) -> RecapFacts {
-    let leading = categories.first().map(|c| CategoryFact {
+    now: i64,
+    active_secs: i64,
+}
+
+fn compute_recap_facts(day: &DayInput) -> RecapFacts {
+    let category = |c: &CategorySlice| CategoryFact {
         name: c.name.clone(),
         secs: c.secs,
-    });
-    let second = categories
-        .get(1)
-        .filter(|c| c.secs > 0)
-        .map(|c| CategoryFact {
-            name: c.name.clone(),
-            secs: c.secs,
-        });
-    let longest_focus = runs
+    };
+    let leading = day.slices.first().map(category);
+    let second = day.slices.get(1).filter(|c| c.secs > 0).map(category);
+    let longest_focus = day
+        .runs
         .iter()
         .max_by_key(|r| r.secs)
         .filter(|r| r.secs >= RECAP_MIN_FOCUS_SECS)
         .map(|r| FocusFact {
             secs: r.secs,
-            when: time_of_day_phrase((r.start - day_start) / 3600),
+            when: time_of_day_phrase((r.start - day.day_start) / 3600),
         });
 
+    let mut active: Vec<&ActivityLog> = day
+        .events
+        .iter()
+        .filter(|e| !e.is_idle && duration(e) > 0)
+        .collect();
+    active.sort_by_key(|e| e.start_time);
+
+    // The night's tail: activity before 5am that a gap of 3h+ separates from the rest.
+    let night_ends = day.day_start + NIGHT_ENDS_SECS;
+    let tail_len = active
+        .windows(2)
+        .rposition(|w| {
+            w[0].end_time <= night_ends && w[1].start_time - w[0].end_time >= OVERNIGHT_GAP_SECS
+        })
+        .map_or(0, |i| i + 1);
+    let tail_secs: i64 = active[..tail_len].iter().map(|e| duration(e)).sum();
+    let day_begins = active[..tail_len].last().map(|e| e.end_time);
+
+    // The day's real stretches: past the tail, and long enough to move the start or end.
+    let real: Vec<&CategoryRun> = day
+        .runs
+        .iter()
+        .filter(|r| r.secs >= SPAN_RUN_MIN_SECS && !matches!(day_begins, Some(t) if r.start < t))
+        .collect();
+
+    let span = match (real.first(), real.last()) {
+        (Some(first), Some(last)) if day.active_secs >= SPAN_MIN_ACTIVE_SECS => Some(SpanFact {
+            from: first.start - day.day_start,
+            to: last.end - day.day_start,
+            ongoing: day.now >= day.day_start && day.now < day.day_start + 86_400,
+        }),
+        _ => None,
+    };
+
+    // Measured over every bit of activity, not just the runs that set the span: a few scattered
+    // minutes in the middle of an afternoon mean it wasn't a break.
+    let longest_break = match (real.first(), real.last()) {
+        (Some(first), Some(last)) => {
+            let mut away_from = first.start;
+            let mut best: Option<BreakFact> = None;
+            for e in &active[tail_len..] {
+                if e.end_time <= first.start || e.start_time >= last.end {
+                    continue;
+                }
+                let (from, to) = (away_from, e.start_time);
+                let blind = day.gaps.iter().any(|g| g.start < to && g.end > from);
+                if !blind
+                    && to - from >= BREAK_MIN_SECS
+                    && best.as_ref().is_none_or(|b| to - from > b.secs)
+                {
+                    best = Some(BreakFact {
+                        secs: to - from,
+                        from: from - day.day_start,
+                    });
+                }
+                away_from = away_from.max(e.end_time);
+            }
+            best
+        }
+        _ => None,
+    };
+
+    let texture = (day.active_secs >= TEXTURE_MIN_ACTIVE_SECS).then(|| {
+        let in_long: i64 = day
+            .runs
+            .iter()
+            .filter(|r| r.secs >= LONG_STRETCH_SECS)
+            .map(|r| r.secs)
+            .sum();
+        let pct = in_long * 100 / day.active_secs;
+        if pct >= TEXTURE_LONG_PCT {
+            Some(Texture::LongStretches)
+        } else if pct <= TEXTURE_SHORT_PCT && day.runs.len() >= TEXTURE_SHORT_MIN_RUNS {
+            Some(Texture::ShortPieces)
+        } else {
+            None
+        }
+    });
+
     RecapFacts {
-        active_secs,
+        active_secs: day.active_secs,
         leading,
         second,
-        leading_project: leading_project(runs, active_secs),
+        leading_project: leading_project(day.runs, day.active_secs),
         longest_focus,
-        unwatched_secs,
+        unwatched_secs: crate::db::unwatched_secs(day.gaps),
+        span,
+        after_midnight_secs: (tail_secs >= AFTER_MIDNIGHT_MIN_SECS).then_some(tail_secs),
+        parts: day_parts(&active, day.categories, day.day_start),
+        places: day
+            .slices
+            .iter()
+            .take(2)
+            .filter(|c| c.secs > 0)
+            .filter_map(|c| places_of(c, &active, day.categories))
+            .collect(),
+        texture: texture.flatten(),
+        longest_break,
     }
 }
 
-/// A plain, honest, deterministic recap — purely descriptive, never evaluative (the calm
-/// rear-view mirror, not a coach: no "productive"/"focused"/"distracted"). The Foundation
-/// Models prose (Phase 3 step 2 — see `ai::build_recap`) reuses [`RecapFacts`]; this is the
-/// always-available fallback.
+/// What each part of the day mostly went to. A part with too little activity, or no clear
+/// leader, says nothing rather than something vague.
+fn day_parts(
+    active: &[&ActivityLog],
+    categories: &HashMap<i64, CategoryMeta>,
+    day_start: i64,
+) -> Vec<PartFact> {
+    let mut parts: Vec<PartFact> = Vec::new();
+    for (name, from, to) in PARTS {
+        let (from, to) = (day_start + from, day_start + to);
+        let mut totals: HashMap<String, i64> = HashMap::new();
+        for e in active {
+            let overlap = e.end_time.min(to) - e.start_time.max(from);
+            if overlap > 0 {
+                *totals.entry(category_of(e, categories).1).or_insert(0) += overlap;
+            }
+        }
+        let total: i64 = totals.values().sum();
+        if total < PART_MIN_ACTIVE_SECS {
+            continue;
+        }
+        let mut ranked: Vec<(String, i64)> = totals.into_iter().collect();
+        ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        let what = match ranked.as_slice() {
+            [(one, secs), ..] if secs * 100 >= total * PART_ONE_PCT => one.clone(),
+            [(one, a), (two, b), ..] if (a + b) * 100 >= total * PART_TWO_PCT => {
+                format!("{one} and {two}")
+            }
+            _ => continue,
+        };
+        // Neighbouring parts that say the same thing merge: "afternoon and evening".
+        match parts.last_mut() {
+            Some(prev) if prev.what == what => prev.part = format!("{} and {name}", prev.part),
+            _ => parts.push(PartFact {
+                part: name.to_string(),
+                what,
+            }),
+        }
+    }
+    parts
+}
+
+/// The one or two apps or sites a category mostly happened in. A site names the place when
+/// there is one; a browser's own name never does (it says nothing the category doesn't).
+fn places_of(
+    slice: &CategorySlice,
+    active: &[&ActivityLog],
+    categories: &HashMap<i64, CategoryMeta>,
+) -> Option<PlacesFact> {
+    let browsers: Vec<&str> = active
+        .iter()
+        .filter(|e| e.site.is_some())
+        .map(|e| e.process_name.as_str())
+        .collect();
+    let mut totals: HashMap<(String, bool), i64> = HashMap::new();
+    for e in active {
+        if category_of(e, categories).0 != slice.slug {
+            continue;
+        }
+        let place = match e.site.as_deref().map(clean_label).filter(|s| !s.is_empty()) {
+            Some(site) => (site, true),
+            None if browsers.contains(&e.process_name.as_str()) => continue,
+            None => (clean_label(&e.process_name), false),
+        };
+        if !place.0.is_empty() {
+            *totals.entry(place).or_insert(0) += duration(e);
+        }
+    }
+    let mut ranked: Vec<((String, bool), i64)> = totals
+        .into_iter()
+        .filter(|(_, secs)| *secs >= PLACE_MIN_SECS && secs * 100 >= slice.secs * PLACE_MIN_PCT)
+        .collect();
+    ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    let places: Vec<Place> = ranked
+        .into_iter()
+        .take(2)
+        .map(|((name, is_site), _)| Place { name, is_site })
+        .collect();
+    (!places.is_empty()).then(|| PlacesFact {
+        category: slice.name.clone(),
+        places,
+    })
+}
+
+/// App names can carry invisible direction marks (WhatsApp's starts with U+200E); a recap
+/// sentence must not.
+fn clean_label(name: &str) -> String {
+    name.chars()
+        .filter(|c| {
+            !matches!(c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{FEFF}')
+        })
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+/// "a and b", or "a, b, and c".
+fn and_list(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [one] => one.clone(),
+        [a, b] => format!("{a} and {b}"),
+        [rest @ .., last] => format!("{}, and {last}", rest.join(", ")),
+    }
+}
+
+/// "in Figma and Linear", "on x.com", "in Slack and on github.com" — apps are in, sites are on.
+fn places_phrase(places: &[Place]) -> String {
+    let words: Vec<String> = places
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let same_kind = i > 0 && places[i - 1].is_site == p.is_site;
+            if same_kind {
+                p.name.clone()
+            } else {
+                format!("{} {}", if p.is_site { "on" } else { "in" }, p.name)
+            }
+        })
+        .collect();
+    and_list(&words)
+}
+
 /// Below this much missing time the gap isn't worth mentioning in prose — a reboot or a short
 /// crash doesn't change how the day reads.
 const RECAP_GAP_MENTION_SECS: i64 = 30 * 60;
@@ -876,48 +1202,110 @@ const RECAP_GAP_MENTION_SECS: i64 = 30 * 60;
 /// day still has a story; the missing stretch is a clause, not the headline.
 const MOSTLY_UNWATCHED_SECS: i64 = 23 * 3600;
 
+/// The recap: the shape of the day in plain sentences — when it ran, what each part went to,
+/// where, and how the time came. Purely descriptive, never evaluative (the calm rear-view
+/// mirror, not a coach: no "productive"/"focused"/"distracted", no comparison with other days).
 pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
     let text = match &facts.leading {
         // Nothing tracked. Which of the two reasons it is matters more than anything else the
-        // recap says: a day you rested and a day the recorder was dead are opposite facts, and
-        // for years this line reported them identically.
+        // recap says: a day you rested and a day the recorder was dead are opposite facts.
         None if facts.unwatched_secs >= MOSTLY_UNWATCHED_SECS => {
             "UsageOS wasn’t running on this day, so there’s nothing to show.".to_string()
         }
         None => "No activity tracked today yet.".to_string(),
         Some(leading) => {
             let total = human_secs(facts.active_secs);
-            let mut text = match &facts.second {
-                // One category all day.
-                None => format!("{total} tracked, all {}.", leading.name.to_lowercase()),
-                // Leading + runner-up.
-                Some(second) => format!(
-                    "{total} tracked. {} led at {}, then {} at {}.",
-                    leading.name,
-                    human_secs(leading.secs),
-                    second.name,
-                    human_secs(second.secs),
+            let counting = facts
+                .after_midnight_secs
+                .map(|secs| format!(", counting {} just after midnight", human_secs(secs)))
+                .unwrap_or_default();
+            let mut out = vec![match &facts.span {
+                Some(span) if span.ongoing => format!(
+                    "You’ve been active since {}, {total} so far{counting}.",
+                    clock_phrase(span.from)
                 ),
-            };
+                Some(span) => format!(
+                    "You were active from {} until {}, {total} in all{counting}.",
+                    clock_phrase(span.from),
+                    clock_phrase(span.to)
+                ),
+                None => format!("{total} tracked."),
+            }];
+
+            if facts.parts.is_empty() {
+                out.push(match &facts.second {
+                    Some(second) => format!(
+                        "{} led at {}, then {} at {}.",
+                        leading.name,
+                        human_secs(leading.secs),
+                        second.name,
+                        human_secs(second.secs),
+                    ),
+                    None => format!("All of it was {}.", leading.name),
+                });
+            } else {
+                // "The morning went to Messaging, the afternoon to Work and Browsing, and …"
+                let parts: Vec<String> = facts
+                    .parts
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| match i {
+                        0 => format!("The {} went to {}", p.part, p.what),
+                        _ => format!("the {} to {}", p.part, p.what),
+                    })
+                    .collect();
+                // Clauses take a comma even when there are two: a part's "what" may hold its own "and".
+                let sentence = match parts.as_slice() {
+                    [a, b] => format!("{a}, and {b}"),
+                    _ => and_list(&parts),
+                };
+                out.push(format!("{sentence}."));
+            }
+
+            if !facts.places.is_empty() {
+                let places: Vec<String> = facts
+                    .places
+                    .iter()
+                    .enumerate()
+                    .map(|(i, p)| {
+                        let verb = if i == 0 { " was" } else { "" };
+                        format!("{}{verb} mostly {}", p.category, places_phrase(&p.places))
+                    })
+                    .collect();
+                out.push(format!("{}.", places.join("; ")));
+            }
+
             if let Some(focus) = &facts.longest_focus {
-                text.push_str(&format!(
-                    " Your longest stretch ran {} {}.",
-                    human_secs(focus.secs),
-                    focus.when,
+                let (secs, when) = (human_secs(focus.secs), focus.when);
+                out.push(match facts.texture {
+                    Some(Texture::ShortPieces) => {
+                        format!("It came in short pieces; the longest ran {secs} {when}.")
+                    }
+                    Some(Texture::LongStretches) => {
+                        format!("Most of it came in long stretches, the longest {secs} {when}.")
+                    }
+                    None => format!("Your longest stretch ran {secs} {when}."),
+                });
+            }
+            if let Some(gap) = &facts.longest_break {
+                out.push(format!(
+                    "The longest break was {}, from {}.",
+                    human_secs(gap.secs),
+                    clock_phrase(gap.from)
                 ));
             }
             if let Some(project) = &facts.leading_project {
-                text.push_str(&format!(" Mostly on {project}."));
+                out.push(format!("Mostly on {project}."));
             }
             // Appended, never prepended: the day still had a shape, and this is a footnote about
             // the recorder, not a verdict on you. Stated plainly so the totals read as partial.
             if facts.unwatched_secs >= RECAP_GAP_MENTION_SECS {
-                text.push_str(&format!(
-                    " UsageOS wasn’t running for {} of it, so this is only part of the day.",
+                out.push(format!(
+                    "UsageOS wasn’t running for {} of it, so this is only part of the day.",
                     human_secs(facts.unwatched_secs),
                 ));
             }
-            text
+            out.join(" ")
         }
     };
 
@@ -1044,6 +1432,9 @@ fn leading_project(runs: &[CategoryRun], active_secs: i64) -> Option<String> {
 mod tests {
     use super::*;
 
+    /// A `now` long after the test day, so it reads as a finished day.
+    const LATER: i64 = 10 * 86_400;
+
     /// Minimal event builder for tests.
     fn ev(
         start: i64,
@@ -1114,7 +1505,7 @@ mod tests {
             ev(600, 900, "Slack", Some(2), None),   // 5m comms
             idle(900, 1200),                        // 5m idle
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
         assert_eq!(day.active_secs, 900);
         assert_eq!(day.idle_secs, 300);
         assert_eq!(day.categories.len(), 2);
@@ -1131,7 +1522,7 @@ mod tests {
             ev(300, 600, "Cursor", Some(1), Some(2)),
             ev(600, 900, "iTerm", Some(1), Some(1)),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
         assert_eq!(day.runs.len(), 1);
         let run = &day.runs[0];
         assert_eq!(run.category_slug, "deep");
@@ -1150,7 +1541,7 @@ mod tests {
             ev(600, 900, "Slack", Some(2), None),
             ev(900, 1200, "Cursor", Some(1), Some(1)),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
         assert_eq!(day.runs.len(), 3);
         assert_eq!(day.runs[1].category_slug, "comms");
         assert_eq!(day.runs[1].projects[0].name, "No project");
@@ -1169,14 +1560,14 @@ mod tests {
                 Some(1),
             ),
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
         assert_eq!(day.runs.len(), 2);
     }
 
     #[test]
     fn uncategorized_active_time_becomes_other_category() {
         let events = vec![ev(0, 600, "Unknown", None, None)];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
         assert_eq!(day.categories[0].slug, "other");
         assert_eq!(day.categories[0].name, "Uncategorized");
         assert_eq!(day.runs[0].category_slug, "other");
@@ -1212,7 +1603,7 @@ mod tests {
             ev(600, 1200, "Books", Some(11), None), // Reading
             ev(1200, 1500, "Unknown", None, None),  // truly uncategorized
         ];
-        let day = build_day_view(&events, &cats, &proj_map(), 0, vec![]);
+        let day = build_day_view(&events, &cats, &proj_map(), 0, vec![], LATER);
         let by_name: HashMap<&str, &CategorySlice> = day
             .categories
             .iter()
@@ -1236,7 +1627,7 @@ mod tests {
 
     #[test]
     fn recap_is_empty_when_no_active_time() {
-        let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![]);
+        let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![], LATER);
         assert_eq!(day.recap.text, "No activity tracked today yet.");
         assert_eq!(day.recap.generated_by, "template");
     }
@@ -1360,7 +1751,7 @@ mod tests {
             start: 0,
             end: 86_400,
         }];
-        let day = build_day_view(&[], &ctx_map(), &proj_map(), 0, whole_day);
+        let day = build_day_view(&[], &ctx_map(), &proj_map(), 0, whole_day, LATER);
         assert_eq!(
             day.recap.text,
             "UsageOS wasn’t running on this day, so there’s nothing to show."
@@ -1370,7 +1761,7 @@ mod tests {
 
     #[test]
     fn a_quiet_but_watched_day_still_reads_as_quiet() {
-        let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![]);
+        let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![], LATER);
         assert_eq!(day.recap.text, "No activity tracked today yet.");
         assert_eq!(day.unwatched_secs, 0);
     }
@@ -1387,9 +1778,10 @@ mod tests {
             &proj_map(),
             0,
             gaps,
+            LATER,
         );
         assert!(
-            day.recap.text.starts_with("2h 0m tracked"),
+            day.recap.text.starts_with("You were active from"),
             "the day's own story leads: {}",
             day.recap.text
         );
@@ -1413,6 +1805,7 @@ mod tests {
             &proj_map(),
             0,
             gaps,
+            LATER,
         );
         assert!(
             !day.recap.text.contains("wasn’t running"),
@@ -1429,14 +1822,19 @@ mod tests {
             &ctx_map(),
             &proj_map(),
             0,
-            0,
+            &[],
+            LATER,
         );
         let with_sliver = build_recap_facts(
             &[ev(0, 7200, "Zed", Some(1), None)],
             &ctx_map(),
             &proj_map(),
             0,
-            60,
+            &[CoverageGap {
+                start: 50_000,
+                end: 50_060,
+            }],
+            LATER,
         );
         assert_eq!(
             format_recap_prompt(&base),
@@ -1450,7 +1848,7 @@ mod tests {
             ev(0, 3600, "Cursor", Some(1), Some(1)), // 1h deep on usageos
             ev(3600, 4200, "Slack", Some(2), None),  // 10m comms
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
         let t = &day.recap.text;
         assert!(t.contains("Deep work led at"), "leading category: {t}");
         assert!(t.contains("then Comms at"), "runner-up category: {t}");
@@ -1467,10 +1865,166 @@ mod tests {
             &proj_map(),
             0,
             vec![],
+            LATER,
         );
         let t = &day.recap.text;
-        assert!(t.contains("tracked, all comms."), "single category: {t}");
+        assert_eq!(t, "12m tracked. All of it was Comms.", "single category");
         assert!(!t.contains("longest stretch"), "short day omits focus: {t}");
+    }
+
+    const H: i64 = 3600;
+
+    fn on_site(start: i64, end: i64, browser: &str, site: &str, category_id: i64) -> ActivityLog {
+        let mut e = ev(start, end, browser, Some(category_id), None);
+        e.site = Some(site.to_string());
+        e
+    }
+
+    /// Alternating 10-minute pieces of two categories, like a morning of email and reading.
+    fn alternating(from: i64, to: i64) -> Vec<ActivityLog> {
+        (from..to)
+            .step_by(600)
+            .enumerate()
+            .map(|(i, t)| match i % 2 {
+                0 => ev(t, t + 600, "Slack", Some(2), None),
+                _ => on_site(t, t + 600, "Arc", "news.example.org", 3),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_recap_tells_the_shape_of_a_day_that_changed_halfway() {
+        // A late night carried over, a morning of Comms and Research, then Deep work all evening.
+        let mut events = vec![ev(0, H, "Cursor", Some(1), None)];
+        events.extend(alternating(9 * H, 12 * H));
+        events.push(ev(17 * H, 23 * H, "Cursor", Some(1), None));
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let t = &day.recap.text;
+        assert!(
+            t.starts_with("You were active from around 9 in the morning until around 11 at night, 10h 0m in all, counting 1h 0m just after midnight."),
+            "{t}"
+        );
+        assert!(
+            t.contains("The morning went to Comms and Research, and the evening to Deep work."),
+            "{t}"
+        );
+        assert!(t.contains("Deep work was mostly in Cursor;"), "{t}");
+    }
+
+    #[test]
+    fn today_is_still_going_so_it_never_says_until() {
+        let events = vec![ev(8 * H, 10 * H, "Cursor", Some(1), None)];
+        let now = 10 * H + 600;
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], now);
+        let t = &day.recap.text;
+        assert!(
+            t.starts_with("You’ve been active since around 8 in the morning, 2h 0m so far."),
+            "{t}"
+        );
+        assert!(!t.contains("until"), "{t}");
+    }
+
+    #[test]
+    fn a_long_break_is_named_but_never_across_a_stretch_nobody_watched() {
+        let events = vec![
+            ev(9 * H, 11 * H, "Cursor", Some(1), None),
+            ev(14 * H, 16 * H, "Cursor", Some(1), None),
+        ];
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        assert!(
+            day.recap
+                .text
+                .contains("The longest break was 3h 0m, from around 11 in the morning."),
+            "{}",
+            day.recap.text
+        );
+
+        let blind = vec![CoverageGap {
+            start: 12 * H,
+            end: 13 * H,
+        }];
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, blind, LATER);
+        assert!(!day.recap.text.contains("break"), "{}", day.recap.text);
+    }
+
+    #[test]
+    fn places_name_sites_not_browsers_and_drop_invisible_marks() {
+        let events = vec![
+            on_site(9 * H, 10 * H, "Arc", "github.com", 3),
+            ev(10 * H, 11 * H, "\u{200E}WhatsApp", Some(2), None),
+            ev(11 * H, 11 * H + 300, "Arc", Some(3), None), // a browser with no site: not a place
+        ];
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let t = &day.recap.text;
+        assert!(t.contains("Research was mostly on github.com"), "{t}");
+        assert!(t.contains("Comms mostly in WhatsApp."), "{t}");
+        assert!(!t.contains("Arc"), "{t}");
+        assert!(!t.contains('\u{200E}'), "{t}");
+    }
+
+    #[test]
+    fn a_few_minutes_of_activity_split_a_break() {
+        let events = vec![
+            ev(9 * H, 11 * H, "Cursor", Some(1), None),
+            ev(12 * H, 12 * H + 180, "Slack", Some(2), None), // too short to be a run of its own
+            ev(14 * H, 16 * H, "Cursor", Some(1), None),
+        ];
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        assert!(
+            day.recap
+                .text
+                .contains("The longest break was 1h 57m, from around noon."),
+            "{}",
+            day.recap.text
+        );
+    }
+
+    #[test]
+    fn neighbouring_parts_that_agree_merge() {
+        let events = vec![ev(9 * H, 16 * H, "Cursor", Some(1), None)];
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        assert!(
+            day.recap
+                .text
+                .contains("The morning and afternoon went to Deep work."),
+            "{}",
+            day.recap.text
+        );
+    }
+
+    #[test]
+    fn a_day_of_short_pieces_says_so() {
+        // Eight 16-minute pieces, alternating: nothing near a long stretch.
+        let events: Vec<ActivityLog> = (0..8)
+            .map(|i| {
+                let t = 9 * H + i * 960;
+                ev(
+                    t,
+                    t + 960,
+                    if i % 2 == 0 { "Cursor" } else { "Slack" },
+                    Some(1 + i % 2),
+                    None,
+                )
+            })
+            .collect();
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        assert!(
+            day.recap
+                .text
+                .contains("It came in short pieces; the longest ran 16m in the morning."),
+            "{}",
+            day.recap.text
+        );
+    }
+
+    #[test]
+    fn clock_phrase_rounds_to_the_half_hour() {
+        assert_eq!(clock_phrase(0), "around midnight");
+        assert_eq!(clock_phrase(12 * H), "around noon");
+        assert_eq!(clock_phrase(8 * H + 20 * 60), "around 8:30 in the morning");
+        assert_eq!(clock_phrase(13 * H + 10 * 60), "around 1 in the afternoon");
+        assert_eq!(clock_phrase(23 * H + 50 * 60), "around midnight");
+        assert_eq!(clock_phrase(H + 1800), "around 1:30 at night");
     }
 
     #[test]
@@ -1626,7 +2180,7 @@ mod tests {
             "the absorbed segment keeps its real category"
         );
         // Totals are independent of segmentation (D34): the 50s is still Comms in the ledger.
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
         let comms_total = day
             .categories
             .iter()
@@ -1718,7 +2272,7 @@ mod tests {
             ev(650, 1200, "Cursor", Some(1), Some(1)),
             ev(1200, 1500, "Slack", Some(2), None), // tail comms — its own run
         ];
-        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![]);
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
         let tl = build_timeline(&events, &ctx_map(), &proj_map(), 0);
         assert_eq!(day.runs.len(), tl.runs.len());
         for (cr, tr) in day.runs.iter().zip(tl.runs.iter()) {
@@ -1745,6 +2299,7 @@ mod tests {
                 secs: 4320,
                 when: "in the morning",
             }),
+            ..Default::default()
         };
         // Deterministic: identical facts → identical key (the cache-hit guarantee).
         assert_eq!(recap_fingerprint(&base), recap_fingerprint(&base));

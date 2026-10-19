@@ -619,17 +619,25 @@ mod tests {
                 // (commands don't share a fetched Vec — they each lock + query independently).
                 let t = Instant::now();
                 let events = db::get_activity_logs(&conn, day_start, day_end).expect("events");
-                let _ = rollup::build_day_view(&events, &categories, &projects, day_start);
+                let _ = rollup::build_day_view(
+                    &events,
+                    &categories,
+                    &projects,
+                    day_start,
+                    vec![],
+                    day_end,
+                );
                 get_day.push(ms_since(t));
 
                 let t = Instant::now();
                 let ev = db::get_activity_logs(&conn, day_start, day_end).expect("events");
-                let _ = rollup::build_timeline(&ev, &categories, &projects);
+                let _ = rollup::build_timeline(&ev, &categories, &projects, 0);
                 timeline.push(ms_since(t));
 
                 let t = Instant::now();
                 let ev = db::get_activity_logs(&conn, day_start, day_end).expect("events");
-                let _ = rollup::build_recap_facts(&ev, &categories, &projects, day_start);
+                let _ =
+                    rollup::build_recap_facts(&ev, &categories, &projects, day_start, &[], day_end);
                 recap.push(ms_since(t));
 
                 // week = 7 day-reads + build_day_slice each + build_week_view.
@@ -639,7 +647,14 @@ mod tests {
                     let ds = day_start - (6 - i) * SECS_PER_DAY;
                     let de = ds + SECS_PER_DAY;
                     let wev = db::get_activity_logs(&conn, ds, de).expect("week events");
-                    slices.push(rollup::build_day_slice(ds, &wev, &categories, &projects));
+                    slices.push(rollup::build_day_slice(
+                        ds,
+                        &wev,
+                        &categories,
+                        &projects,
+                        0,
+                        true,
+                    ));
                 }
                 let _ = rollup::build_week_view(slices);
                 week.push(ms_since(t));
@@ -647,7 +662,14 @@ mod tests {
                 // day_build = pure rollup over the SAME pre-fetched events (no query) — isolates
                 // build cost so the query-vs-build split is unambiguous in the table.
                 let t = Instant::now();
-                let _ = rollup::build_day_view(&events, &categories, &projects, day_start);
+                let _ = rollup::build_day_view(
+                    &events,
+                    &categories,
+                    &projects,
+                    day_start,
+                    vec![],
+                    day_end,
+                );
                 day_build.push(ms_since(t));
             }
 
