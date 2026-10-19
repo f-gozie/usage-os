@@ -199,3 +199,13 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
 - [ ] Not boarded or built: keyboard traversal of the year grid, its focus ring, and what a
       screen reader announces cell by cell. Every cell has an accessible name today; 2-D arrow
       navigation does not exist.
+- [x] **After the owner used it:** the Calendar opens on the **Month** rung (Year is one click
+      up); a day opened from the Calendar or the Week shows a link back to it ("← October 2026",
+      "← Week of 12–18 October 2026"), cleared when the tabs are used directly. The Year layout
+      default was already the wall calendar; a saved `calendar_year_layout` overrides it, which is
+      the likely reason rows showed.
+- [x] Day view: hovering a "Where it went" row no longer filters. Entering a row committed the
+      filter and leaving it restored the already-committed value, so it stuck; isolation is now
+      click-only, which also means a cursor passing over rows while scrolling does nothing.
+- [x] Owner checked in the running app: Month default, back link, hover — "look good".
+

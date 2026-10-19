@@ -54,7 +54,7 @@ export interface CalendarViewProps {
  * exactly one thing at both rungs.
  */
 export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProps) {
-  const [rung, setRung] = useState<Rung>("year");
+  const [rung, setRung] = useState<Rung>("month");
   const [layout, setLayout] = useState<YearLayout>("wall");
 
   // Remembered across launches. A read failure just leaves the default — a missing preference

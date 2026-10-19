@@ -22,9 +22,11 @@ import { type CategoryRun } from "@/lib/tauri";
 export interface DayViewProps {
   date: Date;
   onDateChange: (date: Date) => void;
+  /** Set when the day was opened from the Week or Calendar: a link back to where you came from. */
+  back?: { label: string; onBack: () => void };
 }
 
-export function DayView({ date, onDateChange }: DayViewProps) {
+export function DayView({ date, onDateChange, back }: DayViewProps) {
   const { start, end } = useMemo(() => dayBounds(date), [date]);
   const isToday = isSameDay(date, new Date());
   const nowMinutes = isToday ? (Date.now() / 1000 - start) / 60 : null;
@@ -76,6 +78,18 @@ export function DayView({ date, onDateChange }: DayViewProps) {
 
   return (
     <div>
+      {back && (
+        <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.13em] text-muted">
+          <button
+            type="button"
+            onClick={back.onBack}
+            className="border-b-2 border-rule pb-0.5 hover:border-edge hover:text-fg"
+          >
+            ← {back.label}
+          </button>
+        </div>
+      )}
+
       <DateStepper
         title={
           isToday
@@ -165,7 +179,6 @@ export function DayView({ date, onDateChange }: DayViewProps) {
           <Ledger
             categories={data.categories}
             isolated={isolated}
-            onHover={setIsolated}
             onToggle={toggleIsolate}
           />
         </>
@@ -177,12 +190,10 @@ export function DayView({ date, onDateChange }: DayViewProps) {
 function Ledger({
   categories,
   isolated,
-  onHover,
   onToggle,
 }: {
   categories: { slug: string; name: string; secs: number; pct: number; color: string | null }[];
   isolated: string | null;
-  onHover: (slug: string | null) => void;
   onToggle: (slug: string) => void;
 }) {
   const rows = categories.filter((c) => c.secs > 0);
@@ -202,8 +213,6 @@ function Ledger({
             durationLabel={formatDuration(row.secs)}
             pct={Math.round(row.pct)}
             dimmed={isolated !== null && isolated !== row.slug}
-            onMouseEnter={() => onHover(row.slug)}
-            onMouseLeave={() => onHover(isolated)}
             onClick={() => onToggle(row.slug)}
           />
         ))}

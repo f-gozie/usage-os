@@ -66,15 +66,24 @@ beforeEach(() => updateSetting.mockClear());
 // counting renders, which does not vary with machine load.
 vi.setConfig({ testTimeout: 20_000 });
 
+/** The Calendar opens on the Month rung; most tests start by zooming out to the Year. */
+function toYear(getByRole: ReturnType<typeof setup>["getByRole"]) {
+  fireEvent.click(getByRole("button", { name: "year" }));
+}
+
 describe("CalendarView", () => {
-  it("opens on the year, with both layouts offered", () => {
+  it("opens on the month, and the year offers both layouts", () => {
     const { getByRole } = setup();
+    expect(getByRole("button", { name: "month" })).toHaveAttribute("aria-pressed", "true");
+
+    toYear(getByRole);
     expect(getByRole("button", { name: "Month rows" })).toBeInTheDocument();
     expect(getByRole("button", { name: "Wall calendar" })).toBeInTheDocument();
   });
 
   it("switches layout and remembers the choice", async () => {
     const { getByRole } = setup();
+    toYear(getByRole);
     const rows = getByRole("button", { name: "Month rows" });
     const wall = getByRole("button", { name: "Wall calendar" });
 
@@ -91,6 +100,7 @@ describe("CalendarView", () => {
   it("drills from a month name into that month, and the breadcrumb comes back", () => {
     const onDateChange = vi.fn();
     const { getByRole, getAllByRole } = setup({ onDateChange });
+    toYear(getByRole);
 
     fireEvent.click(getAllByRole("button", { name: "Sep" })[0]);
     expect(onDateChange).toHaveBeenCalled();
@@ -102,6 +112,7 @@ describe("CalendarView", () => {
   it("drills one rung at a time: a bar in the Year opens its Month, never the Day", () => {
     const onOpenDay = vi.fn();
     const { getAllByRole, getByRole } = setup({ onOpenDay });
+    toYear(getByRole);
 
     const bar = getAllByRole("button").find((b) => b.hasAttribute("data-day")) as HTMLElement;
     fireEvent.click(bar);
@@ -110,57 +121,51 @@ describe("CalendarView", () => {
     expect(getByRole("button", { name: "2026" })).toBeInTheDocument(); // on the Month rung
   });
 
-  it("opens the Day only from the Month rung", () => {
+  it("opens the Day from the Month rung", () => {
     const onOpenDay = vi.fn();
     const { getAllByRole } = setup({ onOpenDay });
 
-    fireEvent.click(getAllByRole("button", { name: "Sep" })[0]);
     const dayCell = getAllByRole("button").find((b) => b.hasAttribute("data-day")) as HTMLElement;
     fireEvent.click(dayCell);
 
     expect(onOpenDay).toHaveBeenCalledTimes(1);
   });
 
-  it("reaches the Month rung from a visible switch, without finding a month name", () => {
+  it("switches rungs from the visible Year | Month control", () => {
     const { getByRole } = setup();
     const month = getByRole("button", { name: "month" });
+
+    toYear(getByRole);
     expect(month).toHaveAttribute("aria-pressed", "false");
+    expect(getByRole("button", { name: "Wall calendar" })).toBeInTheDocument();
 
     fireEvent.click(month);
     expect(month).toHaveAttribute("aria-pressed", "true");
     expect(getByRole("button", { name: "2026" })).toBeInTheDocument();
-
-    fireEvent.click(getByRole("button", { name: "year" }));
-    expect(getByRole("button", { name: "Wall calendar" })).toBeInTheDocument();
   });
 
   it("names the month's unrecorded days rather than hiding them", () => {
-    const { getByRole, getByText, getAllByRole } = setup();
-    fireEvent.click(getAllByRole("button", { name: "Sep" })[0]);
+    const { getByRole, getByText } = setup();
 
     expect(getByText("Day not recorded")).toBeInTheDocument();
     expect(getByRole("button", { name: /UsageOS wasn’t running/ })).toBeInTheDocument();
   });
 
-  it("steps the range by year or by month depending on the rung", () => {
+  it("steps the range by month or by year depending on the rung", () => {
     const onDateChange = vi.fn();
-    const { getByRole, getAllByRole } = setup({ onDateChange });
+    const { getByRole } = setup({ onDateChange });
 
-    fireEvent.click(getByRole("button", { name: "Previous year" }));
-    expect(onDateChange.mock.calls[0][0].getFullYear()).toBe(2025);
+    fireEvent.click(getByRole("button", { name: "Previous month" }));
+    expect((onDateChange.mock.calls[0][0] as Date).getMonth()).toBe(7); // August
 
     onDateChange.mockClear();
-    fireEvent.click(getAllByRole("button", { name: "Sep" })[0]);
-    fireEvent.click(getByRole("button", { name: "Previous month" }));
-    const calls = onDateChange.mock.calls;
-    const stepped = calls[calls.length - 1][0] as Date;
-    expect(stepped.getMonth()).toBe(7); // August
+    toYear(getByRole);
+    fireEvent.click(getByRole("button", { name: "Previous year" }));
+    expect((onDateChange.mock.calls[0][0] as Date).getFullYear()).toBe(2025);
   });
 
-  it("offers a jump back to the current range, disabled when already there", () => {
+  it("offers a jump back to the current range, named for the rung", () => {
     const { getByRole } = setup({ date: new Date(2026, 8, 16) });
-    // 2026 is not the current year in the test clock's terms unless it is — either way the
-    // control exists and is named for the rung.
-    expect(getByRole("button", { name: "Go to this year" })).toBeInTheDocument();
+    expect(getByRole("button", { name: "Go to this month" })).toBeInTheDocument();
   });
 });
