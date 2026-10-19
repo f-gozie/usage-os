@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 mod categories;
+mod coverage;
 mod events;
 mod exclusions;
 mod projects;
@@ -19,6 +20,7 @@ mod recap;
 mod settings;
 
 pub use categories::*;
+pub use coverage::*;
 pub use events::*;
 pub use exclusions::*;
 pub use projects::*;
@@ -243,6 +245,92 @@ mod tests {
             rusqlite::params![app, start, start + secs, idle as i64, cat],
         )
         .unwrap();
+    }
+
+    const D: i64 = 86_400;
+
+    #[test]
+    fn day_category_totals_bucket_by_day_and_category() {
+        let conn = setup_test_db();
+        let starts = [0, D, 2 * D];
+        span(&conn, "Zed", 100, 3600, Some(1), false);
+        span(&conn, "Chrome", 4000, 1800, Some(2), false);
+        span(&conn, "Zed", D + 100, 600, Some(1), false);
+
+        let totals = get_day_category_totals(&conn, &starts, 3 * D).unwrap();
+        assert_eq!(
+            totals,
+            vec![
+                DayCategoryTotal {
+                    day: 0,
+                    category_id: Some(1),
+                    secs: 3600
+                },
+                DayCategoryTotal {
+                    day: 0,
+                    category_id: Some(2),
+                    secs: 1800
+                },
+                DayCategoryTotal {
+                    day: 1,
+                    category_id: Some(1),
+                    secs: 600
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_span_across_midnight_is_split_between_both_days() {
+        // The same rule get_activity_logs applies — counted where the time was actually spent,
+        // never whole on the day it started.
+        let conn = setup_test_db();
+        let starts = [0, D];
+        span(&conn, "Zed", D - 600, 1200, Some(1), false); // 10 min before, 10 min after
+
+        let totals = get_day_category_totals(&conn, &starts, 2 * D).unwrap();
+        assert_eq!(
+            totals,
+            vec![
+                DayCategoryTotal {
+                    day: 0,
+                    category_id: Some(1),
+                    secs: 600
+                },
+                DayCategoryTotal {
+                    day: 1,
+                    category_id: Some(1),
+                    secs: 600
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn day_category_totals_ignore_idle_and_clip_to_the_range() {
+        let conn = setup_test_db();
+        let starts = [D];
+        span(&conn, "Idle", D + 100, 3600, Some(1), true); // idle: never counted
+        span(&conn, "Zed", D - 300, 600, Some(1), false); // half before the range
+        let totals = get_day_category_totals(&conn, &starts, 2 * D).unwrap();
+        assert_eq!(
+            totals,
+            vec![DayCategoryTotal {
+                day: 0,
+                category_id: Some(1),
+                secs: 300
+            }],
+            "only the in-range, non-idle portion"
+        );
+    }
+
+    #[test]
+    fn day_category_totals_on_an_empty_range_are_empty_not_an_error() {
+        let conn = setup_test_db();
+        assert!(get_day_category_totals(&conn, &[], 0).unwrap().is_empty());
+        assert!(get_day_category_totals(&conn, &[0, D], D * 2)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
@@ -1196,7 +1284,7 @@ mod tests {
         create_exclusion(&conn, "app", "1Password", "exclude").unwrap();
         set_setting(&conn, "theme", "warm").unwrap();
 
-        delete_all_data(&mut conn).unwrap();
+        delete_all_data(&mut conn, 2000).unwrap();
 
         // Record gone (incl. cascaded aliases).
         assert!(get_activity_logs(&conn, 0, 9999).unwrap().is_empty());
@@ -1217,5 +1305,24 @@ mod tests {
             get_setting(&conn, "theme").unwrap(),
             Some("warm".to_string())
         );
+    }
+
+    #[test]
+    fn delete_all_data_forgets_when_the_app_ran_but_keeps_the_live_session() {
+        let mut conn = setup_test_db();
+        let old = open_session(&conn, 100, "0.1.3").unwrap();
+        close_session(&conn, old, 500).unwrap();
+        let live = open_session(&conn, 1000, "0.1.4").unwrap();
+        touch_session(&conn, live, 1500).unwrap();
+
+        delete_all_data(&mut conn, 2000).unwrap();
+
+        // No history before the wipe: the past reads as unknown, not as "wasn't running".
+        assert_eq!(first_coverage_start(&conn).unwrap(), Some(2000));
+        // The live session's heartbeat still lands.
+        touch_session(&conn, live, 2600).unwrap();
+        let spans = get_coverage(&conn, 0, 10_000).unwrap();
+        assert_eq!(spans.len(), 1);
+        assert_eq!((spans[0].start, spans[0].end), (2000, 2600));
     }
 }

@@ -6,21 +6,17 @@ export interface LedgerRowProps {
   durationLabel: string;
   pct: number;
   dimmed?: boolean;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
   onClick?: () => void;
 }
 
 /** A "where it went" row: swatch + name, a proportional bar, and the figure + percent.
- *  Hovering dims the others; clicking isolates the category. */
+ *  Clicking isolates the category; hovering does nothing, so a passing cursor never filters. */
 export function LedgerRow({
   name,
   colorVar,
   durationLabel,
   pct,
   dimmed = false,
-  onMouseEnter,
-  onMouseLeave,
   onClick,
 }: LedgerRowProps) {
   return (
@@ -33,8 +29,6 @@ export function LedgerRow({
         "grid-cols-[130px_1fr_118px]",
         dimmed && "opacity-30",
       )}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
       onClick={onClick}
       onKeyDown={
         onClick

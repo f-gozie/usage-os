@@ -150,6 +150,9 @@ pub fn default_source() -> Box<dyn CaptureSource> {
 /// How often the consumer wakes (with no events) to re-check idle and extend the open span —
 /// the resolution of tail time and the max lost on a crash.
 const TICK_SECS: i64 = 20;
+/// How often the consumer bumps the watch-coverage watermark. Coarser than the tick because it
+/// is not a liveness sample — it only bounds what an unclean exit may claim.
+const COVERAGE_BEAT_SECS: i64 = 60;
 /// Default input-idle gate (secs): past it with no input, the span closes. Generous enough that
 /// scroll/trackpad keep ordinary reading alive. Dogfood-tunable; see D39.
 const GATE_SECS: i64 = 120;
@@ -430,13 +433,14 @@ fn current_idle_secs() -> i64 {
 /// Drain focus events and self-tick into the repository until the channel closes. The idle gate
 /// is a wall-clock deadline checked on every wake (not the bare `recv_timeout` firing), so a
 /// chatty event stream while you're away can't starve the gate and balloon the span.
-pub fn consume(db_conn: DbConnection, rx: Receiver<FocusEvent>) {
+pub fn consume(db_conn: DbConnection, rx: Receiver<FocusEvent>, session: Option<i64>) {
     println!(
         "[Capture] consumer up (tick {}s, idle gate {}s)",
         TICK_SECS, GATE_SECS
     );
     let mut state = SpanState::default();
     let mut next_tick = db::now_unix() + TICK_SECS;
+    let mut next_beat = db::now_unix() + COVERAGE_BEAT_SECS;
 
     loop {
         let wait = (next_tick - db::now_unix()).max(0) as u64;
@@ -464,6 +468,14 @@ pub fn consume(db_conn: DbConnection, rx: Receiver<FocusEvent>) {
                 Ok(conn) => {
                     if let Err(e) = on_tick(&conn, &mut state, now, idle) {
                         eprintln!("[Capture] tick write failed: {}", e);
+                    }
+                    // The coverage watermark. Deliberately not every tick: its only job is to
+                    // bound what a process that dies without saying so can claim.
+                    if let (Some(id), true) = (session, now >= next_beat) {
+                        if let Err(e) = db::touch_session(&conn, id, now) {
+                            eprintln!("[Capture] coverage heartbeat failed: {}", e);
+                        }
+                        next_beat = now + COVERAGE_BEAT_SECS;
                     }
                 }
                 Err(e) => eprintln!("[Capture] db lock poisoned: {}", e),

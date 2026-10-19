@@ -16,6 +16,11 @@ export function polar(cx: number, cy: number, minutes: number, r: number): [numb
 
 /** SVG path for the arc from `aMin` to `bMin` on radius `r` (clockwise sweep). */
 export function arcPath(cx: number, cy: number, r: number, aMin: number, bMin: number): string {
+  // A whole day starts and ends at the same point, which SVG draws as nothing: two halves.
+  if (bMin - aMin >= MINUTES_PER_DAY) {
+    const mid = aMin + MINUTES_PER_DAY / 2;
+    return `${arcPath(cx, cy, r, aMin, mid)} ${arcPath(cx, cy, r, mid, bMin)}`;
+  }
   const largeArc = bMin - aMin > MINUTES_PER_DAY / 2 ? 1 : 0;
   const [x0, y0] = polar(cx, cy, aMin, r);
   const [x1, y1] = polar(cx, cy, bMin, r);

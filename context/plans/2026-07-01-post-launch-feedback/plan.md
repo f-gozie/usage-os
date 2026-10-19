@@ -117,3 +117,129 @@ a missing title, and a menu-bar app nobody opens has no banner surface.
       So an in-place updater install does not trip the revocation; the 2 Jul loss came from a
       manual DMG replace. The "notification fires on a witnessed loss" path is still unexercised.
 
+
+## Watch coverage — the app records when it wasn't watching (D72)
+
+Found by the owner on 2026-09-20: **2026-09-16 and 09-17 hold zero rows.** The app exited
+cleanly on 09-15 at 17:32:26 and did not run again until the 09-18 23:07 reboot brought it back
+via the login item. The Mac was in use on both days (lid opened 3× and 4×, per `pmset -g log`);
+there was no crash report and no jetsam kill. In ~90 days and 31,913 rows these are the **only**
+two fully-missing days, and the 77.6 h gap is 3.5× the next largest — every other gap is an
+ordinary overnight. So: a one-off outage, and a permanent class of silence.
+
+- [x] Migration `0009_watch_coverage.sql` — one row per app run (`started_at`, `last_seen`,
+      `ended_at`, `version`). Verified against a copy of the owner's real 31,913-row database.
+- [x] `db/coverage.rs` — open / touch / close / reconcile / read / prune, plus the pure
+      `coverage_gaps` derivation. 14 tests.
+- [x] Lifecycle: claim a session in `setup` before capture starts; reconcile any session a dead
+      process left open, at its watermark; close on `RunEvent::Exit` (catches ⌘Q, tray Quit,
+      glance Quit and shutdown alike).
+- [x] Heartbeat on the existing capture tick, throttled to 60 s. **A session is continuous** —
+      sleep suspends the process, so heartbeat gaps are not blindness; only the stretches
+      *between* sessions are. Otherwise every night would hatch.
+- [x] Read model: `DayView.gaps` + `unwatched_secs`, `DaySlice.unwatched_secs` +
+      `coverage_known`, `TimelineView.unwatched_secs`, `RecapFacts.unwatched_secs`.
+- [x] The empty-day copy splits into its two honest cases in Rust; a partly-blind day gets the
+      gap appended after its own story. The model prompt is unchanged on a fully-watched day, so
+      D52's cached recaps still hit.
+- [x] Dial renders a blind stretch as a **broken** track — solid faint = you were away,
+      interrupted = we weren't looking. Timeline + glance empty states follow.
+- [x] Retention prunes coverage with the events it describes, so a pruned day reads as
+      unknowable rather than as a failure.
+- [x] Gates: `cargo clippy -D warnings`, `cargo fmt --check`, 156 Rust tests, `tsc`, 46 TS
+      tests, bindings regenerated (never hand-edited).
+- [ ] **Not yet verified on device.** Needs a real run: the app must write a session row, the
+      heartbeat must advance, and a quit-then-relaunch must produce a reconciled span with no
+      phantom gap. Running `tauri dev` writes to the live database and applies 0009 to it.
+- [ ] **Found while verifying D72 on device — a downgrade silently bricks the app.**
+      `verify_applied_checksums(conn, !cfg!(debug_assertions))` makes a release build refuse to
+      start when the DB records a migration it doesn't ship ("do not downgrade"). That failure
+      then takes the silent path: `setup` returns `Err` → `build()` fails → `eprintln!` +
+      `std::process::exit(1)`, and in a `--hidden` login launch there is **no window, no tray, no
+      notification, and no recording** — indefinitely, with nothing to look at. Any rollback
+      (Homebrew cask, a Time Machine restore, running an older build once) arms it. The fix is
+      small: surface startup failure natively before exiting, and leave a marker the next
+      successful run can explain. Same silent-failure family as D72 itself.
+- [ ] Open: should the app self-restart? `KeepAlive` on the bundled agent **cannot** work —
+      D69's trampoline `setsid()`s the real process out of launchd's job, so launchd would
+      respawn the trampoline forever and never observe the app. A periodic supervisor plus a
+      recorded quit intent is the shape that would; it needs its own decision.
+- [ ] Open: ⌘Q is live (`tauri::Builder::default()` never disables the default macOS menu) one
+      key from the ⌘W that merely hides the window, and the glance has a bare one-click `Quit`
+      beside "Open UsageOS →". D72 makes their consequence visible; it does not make them
+      harder to hit.
+
+## Calendar — Year → Month → Day (designed, not built)
+
+- [x] Boards: `design/month.html` (the three cell treatments compared; heat blocks ruled out
+      because darkness-as-hours makes colour encode two things) and `design/calendar.html` (the
+      drill-down: Year as a bar per day, Month as a dial per day, one `Calendar` tab).
+- [x] Measured: the R77 ink casing is 1.25% of rendered size, so it is a true 1px only at an
+      **80px dial**; at 80px month cells come out 126×130 inside a 984px frame, so the compliant
+      size fits the window and the month scrolls. A year cell is ~29px, which is why Year cannot
+      use the dial at all.
+- [x] **Built (D73).** One `Calendar` tab between Week and Timeline, Year and Month as zoom rungs,
+      a breadcrumb as the navigation model, click-through to Day.
+- [x] **Both Year layouts ship and the user switches between them** — month rows (continuity) and
+      wall calendar (day-of-week alignment). Two icon buttons in the stepper row, each with an
+      accessible name *and* a tooltip; the choice persists in `calendar_year_layout`.
+- [x] Year uses a stacked bar per day, not a shrunken dial: at a ~29px cell the R77 casing would
+      render 0.36px and a 15-minute run would be sub-pixel. Height is geometry, so colour still
+      encodes exactly one thing and there is no intensity axis to read as a streak.
+- [x] Month keeps the dial at the verified-compliant 80px, in a Sunday-first grid matching the
+      shipped `weekDays()`. Two tiles only — time tracked and days not recorded.
+- [x] Deliberately absent: year totals, monthly averages, busiest month, category share, any
+      month-over-month comparison, and a month recap.
+- [x] Fixed 12 h bar ceiling — a bar means the same thing in January and July. Scaling to the
+      busiest day would make every year look equally full.
+- [x] Year is ONE bounded scan (`db::get_day_category_totals`), not 365 day reads, and never
+      polls; Month polls only while it is the current month.
+- [x] `vision.md` out-of-scope line amended: the **trends** ban kept verbatim (it is a value), the
+      **month view** exclusion dropped (it was sequencing, and v1 shipped).
+- [ ] Not boarded or built: keyboard traversal of the year grid, its focus ring, and what a
+      screen reader announces cell by cell. Every cell has an accessible name today; 2-D arrow
+      navigation does not exist.
+- [x] **After the owner used it:** the Calendar opens on the **Month** rung (Year is one click
+      up); a day opened from the Calendar or the Week shows a link back to it ("← October 2026",
+      "← Week of 12–18 October 2026"), cleared when the tabs are used directly. The Year layout
+      default was already the wall calendar; a saved `calendar_year_layout` overrides it, which is
+      the likely reason rows showed.
+- [x] Day view: hovering a "Where it went" row no longer filters. Entering a row committed the
+      filter and leaving it restored the already-committed value, so it stuck; isolation is now
+      click-only, which also means a cursor passing over rows while scrolling does nothing.
+- [x] Owner checked in the running app: Month default, back link, hover — "look good".
+- [x] **D75:** the Month tile read "0 days not recorded" above five empty days, because days
+      before the coverage log began are unknown and counted as zero. It now counts finished days
+      with nothing tracked ("Days with nothing tracked"); cells keep "Not recorded" for days the
+      log proves.
+
+## Daily recap — the shape of the day (D74)
+
+- [x] Board: `design/recap.html` — six synthetic days with live thresholds (facts and recaps
+      computed by `design/recap-shape.js`, which mirrors the Rust), and the on-device model's
+      real output for the same facts with each mistake marked.
+- [x] Measured: the on-device model got 9 of 12 runs wrong when given the richer facts, echoed
+      a draft word for word in 17 of 18 polish runs, and failed a short shape-only prompt too.
+- [x] **Built option C:** Rust computes the day's span, after-midnight time, parts of the day,
+      apps/sites, long-stretches vs short-pieces, and the longest break, and writes the recap
+      from them. The Day view no longer calls `get_recap`; the model is not prewarmed; the recap
+      card has no badge.
+- [x] Checked against a copy of the real database (Oct 12–18); that run caught breaks being
+      measured between 5-minute runs only, fixed and pinned by a test.
+- [x] `perf.rs` (feature-gated) compiles again — it had fallen behind D72's signature changes,
+      which `clippy --all-features` (a merge gate) catches.
+- [x] Owner checked the new recap in the running app.
+- [x] **Branch review** (`reviews/2026-10-19-watch-coverage-calendar-recap.md`): fixed the four
+      Criticals — a whole unwatched day drew no broken ring; "Delete all data" left the coverage
+      history; the recap's range ignored short activity at the day's ends; a few minutes after a
+      long night gave "from around 10 until around 10" — plus the recap wording (prose durations,
+      "including … between midnight and around 3 at night", "The time came…", a past empty day).
+      Calendar hover lift restored (animation fill). Then the daylight-saving clock (the recap
+      reads local clock time and the real day end via `DayFrame`) and stale Calendar data on
+      range changes (dimmed and inert until the new range loads). The remaining warnings are
+      code-shape ones, listed in the review.
+- [ ] Open: every real day so far reads "The time came in short pieces". True, but it may read as
+      repetitive; revisit the texture thresholds after a week of use.
+- [ ] Later, needs its own decision: an opt-in narrator using a model the user already runs
+      locally (Ollama / LM Studio), held to the same six days and a Rust check that every name,
+      number and time in its output appears in the facts.

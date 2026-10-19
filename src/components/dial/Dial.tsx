@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { categoryColorVar } from "@/lib/categories";
-import { formatDuration } from "@/lib/format";
+import { formatClock, formatDuration } from "@/lib/format";
 import { arcPath, DIAL_CENTER, DIAL_VIEWBOX, minutesSinceMidnight, polar } from "@/lib/geometry";
 import { summarizeRun } from "@/lib/runs";
-import type { CategoryRun } from "@/lib/tauri";
+import type { CategoryRun, CoverageGap } from "@/lib/tauri";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 const TRACK_RADIUS = 99;
@@ -22,6 +22,9 @@ interface Arc {
 
 export interface DialProps {
   runs: CategoryRun[];
+  /** Stretches of this day when UsageOS wasn't running — drawn as a broken track, so a
+   *  blind spot never reads as an idle one. */
+  gaps?: CoverageGap[];
   /** Local midnight (Unix secs) of the viewed day — the angular origin. */
   dayStartUnix: number;
   /** Current time in minutes past midnight, or null when not viewing today. */
@@ -45,6 +48,7 @@ interface Tip {
  *  selects the run. One orchestrated draw-in on load (skipped under reduced motion). */
 export function Dial({
   runs,
+  gaps = [],
   dayStartUnix,
   nowMinutes,
   activeLabel,
@@ -113,6 +117,27 @@ export function Dial({
     });
   }
 
+  // Blind stretches as arcs on the same track. Clipped to the day and skipped when too short
+  // to read, so a reboot doesn't leave a speck on the ring.
+  const gapArcs = useMemo(
+    () =>
+      gaps
+        .map((g) => {
+          const a = Math.max(0, minutesSinceMidnight(g.start, dayStartUnix));
+          const b = Math.min(1440, minutesSinceMidnight(g.end, dayStartUnix));
+          return { start: g.start, end: g.end, a, b };
+        })
+        .filter((g) => g.b - g.a >= 5)
+        .map((g) => ({
+          ...g,
+          d: arcPath(DIAL_CENTER, DIAL_CENTER, TRACK_RADIUS, g.a, g.b),
+          // Label off the clamped bounds, not the raw ones, so the arc and the hours it
+          // claims can never disagree.
+          label: `${formatClock(dayStartUnix + g.a * 60)}–${formatClock(dayStartUnix + g.b * 60)}`,
+        })),
+    [gaps, dayStartUnix],
+  );
+
   const nowTriangle = nowMinutes === null ? null : trianglePoints(nowMinutes);
 
   return (
@@ -126,6 +151,22 @@ export function Dial({
       >
         {/* idle track + edge rings */}
         <circle cx={DIAL_CENTER} cy={DIAL_CENTER} r={TRACK_RADIUS} fill="none" stroke="var(--track)" strokeWidth={20} />
+
+        {/* Stretches nobody was watching. A solid faint ring means "you were away"; a broken
+            one means "we weren't looking" — the same track, deliberately interrupted, so it
+            reads as an absence rather than an alarm. */}
+        {gapArcs.map((g) => (
+          <path
+            key={`${g.start}-${g.end}`}
+            d={g.d}
+            fill="none"
+            stroke="var(--bg)"
+            strokeWidth={20}
+            strokeDasharray="3 7"
+          >
+            <title>{`UsageOS wasn’t running · ${g.label}`}</title>
+          </path>
+        ))}
         <circle cx={DIAL_CENTER} cy={DIAL_CENTER} r={OUTER_RADIUS} fill="none" stroke="var(--edge)" strokeWidth={2} />
         <circle cx={DIAL_CENTER} cy={DIAL_CENTER} r={INNER_RADIUS} fill="none" stroke="var(--edge)" strokeWidth={2} />
 

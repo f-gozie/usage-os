@@ -32,6 +32,10 @@ async getDay(startTime: number, endTime: number) : Promise<Result<DayView, AppEr
 }
 },
 /**
+ * Not called by the app since D74: the on-device model couldn't narrate the day-shape facts
+ * faithfully, so the recap `get_day` returns is the recap. Kept so a better model can be
+ * re-evaluated against the same seam.
+ * 
  * Narrate the day's recap for a `[start_time, end_time]` range with the on-device Foundation
  * Models sidecar, falling back to the deterministic template (D48) on any failure (hard rule
  * 6 / C5). Async + lazy by design (D11): `get_day` already returns the instant template
@@ -62,6 +66,35 @@ async getRecap(startTime: number, endTime: number) : Promise<Result<Recap, AppEr
 async getWeek(dayStarts: number[], weekEnd: number) : Promise<Result<WeekView, AppError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_week", { dayStarts, weekEnd }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Build the Month view — one day-slice per day of the month plus the month's honest facts.
+ * `day_starts` are that month's local midnights (DST-correct, computed by the frontend exactly
+ * as `get_week`'s are); `month_end` is the exclusive end of the last day.
+ */
+async getMonth(dayStarts: number[], monthEnd: number) : Promise<Result<MonthView, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_month", { dayStarts, monthEnd }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Build the Year view — one bar per day for 365-odd days.
+ * 
+ * Deliberately NOT 365 calls to the day reader: one bounded aggregate scan supplies every day's
+ * category totals, and coverage is read once for the whole year and inverted per day. `runs` are
+ * not computed at all, because a 24 h dial is unreadable at a year cell's size and drawing one
+ * anyway would cost the scan without buying legibility.
+ */
+async getYear(dayStarts: number[], yearEnd: number) : Promise<Result<YearView, AppError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_year", { dayStarts, yearEnd }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -232,7 +265,7 @@ async exportEventsCsv() : Promise<Result<string, AppError>> {
 }
 },
 /**
- * Erase the captured record (events + derived projects/sites), preserving the user's
+ * Erase the captured record (events, derived projects/sites, when the app ran), preserving the user's
  * configuration (categories, rules, exclusions, settings). One transaction (see `db`).
  */
 async deleteAllData() : Promise<Result<null, AppError>> {
@@ -465,6 +498,10 @@ export type CategorySlice = { slug: string; name: string; secs: number; pct: num
  */
 color: string | null }
 /**
+ * A stretch with no coverage at all: the app was not running.
+ */
+export type CoverageGap = { start: number; end: number }
+/**
  * One day's compact summary for the Week view: a mini-dial's arcs plus the two totals
  * the week summary needs. `deep_secs` is carried so "deepest day" is a Rust number (rule 6).
  */
@@ -472,11 +509,30 @@ export type DaySlice = {
 /**
  * Local midnight (Unix secs) — the mini-dial's angular origin.
  */
-day_start: number; active_secs: number; deep_secs: number; runs: CategoryRun[] }
+day_start: number; active_secs: number; deep_secs: number; runs: CategoryRun[]; 
+/**
+ * Seconds of this day UsageOS wasn't running. 0 also means "we have no coverage record
+ * for this day" — callers distinguish the two with `coverage_known`.
+ */
+unwatched_secs: number; 
+/**
+ * Whether coverage was being recorded at all on this day. False for days that predate the
+ * coverage log: we cannot say what happened, and must not imply failure.
+ */
+coverage_known: boolean }
 /**
  * Everything the Day view needs, computed from one day of events.
  */
-export type DayView = { active_secs: number; idle_secs: number; categories: CategorySlice[]; runs: CategoryRun[]; recap: Recap }
+export type DayView = { active_secs: number; idle_secs: number; categories: CategorySlice[]; runs: CategoryRun[]; recap: Recap; 
+/**
+ * Stretches of this day when UsageOS wasn't running, so the dial can show a blind spot
+ * instead of implying an idle one. Empty for a day we have no coverage record for.
+ */
+gaps: CoverageGap[]; 
+/**
+ * Seconds of this day nobody was watching — the sum of `gaps`, computed in Rust (rule 6).
+ */
+unwatched_secs: number }
 /**
  * A sensitive-handling rule (D8): match an app/site/title and either drop the
  * event (`mode = "exclude"`) or record time without title/url (`mode = "private"`).
@@ -500,6 +556,21 @@ icon: string | null;
  * pre-suggest a category in the Uncategorized list — never to auto-assign.
  */
 suggested_slug: string | null }
+/**
+ * Everything the Month grid needs: one slice per day plus the two facts that are statements,
+ * not scores. Deliberately no "busiest day" and no category share — a superlative and a
+ * percentage are the first step toward a scoreboard, and this product cut scoring on purpose.
+ */
+export type MonthView = { days: DaySlice[]; total_active_secs: number; 
+/**
+ * Days with any tracked activity at all.
+ */
+tracked_days: number; 
+/**
+ * Finished days with nothing tracked at all, whatever the reason (D75). Only what is certain
+ * is counted; where the reason is known, the day's own cell says "UsageOS wasn't running".
+ */
+empty_days: number }
 /**
  * One permission's state. Accessibility is a plain granted/not (`AXIsProcessTrusted`) so it
  * rides as a bool on [`Permissions`]; Automation is per-target and genuinely tri-state.
@@ -569,7 +640,12 @@ title: string | null; secs: number }
  * Everything the Timeline view needs: the day's category-runs, each with its segments.
  * The "Away" idle gaps and the now-marker are derived on the frontend from run bounds.
  */
-export type TimelineView = { runs: TimelineRun[] }
+export type TimelineView = { runs: TimelineRun[]; 
+/**
+ * Seconds of this day UsageOS wasn't running, so an empty timeline can say which of the
+ * two reasons it is (computed in Rust, hard rule 6).
+ */
+unwatched_secs: number }
 /**
  * An app with tracked time that matches no rule — its `category_id` is NULL, so it
  * rolls up as "Uncategorized" (Other). Surfaced in Settings so the user can sort it
@@ -599,6 +675,17 @@ export type WeekView = { days: DaySlice[]; total_active_secs: number; avg_active
  * Index into `days` of the day with the most Deep-work time, or `None` if there was none.
  */
 deepest_day: number | null }
+/**
+ * One day at Year scale: a total, the category split that draws its stacked bar, and whether
+ * anything was watching. No runs — a 24 h dial is illegible at a year cell's ~29px, so the
+ * Year rung deliberately drops "when" rather than drawing it too small to read.
+ */
+export type YearDay = { day_start: number; active_secs: number; categories: CategorySlice[]; unwatched_secs: number; coverage_known: boolean }
+/**
+ * A year of days. No totals, no averages, no best month: this is a field to look at, and
+ * "long-range trends" is the part of the vision's out-of-scope line that still binds.
+ */
+export type YearView = { days: YearDay[] }
 
 /** tauri-specta globals **/
 

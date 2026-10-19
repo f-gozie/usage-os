@@ -12,7 +12,6 @@ import { StatTile } from "@/components/ui/StatTile";
 import { Dial } from "@/components/dial/Dial";
 import { useCaptureHealth } from "@/hooks/useCaptureHealth";
 import { useDayData } from "@/hooks/useDayData";
-import { useRecap } from "@/hooks/useRecap";
 import { CANONICAL_CATEGORIES, categoryColorVar, categoryDisplayName } from "@/lib/categories";
 import { addDays, dayBounds, isSameDay } from "@/lib/dates";
 import { formatClock, formatDuration } from "@/lib/format";
@@ -22,18 +21,17 @@ import { type CategoryRun } from "@/lib/tauri";
 export interface DayViewProps {
   date: Date;
   onDateChange: (date: Date) => void;
+  /** Set when the day was opened from the Week or Calendar: a link back to where you came from. */
+  back?: { label: string; onBack: () => void };
 }
 
-export function DayView({ date, onDateChange }: DayViewProps) {
+export function DayView({ date, onDateChange, back }: DayViewProps) {
   const { start, end } = useMemo(() => dayBounds(date), [date]);
   const isToday = isSameDay(date, new Date());
   const nowMinutes = isToday ? (Date.now() / 1000 - start) / 60 : null;
 
   const { data, loading, error, refresh } = useDayData(start, end, isToday);
   const { problem: captureProblem, refetch: recheckHealth } = useCaptureHealth([start]);
-  // The AI recap is fetched lazily, off the day-load path (D11); the card shows the instant
-  // template recap from `getDay` until this resolves, then upgrades in place.
-  const { recap: aiRecap, refetch: refetchRecap } = useRecap(start, end);
 
   const [selectedRun, setSelectedRun] = useState<CategoryRun | null>(null);
   const [isolated, setIsolated] = useState<string | null>(null);
@@ -45,13 +43,12 @@ export function DayView({ date, onDateChange }: DayViewProps) {
   }, [start]);
 
   // One refresh path — re-run the day data, re-check capture health (so the degraded banner
-  // clears once the watcher recovers — A9fe), and re-narrate the recap (un-polled). Used by the
-  // ↻ button, the degraded-banner Retry, and the error retry.
+  // clears once the watcher recovers — A9fe). Used by the ↻ button, the degraded-banner Retry,
+  // and the error retry.
   const refreshAll = useCallback(() => {
     refresh();
     recheckHealth();
-    refetchRecap();
-  }, [refresh, recheckHealth, refetchRecap]);
+  }, [refresh, recheckHealth]);
 
   const deepSecs = data?.categories.find((c) => c.slug === "deep")?.secs ?? 0;
   const researchSecs = data?.categories.find((c) => c.slug === "research")?.secs ?? 0;
@@ -76,6 +73,18 @@ export function DayView({ date, onDateChange }: DayViewProps) {
 
   return (
     <div>
+      {back && (
+        <div className="mb-4 text-[11px] font-semibold uppercase tracking-[0.13em] text-muted">
+          <button
+            type="button"
+            onClick={back.onBack}
+            className="border-b-2 border-rule pb-0.5 hover:border-edge hover:text-fg"
+          >
+            ← {back.label}
+          </button>
+        </div>
+      )}
+
       <DateStepper
         title={
           isToday
@@ -86,6 +95,8 @@ export function DayView({ date, onDateChange }: DayViewProps) {
         onPrev={() => onDateChange(addDays(date, -1))}
         onNext={() => onDateChange(addDays(date, 1))}
         onRefresh={refreshAll}
+        onLatest={() => onDateChange(new Date())}
+        latestLabel="Today"
         prevLabel="Previous day"
         nextLabel="Next day"
       />
@@ -108,17 +119,13 @@ export function DayView({ date, onDateChange }: DayViewProps) {
       ) : data ? (
         <>
           <div className="mb-5">
-            {/* Prefer the on-device AI prose once it lands; the template (always present) is
-                the instant floor until then, and the fallback if narration fails. */}
-            <RecapCard
-              text={(aiRecap ?? data.recap).text}
-              generatedBy={(aiRecap ?? data.recap).generated_by}
-            />
+            <RecapCard text={data.recap.text} />
           </div>
 
           <div className="grid grid-cols-1 items-center gap-[30px] md:grid-cols-[330px_1fr]">
             <Dial
               runs={data.runs}
+              gaps={data.gaps}
               dayStartUnix={start}
               nowMinutes={nowMinutes}
               activeLabel={formatDuration(activeSecs)}
@@ -162,7 +169,6 @@ export function DayView({ date, onDateChange }: DayViewProps) {
           <Ledger
             categories={data.categories}
             isolated={isolated}
-            onHover={setIsolated}
             onToggle={toggleIsolate}
           />
         </>
@@ -174,12 +180,10 @@ export function DayView({ date, onDateChange }: DayViewProps) {
 function Ledger({
   categories,
   isolated,
-  onHover,
   onToggle,
 }: {
   categories: { slug: string; name: string; secs: number; pct: number; color: string | null }[];
   isolated: string | null;
-  onHover: (slug: string | null) => void;
   onToggle: (slug: string) => void;
 }) {
   const rows = categories.filter((c) => c.secs > 0);
@@ -199,8 +203,6 @@ function Ledger({
             durationLabel={formatDuration(row.secs)}
             pct={Math.round(row.pct)}
             dimmed={isolated !== null && isolated !== row.slug}
-            onMouseEnter={() => onHover(row.slug)}
-            onMouseLeave={() => onHover(isolated)}
             onClick={() => onToggle(row.slug)}
           />
         ))}

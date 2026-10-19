@@ -3,6 +3,10 @@ export default {
   content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
     extend: {
+      gridTemplateColumns: {
+        // The Year rows layout: one column per possible day of a month.
+        31: 'repeat(31, minmax(0, 1fr))',
+      },
       // Colours are driven entirely by the design tokens in src/styles/tokens.css,
       // swapped per [data-theme]. Components reference these (bg-bg, text-fg,
       // border-edge, text-c-deep, …); never a literal colour.

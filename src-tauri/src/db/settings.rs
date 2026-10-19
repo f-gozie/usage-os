@@ -42,13 +42,21 @@ pub fn get_all_settings(conn: &Connection) -> Result<Vec<(String, String)>> {
 /// interleave; its in-memory open-span id simply becomes a no-op `UPDATE` after the wipe
 /// (the next focus change opens a fresh span). No `VACUUM` — freed pages are reclaimed
 /// lazily; immediate reclaim isn't worth rewriting the whole file here.
-pub fn delete_all_data(conn: &mut Connection) -> Result<()> {
+pub fn delete_all_data(conn: &mut Connection, now: i64) -> Result<()> {
     let tx = conn.transaction()?;
     tx.execute("DELETE FROM activity_logs", [])?;
     tx.execute("DELETE FROM project_aliases", [])?;
     tx.execute("DELETE FROM projects", [])?;
     tx.execute("DELETE FROM sites", [])?;
     tx.execute("DELETE FROM recap_cache", [])?; // captured-derived (D52)
+                                                // When the app ran is part of the record too (D72). The live session keeps its row, so the
+                                                // capture heartbeat still lands, but now starts at the wipe.
+    tx.execute("DELETE FROM watch_coverage WHERE ended_at IS NOT NULL", [])?;
+    tx.execute(
+        "UPDATE watch_coverage SET started_at = ?1, last_seen = MAX(last_seen, ?1)
+         WHERE ended_at IS NULL",
+        [now],
+    )?;
     tx.commit()?;
     Ok(())
 }

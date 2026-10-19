@@ -13,6 +13,34 @@ value by eye. The design system itself is the contract; these files are where it
 the shipped UI is built from. `timeline-variants.html` / `timeline-icons.html` /
 `category-palette-5.html` are the option-explorations behind specific choices.
 
+## Built from these boards
+
+**`calendar.html`** — the Year → Month → Day drill-down. The live board: one `Calendar` tab with
+Year and Month as zoom rungs, a breadcrumb as the navigation model, and an explicit
+“not recorded” state at both scales. **`month.html`** is the earlier Month-only round; it's kept
+for the three-way comparison of cell treatments (mini-dial vs stacked bar vs heat block) and the
+reason heat blocks were ruled out. **Both are now built** (D73) — the shipped Calendar follows these boards, with two differences
+worth recording: the app is **Sunday-first** (matching `weekDays()`; the boards drew Monday-first,
+and the app wins), and both Year layouts ship behind a user-facing switch rather than one being
+chosen. Since then the Month tile counts **days with nothing tracked** rather than days
+the app knows it missed (D75), and the Calendar opens on Month rather than Year.
+
+Two things these boards measured that are worth keeping: an **80px dial** is the smallest size at
+which R77's 1px ink casing is still a real pixel (the casing is 1.25% of rendered size), and at
+80px the month cells come out 126×130 inside a 984px frame — so the compliant size fits the
+window, at the cost of the month scrolling. Below that, the casing silently stops doing its job.
+
+**`recap.html`** — the daily recap as the shape of the day (D74). Six synthetic days with live
+thresholds; the facts and recaps on the board come from `recap-shape.js`, which mirrors the Rust.
+It also keeps the evidence for the decision: real on-device model output for the same facts, with
+each mistake marked. Option C (the app writes the recap) is built; A (the model narrates the richer
+facts) and B (the model polishes the app's draft) were set aside. The board loads its script by
+relative path, so open it from Finder or a local server; a pasted-in preview renders it empty.
+
+> **Palette drift:** most boards here predate D47 and still carry the four-category palette —
+> only `category-palette-5.html`, `menubar.html`, `month.html`, `calendar.html` and `recap.html` have
+> `--c-personal`. Take your token preamble from one of those, not from the nearest file.
+
 ## `logo/` — the mark system
 
 The **Contexts** dial-mark on every surface (`contexts.html`), the dial-O wordmark lab with live

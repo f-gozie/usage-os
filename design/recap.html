@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UsageOS — Daily recap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root,[data-theme="paper"]{
+  --bg:#EEEBE1; --surface:#F6F3EA; --fg:#161616; --muted:#6A6A66;
+  --edge:#161616; --rule:rgba(22,22,22,.16); --track:#D7D3C7;
+  --c-deep:#1B45BE; --c-research:#E0241B; --c-comms:#EAB308; --c-breaks:#161616; --c-personal:#2E8B57;
+  --now:#161616; --casing:#161616; --on-ink:#EEEBE1; --bar-bg:#161616; --bar-fg:#EEEBE1;
+  --flag:rgba(224,36,27,.16);
+}
+[data-theme="warm"]{
+  --bg:#1A1916; --surface:#24221A; --fg:#EDE9DD; --muted:#938E81;
+  --edge:#4A453B; --rule:rgba(237,233,221,.14); --track:#39342B;
+  --c-deep:#3358E0; --c-research:#F0463C; --c-comms:#F2BC0C; --c-breaks:#CFC9B8; --c-personal:#46B97E;
+  --now:#EDE9DD; --casing:transparent; --on-ink:#1A1916; --bar-bg:#100F0C; --bar-fg:#EDE9DD;
+  --flag:rgba(240,70,60,.28);
+}
+[data-theme="black"]{
+  --bg:#0E0E0E; --surface:#171719; --fg:#F4F4F2; --muted:#8C8C8A;
+  --edge:#2F2F2F; --rule:rgba(244,244,242,.12); --track:#252525;
+  --c-deep:#3A6BF0; --c-research:#FF4B40; --c-comms:#F5C518; --c-breaks:#C6C6C4; --c-personal:#4FCB8A;
+  --now:#F4F4F2; --casing:transparent; --on-ink:#0E0E0E; --bar-bg:#000000; --bar-fg:#F4F4F2;
+  --flag:rgba(255,75,64,.30);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{background:var(--bg);transition:background .25s;}
+body{font-family:'Jost',sans-serif;color:var(--fg);background:var(--bg);padding:30px 16px 100px;}
+.board{max-width:1080px;margin:0 auto;}
+.board-head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:8px;}
+h1.board-title{font-family:'Anton',sans-serif;font-size:40px;letter-spacing:.02em;text-transform:uppercase;line-height:1;}
+.board-sub{color:var(--muted);font-size:15px;max-width:680px;margin-top:10px;line-height:1.5;}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.2em;color:var(--muted);font-weight:600;}
+.frame-note{font-size:14px;color:var(--muted);line-height:1.6;margin:0 0 14px;max-width:800px;}
+.frame-note b{color:var(--fg);font-weight:600;}
+section.slab{margin-top:52px;}
+section.slab > h2{font-family:'Anton',sans-serif;font-size:21px;text-transform:uppercase;letter-spacing:.03em;border-bottom:3px solid var(--edge);padding-bottom:9px;margin-bottom:14px;}
+.verdict{border:2px solid var(--edge);background:var(--surface);padding:15px 17px;font-size:14.5px;line-height:1.6;margin:16px 0 0;}
+.verdict .tag{font-family:'Anton',sans-serif;font-size:12px;letter-spacing:.14em;text-transform:uppercase;background:var(--bar-bg);color:var(--bar-fg);padding:3px 8px;margin-right:9px;}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.86em;background:var(--track);padding:1px 4px;}
+.controls{display:flex;gap:10px;flex-wrap:wrap;}
+.switch{display:flex;border:2px solid var(--edge);}
+.switch button{font-family:'Jost',sans-serif;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  padding:7px 13px;background:transparent;color:var(--fg);border:0;border-right:2px solid var(--edge);cursor:pointer;}
+.switch button:last-child{border-right:0;}
+.switch button[aria-pressed="true"]{background:var(--bar-bg);color:var(--bar-fg);}
+
+/* app chrome */
+.app{border:3px solid var(--edge);background:var(--bg);border-radius:5px;overflow:hidden;}
+.titlebar{background:var(--bar-bg);color:var(--bar-fg);display:flex;align-items:center;gap:10px;padding:9px 13px;}
+.dots{display:flex;gap:6px;}
+.dots i{width:10px;height:10px;border-radius:50%;display:block;}
+.wordmark{flex:1;text-align:center;font-family:'Anton',sans-serif;font-size:13px;letter-spacing:.16em;text-transform:uppercase;}
+.tracking{display:flex;align-items:center;gap:6px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.82;}
+.tracking em{width:7px;height:7px;border-radius:50%;background:var(--c-personal);font-style:normal;animation:pulse 2.4s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.28;}}
+@media (prefers-reduced-motion:reduce){.tracking em{animation:none;}}
+.appbody{padding:22px 26px 26px;}
+nav.tabs{display:flex;gap:24px;border-bottom:3px solid var(--edge);padding-bottom:11px;margin-bottom:20px;flex-wrap:wrap;}
+nav.tabs a{font-size:12.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+nav.tabs a[aria-current]{color:var(--fg);}
+.stepper{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:14px;flex-wrap:wrap;}
+.stepper h3{font-family:'Anton',sans-serif;font-size:22px;letter-spacing:.02em;text-transform:uppercase;font-weight:400;}
+.steps{display:flex;gap:8px;}
+.btn{height:34px;display:flex;align-items:center;justify-content:center;padding:0 9px;min-width:36px;
+  border:2px solid var(--edge);background:var(--bg);color:var(--fg);font-weight:700;font-size:15px;}
+.btn.wide{font-size:11px;letter-spacing:.14em;text-transform:uppercase;padding:0 12px;}
+.btn[disabled]{opacity:.3;}
+
+/* the recap card — matches RecapCard.tsx */
+.recap{background:var(--surface);border:3px solid var(--edge);padding:16px 18px;}
+.recap .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;}
+.recap .eye{font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);}
+.recap .badge{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border:2px solid var(--rule);color:var(--muted);padding:3px 8px;white-space:nowrap;}
+.recap .badge.fm{border-color:var(--c-deep);color:var(--c-deep);}
+.recap p{font-size:var(--recap-size,17px);line-height:1.45;font-weight:500;}
+mark{background:var(--flag);color:inherit;border-bottom:2px solid var(--c-research);padding:0 1px;}
+
+.option{margin-top:22px;}
+.option-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+.option-head .key{font-family:'Anton',sans-serif;font-size:13px;letter-spacing:.12em;text-transform:uppercase;background:var(--bar-bg);color:var(--bar-fg);padding:2px 8px;}
+.option-head .key.rec{background:var(--c-deep);color:#fff;}
+.option-head h4{font-size:15px;font-weight:600;}
+.option-head span.why{font-size:13.5px;color:var(--muted);}
+
+/* sample days */
+.day{border:2px solid var(--edge);background:var(--bg);margin-top:26px;}
+.day-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 16px;border-bottom:2px solid var(--edge);}
+.day-head h3{font-family:'Anton',sans-serif;font-size:17px;letter-spacing:.03em;text-transform:uppercase;font-weight:400;}
+.day-head p{font-size:13.5px;color:var(--muted);max-width:620px;line-height:1.5;}
+.day-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;padding:16px;}
+@media (max-width:820px){.day-body{grid-template-columns:1fr;}}
+.strip svg{width:100%;height:auto;display:block;}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
+.legend span{display:flex;align-items:center;gap:6px;}
+.legend i{width:11px;height:11px;border:1px solid var(--casing);display:block;}
+.legend i.blind{border:1.5px dashed var(--muted);background:transparent;}
+.facts{margin-top:14px;border-top:1px solid var(--rule);padding-top:10px;}
+.facts h5,.label{font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.facts ul{list-style:none;font-size:13px;line-height:1.55;}
+.facts li{padding-left:14px;position:relative;}
+.facts li::before{content:"–";position:absolute;left:0;color:var(--muted);}
+.facts li.new{font-weight:600;}
+.facts li.new::after{content:"new";margin-left:7px;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--c-deep);font-weight:700;}
+.shipped{margin-top:12px;font-size:13.5px;line-height:1.5;color:var(--muted);border-left:0;}
+.shipped b{color:var(--fg);font-weight:600;}
+
+/* model evidence */
+table.ev{width:100%;border-collapse:collapse;font-size:13.5px;line-height:1.5;}
+table.ev th{text-align:left;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:2px solid var(--edge);}
+table.ev td{vertical-align:top;padding:10px;border-bottom:1px solid var(--rule);}
+table.ev td:first-child{font-weight:600;white-space:nowrap;}
+table.ev .notes{font-size:12.5px;color:var(--muted);margin-top:5px;}
+@media (max-width:820px){table.ev, table.ev tbody, table.ev tr, table.ev td{display:block;} table.ev thead{display:none;} table.ev td{border-bottom:0;padding:6px 0;} table.ev tr{border-bottom:1px solid var(--rule);padding:8px 0;}}
+
+/* tuning */
+.tune{border:2px solid var(--edge);background:var(--surface);padding:14px 16px;}
+.tune-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px 22px;}
+.tune label{display:block;font-size:12.5px;line-height:1.35;}
+.tune label .v{font-family:'Anton',sans-serif;font-size:15px;margin-left:6px;}
+.tune input[type=range]{width:100%;accent-color:var(--fg);margin-top:4px;}
+.tune .fams{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px;padding-top:12px;border-top:1px solid var(--rule);font-size:13px;}
+.tune .fams label{display:flex;align-items:center;gap:6px;}
+.tune .row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.tune button.copy{font-family:'Jost',sans-serif;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;border:2px solid var(--edge);background:var(--bg);color:var(--fg);padding:6px 11px;cursor:pointer;}
+.decisions{counter-reset:d;list-style:none;}
+.decisions li{counter-increment:d;border-top:1px solid var(--rule);padding:12px 0 12px 38px;position:relative;font-size:14.5px;line-height:1.55;}
+.decisions li::before{content:counter(d);position:absolute;left:0;top:10px;font-family:'Anton',sans-serif;font-size:20px;}
+.decisions li b{font-weight:600;}
+.empties{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media (max-width:820px){.empties{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="board">
+
+  <div class="board-head">
+    <div>
+      <div class="eyebrow">UsageOS · design board · for approval</div>
+      <h1 class="board-title">Daily recap</h1>
+      <p class="board-sub">Right now the recap repeats the numbers already shown just below it. This board tries
+        telling the <b>shape</b> of the day instead: when it started and ended, what each part of it went to, where
+        the time actually happened, and the longest break. No comparisons with other days, ever.</p>
+    </div>
+    <div class="controls">
+      <div class="switch" role="group" aria-label="Theme">
+        <button data-theme-btn="paper" aria-pressed="true">Paper</button>
+        <button data-theme-btn="warm" aria-pressed="false">Warm</button>
+        <button data-theme-btn="black" aria-pressed="false">Black</button>
+      </div>
+      <div class="switch" role="group" aria-label="Text size">
+        <button data-size="17px" aria-pressed="true">Normal text</button>
+        <button data-size="21px" aria-pressed="false">Large text</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 1 ─────────────────────────────────────────────────────────────── -->
+  <section class="slab">
+    <h2>One day, three recaps</h2>
+    <p class="frame-note">A synthetic day shaped like the one in your screenshot: a late night carried over, a morning
+      of Messaging and Browsing, then Work from late afternoon into the night. Every model sentence on this board is
+      <b>real output from the on-device model on this Mac</b>, not written by hand. Mistakes are marked.</p>
+
+    <div class="app">
+      <div class="titlebar">
+        <div class="dots"><i style="background:var(--c-research)"></i><i style="background:var(--c-comms)"></i><i style="background:var(--c-deep)"></i></div>
+        <div class="wordmark">UsageOS</div>
+        <div class="tracking"><em></em> Tracking</div>
+      </div>
+      <div class="appbody">
+        <nav class="tabs"><a aria-current="page">Day</a><a>Week</a><a>Calendar</a><a>Timeline</a><a>Settings</a></nav>
+        <div class="stepper">
+          <h3>Tuesday, 14 October</h3>
+          <div class="steps"><span class="btn wide">Today</span><span class="btn">↻</span><span class="btn">←</span><span class="btn">→</span></div>
+        </div>
+        <div class="recap" id="heroCard"><div class="top"><span class="eye">Daily recap</span><span class="badge" data-badge></span></div><p id="heroText"></p></div>
+      </div>
+    </div>
+    <p class="frame-note" style="margin-top:10px">Above: option C, the recommendation. The rest of the Day view (dial, tiles, “Where it went”) is unchanged.</p>
+
+    <div class="option">
+      <div class="option-head"><span class="key">Now</span><h4>What ships today</h4><span class="why">The model rephrases the totals. Same numbers as the tiles under it.</span></div>
+      <div class="recap"><div class="top"><span class="eye">Daily recap</span><span class="badge fm">⌁ Summarized on-device</span></div><p data-model="split.now"></p></div>
+    </div>
+    <div class="option">
+      <div class="option-head"><span class="key">A</span><h4>Give the model the new facts</h4><span class="why">More to say, and it can’t say it faithfully.</span></div>
+      <div class="recap"><div class="top"><span class="eye">Daily recap</span><span class="badge fm">⌁ Summarized on-device</span></div><p data-model="split.new0"></p></div>
+    </div>
+    <div class="option">
+      <div class="option-head"><span class="key rec">C</span><h4>The app writes it from the facts</h4><span class="why">Recommended. Every word checked by a test; instant; same sentence every time for the same day.</span></div>
+      <div class="recap"><div class="top"><span class="eye">Daily recap</span><span class="badge" data-badge></span></div><p data-template="split"></p></div>
+    </div>
+  </section>
+
+  <!-- ── 2 ─────────────────────────────────────────────────────────────── -->
+  <section class="slab">
+    <h2>What the model did with more facts</h2>
+    <p class="frame-note">Each day’s facts were sent to Apple’s on-device model twice, with instructions rewritten to ask
+      for the day’s shape (same temperature as production). Marked: a name turned into a verb, a fact that isn’t in the facts,
+      a dropped fact that matters, or a loop. <b>B</b>, asking the model only to smooth a draft the app wrote, is not shown:
+      it handed the draft back word for word in 17 of 18 runs. It costs a second or two of battery each time and changes nothing.</p>
+    <table class="ev">
+      <thead><tr><th>Day</th><th>Model output, run 1</th><th>Run 2</th></tr></thead>
+      <tbody id="evidence"></tbody>
+    </table>
+    <div class="verdict"><span class="tag">Finding</span>The on-device model is a small one. With three or four facts it
+      phrases them well enough; with ten, 9 of these 12 runs got something wrong: inventing times, saying “so far” about
+      a finished day, moving a fact, or turning names into verbs. Shorter prompts didn’t fix it (“You were mostly Work”). So the richness has to come from the app, and the
+      app should write the sentences too. The shipped recap has the verb problem too: an earlier run of today’s prompt wrote “mostly working for 4 hours 31 minutes”.</div>
+  </section>
+
+  <!-- ── 3 ─────────────────────────────────────────────────────────────── -->
+  <section class="slab">
+    <h2>Six days, written by the app</h2>
+    <p class="frame-note">Option C on varied days. The facts and recaps below are computed live from the thresholds in
+      this panel, the same way the Rust will. Drag a slider and watch which facts appear or drop out, then tell me the
+      numbers. Bold facts are new; the rest exist today.</p>
+
+    <div class="tune" id="tune">
+      <div class="row">
+        <span class="label" style="margin:0">Thresholds</span>
+        <button class="copy" id="copyBtn" type="button">Copy current values</button>
+      </div>
+      <div class="tune-grid" id="sliders"></div>
+      <div class="fams" id="fams"></div>
+      <div class="fams">
+        <span class="label" style="margin:0">Badge on the card</span>
+        <label><input type="radio" name="badge" value="none" checked> No badge</label>
+        <label><input type="radio" name="badge" value="template"> “≡ Template” (as today)</label>
+      </div>
+    </div>
+
+    <div id="days"></div>
+  </section>
+
+  <!-- ── 4 ─────────────────────────────────────────────────────────────── -->
+  <section class="slab">
+    <h2>Empty days — unchanged</h2>
+    <div class="empties">
+      <div>
+        <div class="label">Nothing tracked yet</div>
+        <div class="recap"><div class="top"><span class="eye">Daily recap</span><span class="badge" data-badge></span></div><p>No activity tracked today yet.</p></div>
+      </div>
+      <div>
+        <div class="label">UsageOS wasn’t running</div>
+        <div class="recap"><div class="top"><span class="eye">Daily recap</span><span class="badge" data-badge></span></div><p>UsageOS wasn’t running on this day, so there’s nothing to show.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 5 ─────────────────────────────────────────────────────────────── -->
+  <section class="slab">
+    <h2>What I need from you</h2>
+    <ol class="decisions">
+      <li><b>C, the app writes the recap.</b> The model stops being called for the recap. Alternative: keep the model on
+        the short facts it handles today and add the shape only to the template fallback. That gives two recaps that say
+        different things depending on whether the model happened to answer.</li>
+      <li><b>What happens to the model code.</b> My suggestion: leave the Swift helper and the eval in the repo but stop
+        calling it, and record why. When Apple ships a better on-device model, rerun the same six days and switch it back
+        on if it passes. The other choice is to delete it now and keep the project smaller.</li>
+      <li><b>The badge.</b> “≡ Template” makes the main recap sound like a placeholder. I’d drop the badge. Toggle it in the panel.</li>
+      <li><b>Which facts, and their thresholds.</b> Untick any family you don’t want, tune the sliders, then copy the values here.</li>
+      <li><b>The words.</b> “went to”, “counting 1h 9m just after midnight”, “It came in short pieces”, “The longest break was…”.
+        Read them aloud on the six days and flag any that sound off.</li>
+    </ol>
+    <div class="verdict"><span class="tag">Not on this board</span>Comparisons with other days (“more than usual”), any
+      verdict on the day, and anything about what happened during a break or while UsageOS wasn’t running. Those are out
+      by design, not by threshold.</div>
+  </section>
+
+</div>
+
+<script src="recap-shape.js"></script>
+<script>
+// Real on-device model output for these exact facts (Foundation Models, temperature 0.2, this Mac).
+const MODEL = [
+ {
+  "id": "split",
+  "new0": "The day started around 8 in the morning and ended around midnight. So far, you spent 12 hours and 45 minutes active. In the morning, you were mostly on Messaging and Browsing. In the afternoon, you were mostly on Work and Browsing. In the evening, you were mostly on Work. Work was mostly in Figma and Linear. Browsing was mostly on x.com. The longest unbroken stretch was 1 hour and 46 minutes, at night.",
+  "new1": "You were mostly at Work, with a long stretch of 1 hour 46 minutes in the evening. You spent 7 hours 52 minutes at Work, mostly in Figma and Linear. You spent 2 hours 19 minutes at Browsing, mostly on x.com. You spent 1 hour 9 minutes after midnight, carried over from the night before. You were mostly at Messaging and Browsing in the morning. You were mostly at Work and Browsing in the afternoon. Around 8 in the morning, you were active until around midnight.",
+  "now": "You were active for 12 hours 45 minutes. Work took up 7 hours 52 minutes of that time. Browsing occupied 2 hours 19 minutes. You had an unbroken stretch of 1 hour 46 minutes at night."
+ },
+ {
+  "id": "focused",
+  "new0": "You were mostly working in Cursor, mostly in the morning and afternoon. You were mostly entertained in the evening. You were still going at around 9 at night. You were active for 7 hours 37 minutes. You had a long break of 2 hours 22 minutes. You had a long stretch of 1 hour 40 minutes in the morning.",
+  "new1": "You were mostly at Work, mostly in Cursor, for 4 hours 31 minutes. You were mostly at Messaging, mostly in Messages and Slack, for 1 hour 51 minutes. You were mostly at Entertainment for the evening. You were still going around 8:30 in the morning until around 9 at night. You spent 7 hours 37 minutes active. You spent 1 hour 40 minutes mostly uninterrupted in the morning. You spent 2 hours 22 minutes mostly uninterrupted in the afternoon. You spent 1 hour 51 minutes mostly uninterrupted in the afternoon.",
+  "now": "You were active for 7 hours 37 minutes. Work took up 4 hours 31 minutes, and Messaging took up 1 hour 51 minutes. The longest unbroken stretch was 1 hour 40 minutes in the morning. The main project was usageos."
+ },
+ {
+  "id": "weekend",
+  "new0": "You were active from around 1 in the afternoon until around 9:30 at night. You spent 2 hours 4 minutes in Entertainment, mostly on youtube.com and in Spotify. You spent 45 minutes in Personal, mostly in WhatsApp. You had a 1 hour 22 minute unbroken stretch in the afternoon. You took a 5 hours 20 minute break from around 3:30 in the afternoon.",
+  "new1": "The day started around 1 in the afternoon and ended around 9:30 at night. You spent most of the afternoon on Entertainment, mostly on youtube.com and in Spotify. You spent 5 hours and 20 minutes away from the screen. You spent 1 hour and 22 minutes without interruption. You spent 2 hours and 4 minutes in the leading category. You spent 45 minutes in the runner-up category.",
+  "now": "You were active for 3 hours 3 minutes, with 2 hours 4 minutes in Entertainment and 45 minutes in Personal. You had a longest unbroken stretch of 1 hour 22 minutes in the afternoon."
+ },
+ {
+  "id": "today",
+  "new0": "The day started around 8 in the morning and is still going. It was mostly Work and Messaging. Work was mostly in Google Docs and Notion. Messaging was mostly in Messages. The time came in short pieces, switching often. The longest unbroken stretch was 30 minutes, in the morning.",
+  "new1": "You were active for 3 hours 16 minutes. Work took up 1 hour 32 minutes, and Messaging took up 1 hour 17 minutes. You started around 8 in the morning and are still going. In the morning, you were mostly in Work and Messaging. Work was mostly in Google Docs and Notion. Messaging was mostly in Messages. The time came in short pieces, switching often. The longest unbroken stretch was 30 minutes, in the morning.",
+  "now": "You were active for 3 hours 16 minutes, with Work taking up 1 hour 32 minutes and Messaging taking up 1 hour 17 minutes. You had a 30-minute stretch in the morning."
+ },
+ {
+  "id": "gap",
+  "new0": "The day started around 9 in the morning and ended around 7:30 in the evening. In the morning, you were mostly working and browsing. In the afternoon, you were mostly messaging. In the evening, you were mostly browsing. Browsing was mostly on en.wikipedia.org and x.com. Work was mostly in Linear. The time came mostly in long stretches. The longest unbroken stretch was 1 hour 41 minutes, in the evening. UsageOS was not running for 3 hours 30 minutes of this day, so these totals cover only part of it.",
+  "new1": "The day started around 9 in the morning and ended around 7:30 in the evening. In the morning, you spent mostly Work and Browsing. In the afternoon, you spent mostly Messaging. In the evening, you spent mostly Browsing. Browsing was mostly on en.wikipedia.org and x.com. Work was mostly in Linear. The time came mostly in long stretches. So far, you've spent 6 hours 41 minutes active. UsageOS was not running for 3 hours 30 minutes of this day, so these totals cover only part of it.",
+  "now": "You were active for 6 hours 41 minutes, with 3 hours 18 minutes spent in Browsing and 1 hour 51 minutes in Work. The longest unbroken stretch was 1 hour 41 minutes in the evening. UsageOS was not running for 3 hours 30 minutes of this day, so these totals cover only part of it."
+ },
+ {
+  "id": "tiny",
+  "new0": "The day started around 8:30 in the morning and ended around 8:38 in the morning. The longest stretch was 5 minutes, and the longest break was 8 minutes. So far, Work took up 5 minutes, and Messaging took up 3 minutes.",
+  "new1": "You spent 8 minutes in Work, and 3 minutes in Messaging. So far, that's all.",
+  "now": "You were active for 8 minutes, mostly in Work for 5 minutes, and Messaging for 3 minutes."
+ }
+];
+// Hand-marked problems in that output: [day.key, substring, why].
+const FLAGS = [
+ [
+  "split.new0",
+  "So far, you spent",
+  "Says “so far” about a day that’s over"
+ ],
+ [
+  "split.new1",
+  "a long stretch of 1 hour 46 minutes in the evening",
+  "Moved a fact: the facts say “at night”"
+ ],
+ [
+  "split.new1",
+  "mostly at Messaging and Browsing",
+  "A category name used as a place"
+ ],
+ [
+  "focused.new0",
+  "mostly working in Cursor",
+  "Turned “Work” into a verb"
+ ],
+ [
+  "focused.new0",
+  "mostly entertained",
+  "Turned “Entertainment” into a verb"
+ ],
+ [
+  "focused.new0",
+  "still going at around 9 at night",
+  "Invented: this day is over"
+ ],
+ [
+  "focused.new1",
+  "still going around 8:30 in the morning",
+  "Invented: this day is over"
+ ],
+ [
+  "focused.new1",
+  "You spent 2 hours 22 minutes mostly uninterrupted in the afternoon",
+  "Wrong: that was the break, not a stretch"
+ ],
+ [
+  "focused.new1",
+  "You spent 1 hour 51 minutes mostly uninterrupted in the afternoon",
+  "Invented"
+ ],
+ [
+  "weekend.new1",
+  "in the leading category",
+  "Names a field instead of the category"
+ ],
+ [
+  "weekend.new1",
+  "in the runner-up category",
+  "Names a field instead of the category"
+ ],
+ [
+  "gap.new0",
+  "mostly working and browsing",
+  "Turned the names into verbs"
+ ],
+ [
+  "gap.new0",
+  "mostly messaging",
+  "Turned the name into a verb"
+ ],
+ [
+  "gap.new0",
+  "mostly browsing",
+  "Turned the name into a verb"
+ ],
+ [
+  "gap.new1",
+  "So far, you've spent",
+  "Says “so far” about a day that’s over"
+ ],
+ [
+  "tiny.new0",
+  "started around 8:30 in the morning and ended around 8:38 in the morning",
+  "Invented: this was at 6pm, and no times were given"
+ ],
+ [
+  "tiny.new0",
+  "the longest break was 8 minutes",
+  "Invented"
+ ],
+ [
+  "tiny.new1",
+  "So far, that's all.",
+  "Says “so far” about a day that’s over"
+ ]
+];
+
+const R = window.RecapShape;
+const t = { ...R.DEFAULTS };
+const fams = { span: true, parts: true, where: true, texture: true, break: true };
+let badge = "none";
+
+const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+function marked(key) {
+  const [id, run] = key.split(".");
+  let html = esc((MODEL.find((m) => m.id === id) || {})[run] || "");
+  for (const [k, sub, why] of FLAGS) {
+    if (k !== key) continue;
+    const e = esc(sub);
+    html = html.replace(e, `<mark title="${why}">${e}</mark>`);
+  }
+  return html;
+}
+
+const SLIDERS = [
+  ["partMinActive", "Describe a part of the day once it has", 15, 120, 5, "min"],
+  ["partMostly", "One category is “mostly” a part at", 40, 80, 5, "%"],
+  ["partPair", "Two categories are “mostly” a part at", 50, 90, 5, "%"],
+  ["whereMin", "Name an app or site with at least", 5, 60, 5, "min"],
+  ["whereShare", "…and at least this share of its category", 5, 50, 5, "%"],
+  ["longStretch", "A “long stretch” is at least", 15, 60, 5, "min"],
+  ["textureLong", "“Mostly long stretches” at", 40, 90, 5, "%"],
+  ["textureShort", "“Short pieces” at or below", 5, 40, 5, "%"],
+  ["breakMin", "Mention a break of at least", 30, 180, 15, "min"],
+  ["tailMin", "Mention time after midnight from", 5, 60, 5, "min"],
+];
+const FAMS = [
+  ["span", "Start and end time"],
+  ["parts", "Morning / afternoon / evening"],
+  ["where", "Apps and sites"],
+  ["texture", "Long stretches vs short pieces"],
+  ["break", "Longest break"],
+];
+
+const sl = document.getElementById("sliders");
+for (const [k, label, min, max, step, unit] of SLIDERS) {
+  const l = document.createElement("label");
+  l.innerHTML = `${label} <span class="v" id="v-${k}">${t[k]}${unit === "%" ? "%" : " min"}</span>
+    <input type="range" min="${min}" max="${max}" step="${step}" value="${t[k]}" aria-label="${label}">`;
+  l.querySelector("input").addEventListener("input", (e) => {
+    t[k] = Number(e.target.value);
+    document.getElementById(`v-${k}`).textContent = `${t[k]}${unit === "%" ? "%" : " min"}`;
+    render();
+  });
+  sl.appendChild(l);
+}
+const fm = document.getElementById("fams");
+fm.innerHTML = '<span class="label" style="margin:0">Facts to include</span>';
+for (const [k, label] of FAMS) {
+  const l = document.createElement("label");
+  l.innerHTML = `<input type="checkbox" checked> ${label}`;
+  l.querySelector("input").addEventListener("change", (e) => { fams[k] = e.target.checked; render(); });
+  fm.appendChild(l);
+}
+document.querySelectorAll('input[name="badge"]').forEach((r) =>
+  r.addEventListener("change", (e) => { badge = e.target.value; render(); }),
+);
+document.getElementById("copyBtn").addEventListener("click", (e) => {
+  const off = Object.entries(fams).filter(([, v]) => !v).map(([k]) => k);
+  const text = Object.entries(t).map(([k, v]) => `${k}=${v}`).join(" ") + (off.length ? ` off=${off.join(",")}` : "") + ` badge=${badge}`;
+  navigator.clipboard?.writeText(text);
+  e.target.textContent = "Copied";
+  setTimeout(() => (e.target.textContent = "Copy current values"), 1200);
+});
+
+const COLORS = { Work: "--c-deep", Browsing: "--c-research", Messaging: "--c-comms", Entertainment: "--c-breaks", Personal: "--c-personal" };
+
+function strip(day) {
+  const W = 480, H = 64, colW = W / 24;
+  const perHour = Array.from({ length: 24 }, () => ({}));
+  for (const [a, b, c] of day.segs) for (let m = a; m < b; m++) {
+    const h = Math.floor(m / 60);
+    perHour[h][c] = (perHour[h][c] || 0) + 1;
+  }
+  let svg = `<svg viewBox="0 0 ${W} ${H + 16}" role="img" aria-label="Activity by hour">`;
+  for (const [u0, u1] of day.unwatched) {
+    svg += `<rect x="${(u0 / 60) * colW + 1}" y="1" width="${((u1 - u0) / 60) * colW - 2}" height="${H - 2}" fill="none" stroke="var(--muted)" stroke-dasharray="4 3" stroke-width="1.5"/>`;
+  }
+  if (day.today != null) {
+    const x = (day.today / 60) * colW;
+    svg += `<line x1="${x}" y1="0" x2="${x}" y2="${H}" stroke="var(--now)" stroke-width="2"/>`;
+  }
+  perHour.forEach((cats, h) => {
+    let y = H;
+    for (const c of R.CATS) {
+      const mins = cats[c] || 0;
+      if (!mins) continue;
+      const hgt = (mins / 60) * H;
+      y -= hgt;
+      svg += `<rect x="${h * colW + 2}" y="${y}" width="${colW - 4}" height="${hgt}" fill="var(${COLORS[c]})" stroke="var(--casing)" stroke-width="0.6"><title>${h}:00 · ${c} ${mins}m</title></rect>`;
+    }
+  });
+  svg += `<line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="var(--edge)" stroke-width="1.5"/>`;
+  for (const h of [0, 6, 12, 18, 24]) {
+    svg += `<text x="${Math.min(W - 8, Math.max(4, h * colW))}" y="${H + 13}" font-size="10" fill="var(--muted)" font-family="Jost" font-weight="600" text-anchor="middle">${h}</text>`;
+  }
+  return svg + "</svg>";
+}
+
+function legend(day) {
+  const used = R.CATS.filter((c) => day.segs.some((s) => s[2] === c));
+  let html = used.map((c) => `<span><i style="background:var(${COLORS[c]})"></i>${c}</span>`).join("");
+  if (day.unwatched.length) html += `<span><i class="blind"></i>UsageOS not running</span>`;
+  if (day.today != null) html += `<span>│ now</span>`;
+  return html;
+}
+
+const NEW = /^- (Active|Also|Morning|Afternoon|Evening|Night|.* was mostly (in|on)|The time came|Longest break)/;
+
+function badgeHtml() {
+  return badge === "template" ? "≡ Template" : "";
+}
+
+function render() {
+  const wrap = document.getElementById("days");
+  wrap.innerHTML = "";
+  for (const day of R.DAYS) {
+    const f = R.computeFacts(day, t, fams);
+    const lines = R.formatPrompt(f).split("\n").slice(1).map((l) => {
+      const clean = l.replace(/ Say so plainly.*$/, "");
+      return `<li class="${NEW.test(l) ? "new" : ""}">${esc(clean.slice(2))}</li>`;
+    });
+    const el = document.createElement("article");
+    el.className = "day";
+    el.innerHTML = `
+      <div class="day-head"><h3>${esc(day.name)}</h3><p>${esc(day.note)}</p></div>
+      <div class="day-body">
+        <div>
+          <div class="strip">${strip(day)}</div>
+          <div class="legend">${legend(day)}</div>
+          <div class="facts"><h5>Facts the app computes</h5><ul>${lines.join("")}</ul></div>
+        </div>
+        <div>
+          <div class="recap"><div class="top"><span class="eye">Daily recap</span>${badge === "none" ? "" : `<span class="badge">${badgeHtml()}</span>`}</div><p>${esc(R.template(f))}</p></div>
+          <p class="shipped"><b>Today’s recap for the same day:</b> ${marked(`${day.id}.now`)}</p>
+        </div>
+      </div>`;
+    wrap.appendChild(el);
+  }
+  // Fixed cards elsewhere on the board.
+  const split = R.DAYS.find((d) => d.id === "split");
+  const txt = R.template(R.computeFacts(split, t, fams));
+  document.getElementById("heroText").textContent = txt;
+  document.querySelectorAll('[data-template="split"]').forEach((p) => (p.textContent = txt));
+  document.querySelectorAll("[data-badge]").forEach((b) => {
+    b.textContent = badgeHtml();
+    b.style.display = badge === "none" ? "none" : "";
+  });
+}
+
+document.querySelectorAll("[data-model]").forEach((p) => (p.innerHTML = marked(p.dataset.model)));
+document.getElementById("evidence").innerHTML = MODEL.map(
+  (m) => `<tr><td>${esc(R.DAYS.find((d) => d.id === m.id).name)}</td><td>${marked(`${m.id}.new0`)}</td><td>${marked(`${m.id}.new1`)}</td></tr>`,
+).join("");
+
+document.querySelectorAll("[data-theme-btn]").forEach((b) =>
+  b.addEventListener("click", () => {
+    document.documentElement.setAttribute("data-theme", b.dataset.themeBtn);
+    document.querySelectorAll("[data-theme-btn]").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+  }),
+);
+document.querySelectorAll("[data-size]").forEach((b) =>
+  b.addEventListener("click", () => {
+    document.documentElement.style.setProperty("--recap-size", b.dataset.size);
+    document.querySelectorAll("[data-size]").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+  }),
+);
+render();
+</script>
+</body>
+</html>

@@ -1,10 +1,11 @@
 import { cn } from "@/lib/utils";
 
-export type View = "day" | "week" | "timeline" | "settings";
+export type View = "day" | "week" | "calendar" | "timeline" | "settings";
 
 export const VIEWS: { value: View; label: string }[] = [
   { value: "day", label: "Day" },
   { value: "week", label: "Week" },
+  { value: "calendar", label: "Calendar" },
   { value: "timeline", label: "Timeline" },
   { value: "settings", label: "Settings" },
 ];
@@ -14,7 +15,7 @@ export interface TabNavProps {
   onViewChange: (view: View) => void;
 }
 
-/** Top navigation tabs (Day / Week / Timeline / Settings). */
+/** Top navigation tabs (Day / Week / Calendar / Timeline / Settings). */
 export function TabNav({ view, onViewChange }: TabNavProps) {
   return (
     <nav className="mt-4 flex items-center border-b-[3px] border-edge">

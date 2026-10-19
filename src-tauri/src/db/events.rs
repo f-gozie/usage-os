@@ -144,6 +144,89 @@ pub fn get_activity_logs(
     Ok(logs)
 }
 
+/// One day's total for one category, as the Year view needs it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DayCategoryTotal {
+    /// Index into the `day_starts` the caller supplied — the caller owns local midnights.
+    pub day: usize,
+    pub category_id: Option<i64>,
+    pub secs: i64,
+}
+
+/// Per-day, per-category active seconds across a long range, in ONE bounded scan.
+///
+/// The Year view needs 365 days at once, and calling the per-day reader 365 times would be 365
+/// index walks and 365 vectors of fully-hydrated rows. This reads only the four columns the
+/// arithmetic needs and buckets in Rust, so a year costs about what a week costs today.
+///
+/// `day_starts` must be ascending local midnights (the caller owns DST, exactly as `get_week`
+/// does); `range_end` is the exclusive end of the last day. Spans are clipped to their day, so a
+/// span crossing midnight counts to each day for its own portion — the same rule
+/// [`get_activity_logs`] applies, kept deliberately in step with it.
+pub fn get_day_category_totals(
+    conn: &Connection,
+    day_starts: &[i64],
+    range_end: i64,
+) -> Result<Vec<DayCategoryTotal>> {
+    let Some(&range_start) = day_starts.first() else {
+        return Ok(Vec::new());
+    };
+    let scan_lo = range_start.saturating_sub(MAX_SPAN_LOOKBACK_SECS);
+
+    let mut stmt = conn.prepare(
+        "SELECT start_time, end_time, category_id FROM activity_logs
+         WHERE start_time >= ?1 AND start_time < ?3 AND end_time > ?2 AND is_idle = 0
+         ORDER BY start_time ASC",
+    )?;
+    let rows = stmt.query_map([scan_lo, range_start, range_end], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, i64>(1)?,
+            row.get::<_, Option<i64>>(2)?,
+        ))
+    })?;
+
+    // (day index, category) -> seconds. A span can straddle midnight, so it is walked across
+    // every day it touches rather than assigned to the one it started in.
+    let mut totals: std::collections::HashMap<(usize, Option<i64>), i64> =
+        std::collections::HashMap::new();
+    for row in rows {
+        let (start, end, category_id) = row?;
+        let start = start.max(range_start);
+        let end = end.min(range_end);
+        if end <= start {
+            continue;
+        }
+        // The first day whose start is > `start`, minus one — the day `start` falls in.
+        let mut day = match day_starts.binary_search(&start) {
+            Ok(i) => i,
+            Err(0) => continue, // before the range
+            Err(i) => i - 1,
+        };
+        let mut cursor = start;
+        while cursor < end && day < day_starts.len() {
+            let day_end = day_starts.get(day + 1).copied().unwrap_or(range_end);
+            let slice_end = end.min(day_end);
+            if slice_end > cursor {
+                *totals.entry((day, category_id)).or_insert(0) += slice_end - cursor;
+            }
+            cursor = day_end;
+            day += 1;
+        }
+    }
+
+    let mut out: Vec<DayCategoryTotal> = totals
+        .into_iter()
+        .map(|((day, category_id), secs)| DayCategoryTotal {
+            day,
+            category_id,
+            secs,
+        })
+        .collect();
+    out.sort_by_key(|t| (t.day, t.category_id));
+    Ok(out)
+}
+
 /// Trivial uncategorized spans below this (active seconds, all-time) are hidden from the
 /// Settings list to keep it calm — a sub-minute glance isn't worth sorting.
 const UNCATEGORIZED_FLOOR_SECS: i64 = 60;
@@ -239,6 +322,10 @@ pub fn cleanup_old_data(conn: &Connection, retention_days: i64) -> Result<usize>
     let deleted = conn.execute("DELETE FROM activity_logs WHERE end_time < ?1", [cutoff])?;
     // Cached recaps (D52) are derived from the events — prune any whose whole day is past retention.
     conn.execute("DELETE FROM recap_cache WHERE day_start < ?1", [cutoff])?;
+    // Watch coverage describes those same events. Pruning it moves `first_coverage_start`
+    // forward, so a day whose events we discarded reads as unknowable rather than as a day
+    // nobody was watching — we deleted the evidence, we didn't fail to collect it.
+    super::prune_coverage(conn, cutoff)?;
     if deleted > 0 {
         println!(
             "[Database] Cleaned up {} old activity logs (retention: {} days)",

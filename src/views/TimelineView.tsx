@@ -44,6 +44,8 @@ export function TimelineView({ date, onDateChange }: TimelineViewProps) {
         onPrev={() => onDateChange(addDays(date, -1))}
         onNext={() => onDateChange(addDays(date, 1))}
         onRefresh={refresh}
+        onLatest={() => onDateChange(new Date())}
+        latestLabel="Today"
         prevLabel="Previous day"
         nextLabel="Next day"
       />
@@ -67,7 +69,7 @@ export function TimelineView({ date, onDateChange }: TimelineViewProps) {
         <>
           <Legend dbNames={dbNames} />
           {data.runs.length === 0 ? (
-            <EmptyState />
+            <EmptyState unwatched={data.unwatched_secs} />
           ) : (
             <>
               <div>
@@ -148,10 +150,17 @@ function NowRow() {
   );
 }
 
-function EmptyState() {
+/** An empty day has two very different causes, and for a long time this said the same thing
+ *  about both. `unwatched` is the seconds of the day UsageOS wasn’t running. */
+function EmptyState({ unwatched }: { unwatched: number }) {
+  const wasBlind = unwatched >= 23 * 3600;
   return (
     <div className="flex flex-col items-center gap-2 border-2 border-dashed border-edge px-6 py-16 text-center">
-      <p className="text-sm font-medium text-muted">No activity tracked for this day.</p>
+      <p className="text-sm font-medium text-muted">
+        {wasBlind
+          ? "UsageOS wasn’t running on this day, so there’s nothing to show."
+          : "No activity tracked for this day."}
+      </p>
     </div>
   );
 }

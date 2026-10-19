@@ -60,4 +60,6 @@ Working name **UsageOS** (zero migration; bundle id `com.usageos.app`). Stronges
 
 ## Out of scope (v1)
 
-Gamification of any kind; real-time nudges; cloud/account/sync/telemetry; Windows/Linux; Mac App Store; natural-language query of your history (later); long-range trends/month view (day + week only in v1).
+Gamification of any kind; real-time nudges; cloud/account/sync/telemetry; Windows/Linux; Mac App Store; natural-language query of your history (later); **long-range _trends_** — deltas, month-over-month comparisons, averages presented as judgments, any ranking of one stretch against another. Comparison is judgment, and judgment is the coach's job, not this app's.
+
+_(Amended post-v1, D73: this line originally read "long-range trends/month view (day + week only in v1)" and bundled two different things. The **month view** exclusion was sequencing — it protected the first release and v1 has shipped — so the Calendar (Year → Month → Day) is now in scope. The **trends** exclusion is a value and stands unchanged.)_

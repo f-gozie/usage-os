@@ -20,6 +20,8 @@ mod apps;
 mod permissions;
 // The menubar tray icon: the mono Contexts mark + a now-triangle pointing at the current hour.
 mod tray_icon;
+// Local time of day, for the tray hour and the recap's clock phrases.
+mod local_clock;
 // Start-at-login via SMAppService — the bundled agent keeps Login Items branded as UsageOS (D69).
 mod login_item;
 // macOS NSPanel reclass so the menubar glance floats over full-screen Spaces (D56).
@@ -39,7 +41,7 @@ pub mod perf;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
@@ -120,6 +122,19 @@ fn load_lookup_maps(conn: &Connection) -> Result<LookupMaps, AppError> {
     Ok((categories, projects))
 }
 
+/// The stretches of `[start, end)` that UsageOS wasn't running for. Days that predate the
+/// coverage log return no gaps: we genuinely cannot say, and implying failure for every
+/// archived day would be the same dishonesty pointing the other way.
+fn day_coverage_gaps(
+    conn: &Connection,
+    start: i64,
+    end: i64,
+) -> Result<Vec<db::CoverageGap>, AppError> {
+    let spans = db::get_coverage(conn, start, end)?;
+    let first = db::first_coverage_start(conn)?;
+    Ok(db::coverage_gaps(&spans, start, end, db::now_unix(), first))
+}
+
 /// Build the Day view — per-axis category aggregates, category-runs, and the template
 /// recap (D34) — for a `[start_time, end_time]` Unix-second range. Numbers are computed
 /// in Rust (hard rule 6); the frontend only renders this.
@@ -133,14 +148,30 @@ fn get_day(
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     let events = db::get_activity_logs(&conn, start_time, end_time)?;
     let (categories, projects) = load_lookup_maps(&conn)?;
+    let gaps = day_coverage_gaps(&conn, start_time, end_time)?;
     Ok(rollup::build_day_view(
         &events,
         &categories,
         &projects,
-        start_time,
+        day_frame(start_time, end_time),
+        gaps,
     ))
 }
 
+/// The day `[start, end)` as the recap reads it: real bounds, now, and the local clock.
+fn day_frame(start: i64, end: i64) -> rollup::DayFrame {
+    rollup::DayFrame {
+        start,
+        end,
+        now: db::now_unix(),
+        clock: local_clock::secs_of_day,
+    }
+}
+
+/// Not called by the app since D74: the on-device model couldn't narrate the day-shape facts
+/// faithfully, so the recap `get_day` returns is the recap. Kept so a better model can be
+/// re-evaluated against the same seam.
+///
 /// Narrate the day's recap for a `[start_time, end_time]` range with the on-device Foundation
 /// Models sidecar, falling back to the deterministic template (D48) on any failure (hard rule
 /// 6 / C5). Async + lazy by design (D11): `get_day` already returns the instant template
@@ -167,7 +198,14 @@ async fn get_recap(
         let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
         let events = db::get_activity_logs(&conn, start_time, end_time)?;
         let (categories, projects) = load_lookup_maps(&conn)?;
-        let facts = rollup::build_recap_facts(&events, &categories, &projects, start_time);
+        let gaps = day_coverage_gaps(&conn, start_time, end_time)?;
+        let facts = rollup::build_recap_facts(
+            &events,
+            &categories,
+            &projects,
+            day_frame(start_time, end_time),
+            &gaps,
+        );
         let fingerprint = rollup::recap_fingerprint(&facts);
         let cached = db::get_cached_recap(&conn, start_time, &fingerprint)?;
         (facts, fingerprint, cached)
@@ -207,18 +245,106 @@ fn get_week(
 ) -> Result<rollup::WeekView, AppError> {
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     let (categories, projects) = load_lookup_maps(&conn)?;
+    // One lookup for the whole range: a day predating it can't be judged either way.
+    let first_coverage = db::first_coverage_start(&conn)?;
     let mut days = Vec::with_capacity(day_starts.len());
     for (i, &start) in day_starts.iter().enumerate() {
         let end = day_starts.get(i + 1).copied().unwrap_or(week_end);
         let events = db::get_activity_logs(&conn, start, end)?;
+        let gaps = db::coverage_gaps(
+            &db::get_coverage(&conn, start, end)?,
+            start,
+            end,
+            db::now_unix(),
+            first_coverage,
+        );
         days.push(rollup::build_day_slice(
             start,
             &events,
             &categories,
             &projects,
+            db::unwatched_secs(&gaps),
+            first_coverage.is_some_and(|f| f < end),
         ));
     }
     Ok(rollup::build_week_view(days))
+}
+
+/// Build the Month view — one day-slice per day of the month plus the month's honest facts.
+/// `day_starts` are that month's local midnights (DST-correct, computed by the frontend exactly
+/// as `get_week`'s are); `month_end` is the exclusive end of the last day.
+#[tauri::command]
+#[specta::specta]
+fn get_month(
+    db: State<DbState>,
+    day_starts: Vec<i64>,
+    month_end: i64,
+) -> Result<rollup::MonthView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let (categories, projects) = load_lookup_maps(&conn)?;
+    let first_coverage = db::first_coverage_start(&conn)?;
+    let now = db::now_unix();
+    let mut days = Vec::with_capacity(day_starts.len());
+    for (i, &start) in day_starts.iter().enumerate() {
+        let end = day_starts.get(i + 1).copied().unwrap_or(month_end);
+        let events = db::get_activity_logs(&conn, start, end)?;
+        let gaps = db::coverage_gaps(
+            &db::get_coverage(&conn, start, end)?,
+            start,
+            end,
+            now,
+            first_coverage,
+        );
+        days.push(rollup::build_day_slice(
+            start,
+            &events,
+            &categories,
+            &projects,
+            db::unwatched_secs(&gaps),
+            first_coverage.is_some_and(|f| f < end),
+        ));
+    }
+    Ok(rollup::build_month_view(days, month_end, now))
+}
+
+/// Build the Year view — one bar per day for 365-odd days.
+///
+/// Deliberately NOT 365 calls to the day reader: one bounded aggregate scan supplies every day's
+/// category totals, and coverage is read once for the whole year and inverted per day. `runs` are
+/// not computed at all, because a 24 h dial is unreadable at a year cell's size and drawing one
+/// anyway would cost the scan without buying legibility.
+#[tauri::command]
+#[specta::specta]
+fn get_year(
+    db: State<DbState>,
+    day_starts: Vec<i64>,
+    year_end: i64,
+) -> Result<rollup::YearView, AppError> {
+    let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
+    let (categories, _projects) = load_lookup_maps(&conn)?;
+    let totals = db::get_day_category_totals(&conn, &day_starts, year_end)?;
+
+    let first_coverage = db::first_coverage_start(&conn)?;
+    let now = db::now_unix();
+    let year_start = day_starts.first().copied().unwrap_or(year_end);
+    let spans = db::get_coverage(&conn, year_start, year_end)?;
+
+    let mut unwatched = Vec::with_capacity(day_starts.len());
+    let mut known = Vec::with_capacity(day_starts.len());
+    for (i, &start) in day_starts.iter().enumerate() {
+        let end = day_starts.get(i + 1).copied().unwrap_or(year_end);
+        let gaps = db::coverage_gaps(&spans, start, end, now, first_coverage);
+        unwatched.push(db::unwatched_secs(&gaps));
+        known.push(first_coverage.is_some_and(|f| f < end));
+    }
+
+    Ok(rollup::build_year_view(
+        &day_starts,
+        &totals,
+        &categories,
+        &unwatched,
+        &known,
+    ))
 }
 
 /// Build the Timeline view — the day's category-runs, each with its inner app-switch
@@ -234,7 +360,13 @@ fn get_timeline(
     let conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
     let events = db::get_activity_logs(&conn, start_time, end_time)?;
     let (categories, projects) = load_lookup_maps(&conn)?;
-    Ok(rollup::build_timeline(&events, &categories, &projects))
+    let unwatched = db::unwatched_secs(&day_coverage_gaps(&conn, start_time, end_time)?);
+    Ok(rollup::build_timeline(
+        &events,
+        &categories,
+        &projects,
+        unwatched,
+    ))
 }
 
 #[tauri::command]
@@ -407,13 +539,13 @@ fn export_events_csv(app: tauri::AppHandle, db: State<DbState>) -> Result<String
     Ok(out.to_string_lossy().into_owned())
 }
 
-/// Erase the captured record (events + derived projects/sites), preserving the user's
+/// Erase the captured record (events, derived projects/sites, when the app ran), preserving the user's
 /// configuration (categories, rules, exclusions, settings). One transaction (see `db`).
 #[tauri::command]
 #[specta::specta]
 fn delete_all_data(db: State<DbState>) -> Result<(), AppError> {
     let mut conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    db::delete_all_data(&mut conn).map_err(AppError::from)
+    db::delete_all_data(&mut conn, db::now_unix()).map_err(AppError::from)
 }
 
 /// The installed-app catalog (name + icon data-URI) backing the UI's `AppIcon`. Reads
@@ -839,6 +971,8 @@ fn make_builder() -> Builder<tauri::Wry> {
         get_day,
         get_recap,
         get_week,
+        get_month,
+        get_year,
         get_timeline,
         get_categories,
         create_category,
@@ -875,6 +1009,10 @@ fn make_builder() -> Builder<tauri::Wry> {
 /// Set once the menubar tray is built. The main-window close handler reads it to decide whether
 /// hiding-on-close is safe (a reachable tray to reopen) or it should fall back to a normal close.
 static TRAY_READY: AtomicBool = AtomicBool::new(false);
+
+/// This run's `watch_coverage` row, so the exit handler can close it. 0 = none (the session could
+/// not be opened); the process then simply records no coverage rather than a wrong one.
+static LIVE_SESSION: AtomicI64 = AtomicI64::new(0);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -977,21 +1115,48 @@ pub fn run() {
 
             app.manage(db_conn.clone());
 
-            // Recap narrator: the FM sidecar behind `ai::Narrator`, managed for the lazy
-            // `get_recap` command. Prewarm off the main thread — best-effort; the template
-            // recap always covers a cold/missing model (D49/C5).
+            // Recap narrator: the FM sidecar behind `ai::Narrator`, managed for `get_recap`. The
+            // app doesn't call it (D74: the recap is written from the facts), so it is not
+            // prewarmed either — the model stays asleep unless something asks for it.
             app.manage(ai::sidecar::SidecarNarrator::new(app.handle().clone()));
-            let warm_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                ai::sidecar::prewarm(&warm_handle).await;
-            });
+
+            // Claim this run in the coverage log before capture starts, and close out any session
+            // a previous process left open — it died without saying so, so its last heartbeat is
+            // the most it can honestly claim. Everything between that and now was unwatched (D72).
+            let session_id = match db_conn.lock() {
+                Ok(conn) => {
+                    match db::open_session(&conn, db::now_unix(), env!("CARGO_PKG_VERSION")) {
+                        Ok(id) => {
+                            match db::reconcile_open_sessions(&conn, id) {
+                                Ok(n) if n > 0 => {
+                                    println!("[Coverage] closed {} session(s) left open by a previous run", n)
+                                }
+                                Err(e) => eprintln!("[Coverage] reconcile failed: {}", e),
+                                _ => {}
+                            }
+                            Some(id)
+                        }
+                        Err(e) => {
+                            eprintln!("[Coverage] could not open a session: {}", e);
+                            None
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[Coverage] skipping, db lock poisoned: {}", e);
+                    None
+                }
+            };
+            if let Some(id) = session_id {
+                LIVE_SESSION.store(id, Ordering::Relaxed);
+            }
 
             // The source registers on this (main) thread — the macOS impl attaches to the main
             // CFRunLoop (D29) — while the consumer (the sole DB writer) drains on a dedicated
             // thread, since SQLite + git-shell enrichment block and must stay off the executor.
             let (tx, rx) = std::sync::mpsc::channel();
             capture::default_source().start(tx);
-            std::thread::spawn(move || capture::consume(db_conn, rx));
+            std::thread::spawn(move || capture::consume(db_conn, rx, session_id));
 
             // Menubar tray + glance popover. Non-fatal: a tray failure shouldn't block launch —
             // but the main window keeps normal close-to-quit behavior until the tray is up (see
@@ -1010,15 +1175,32 @@ pub fn run() {
         .build(tauri::generate_context!());
 
     match result {
-        // `_`-prefixed rather than plain names: only the macOS Reopen arm uses them (the
-        // variant doesn't exist elsewhere), and plain names would be unused on other targets.
-        Ok(app) => app.run(|_app_handle, _event| {
+        Ok(app) => app.run(|app_handle, event| {
             // While the window is closed there is no Dock icon, so re-opening the app from
             // Finder/Spotlight is the natural "bring it back" gesture — macOS activates this
             // process and fires Reopen instead of launching a second instance.
             #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Reopen { .. } = _event {
-                show_main(_app_handle);
+            if let tauri::RunEvent::Reopen { .. } = event {
+                show_main(app_handle);
+            }
+            // A clean exit — ⌘Q, the tray Quit, the glance Quit, or a system shutdown — closes
+            // this run's coverage row at the real time. Without it the row would be reconciled
+            // at its last heartbeat and we'd report up to a minute of blindness that never was.
+            // A SIGKILL never reaches here, which is exactly what the watermark is for.
+            if let tauri::RunEvent::Exit = event {
+                let id = LIVE_SESSION.swap(0, Ordering::Relaxed);
+                if id != 0 {
+                    if let Some(db) = app_handle.try_state::<db::DbConnection>() {
+                        match db.lock() {
+                            Ok(conn) => {
+                                if let Err(e) = db::close_session(&conn, id, db::now_unix()) {
+                                    eprintln!("[Coverage] could not close the session: {}", e);
+                                }
+                            }
+                            Err(e) => eprintln!("[Coverage] db lock poisoned at exit: {}", e),
+                        }
+                    }
+                }
             }
         }),
         Err(e) => {
