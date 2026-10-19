@@ -167,7 +167,9 @@ fn run_osa(script: &str) -> Option<String> {
         .ok()?;
     if out.status.success() {
         super::super::note_automation_ok();
-        Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+        // Only the line ending: a trailing tab separates an empty tab title, so it has to stay.
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        Some(stdout.trim_end_matches(['\n', '\r']).to_string())
     } else {
         if stderr_is_automation_denial(&String::from_utf8_lossy(&out.stderr)) {
             super::super::note_automation_denied();
@@ -187,6 +189,14 @@ mod tests {
             BrowserUrl::Normal {
                 url: "https://github.com/x".into(),
                 title: "Issues · x".into()
+            }
+        );
+        // A normal tab with no title still keeps its URL.
+        assert_eq!(
+            classify(Some("URL\thttps://github.com/x\t")),
+            BrowserUrl::Normal {
+                url: "https://github.com/x".into(),
+                title: String::new()
             }
         );
         // No window left by the time the script ran: the title read earlier is unproven.
