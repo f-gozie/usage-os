@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.5 — small fixes after the calendar (2026)
+
+- **The calendar uses your category names** — if you renamed a category, the Calendar's legend now shows your name for it, and the month total says which month it's for.
+- **No false gaps after sleep** — waking your computer no longer briefly shows a stretch where UsageOS "wasn't running".
+- **A clearer recap** — a browser's own name no longer shows up as a place you spent time, the longest break says when it started, and the project you spent the most time on is named plainly.
+- **Smaller fixes** — clearer wording in a few places, and opening UsageOS a second time no longer cuts short the record of when it was running.
+
 ## v0.1.4 — a calendar, and a recap that tells the day (2026)
 
 - **A calendar** — a new Calendar tab shows each month as a dial per day and the year as a bar per day. Click a day to open it; a link at the top takes you back to the month.
