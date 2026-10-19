@@ -234,7 +234,10 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
       history; the recap's range ignored short activity at the day's ends; a few minutes after a
       long night gave "from around 10 until around 10" — plus the recap wording (prose durations,
       "including … between midnight and around 3 at night", "The time came…", a past empty day).
-      Calendar hover lift restored (animation fill). Warnings left open are listed in the review.
+      Calendar hover lift restored (animation fill). Then the daylight-saving clock (the recap
+      reads local clock time and the real day end via `DayFrame`) and stale Calendar data on
+      range changes (dimmed and inert until the new range loads). The remaining warnings are
+      code-shape ones, listed in the review.
 - [ ] Open: every real day so far reads "The time came in short pieces". True, but it may read as
       repetitive; revisit the texture thresholds after a week of use.
 - [ ] Later, needs its own decision: an opt-in narrator using a model the user already runs

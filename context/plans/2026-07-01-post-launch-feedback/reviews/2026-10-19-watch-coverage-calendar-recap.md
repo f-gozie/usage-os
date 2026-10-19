@@ -73,8 +73,8 @@ Re-run after the auto-fixes below: all still green.
 - [x] Recap range from first/last activity, short end groups ignored; minimum measured inside the range; no "from X until X" (+ 3 tests).
 - [x] Past empty day: "Nothing was tracked on this day." (+ unwatched sentence, + test).
 - [x] Recap wording: prose durations without "0m", "including", "The time came…; the longest ran …". Not done: "starting around", the project sentence.
-- [ ] Real day end for "still going"; local clock time for phrases (DST).
-- [ ] `useViewData` stale data on range change / hidden rung.
+- [x] Real day end for "still going"; local clock time for phrases (DST).
+- [x] `useViewData` stale data on range change / hidden rung.
 - [ ] Simplify: shared threshold, `MonthGrid` reuse of `yearModel`, legend from `CANONICAL_CATEGORIES`, shared per-day loop, split `compute_recap_facts`.
 
 ## Definition of Done
@@ -100,5 +100,12 @@ The four Criticals and the recap wording were fixed on the branch, each with a t
 
 Gates after the fixes: fmt ✅ · clippy `--all-features` ✅ · cargo test ✅ 180 · tsc ✅ · vitest ✅ 94 · bindings fresh ✅ (regenerated: `delete_all_data`'s doc comment). Checked against a copy of the real database for Oct 14 and Oct 19.
 
-Still open from the Warnings: daylight-saving clock times, stale data on Calendar range changes, the duplicated 23-hour threshold, `MonthGrid` reuse, the hardcoded legend, the shared per-day loop, and the Info items.
+Then the two remaining behaviour Warnings:
+
+- **Daylight saving** — `rollup::DayFrame { start, end, now, clock }` replaces the bare `day_start`/`now`: "still going" and "day over" use the real day end from `get_day`/`get_recap`; clock phrases, the parts of the day and the night's end read local clock time through the new `local_clock::secs_of_day` (libc `localtime_r` on macOS, UTC elsewhere), which the tray hour now shares. Test: a 23-hour spring-forward day phrases 8am as "around 8" and its parts by the clock, and is over an hour into the next day.
+- **Stale Calendar data** — `useViewData` keeps each result with the range it was fetched for and reports `stale`, and takes an `enabled` flag; the hidden rung no longer fetches an empty range, and the Calendar dims its grid and makes it inert while the previous range is still showing (`aria-busy`). The Month grid remounts on its data's month, not the requested one. Two hook tests.
+
+Gates after: fmt ✅ · clippy `--all-features` ✅ · cargo test ✅ 181 · tsc ✅ · vitest ✅ 96 · bindings fresh ✅.
+
+Still open from the Warnings: the duplicated 23-hour threshold, `MonthGrid` reuse, the hardcoded legend, the shared per-day loop, and the Info items.
 

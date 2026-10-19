@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface ViewDataState<T> {
   data: T | null;
+  /** `data` belongs to an earlier range than the one now requested (the new one is loading). */
+  stale: boolean;
   loading: boolean;
   error: string | null;
   refresh: () => void;
@@ -17,14 +19,18 @@ export interface ViewDataState<T> {
  * @param deps     identity of the current range — a change refetches
  * @param live     poll every 30s while true (viewing today / this week)
  * @param errorMessage  shown when the fetch rejects
+ * @param enabled  false = don't fetch or poll at all, and keep whatever was loaded
  */
 export function useViewData<T>(
   fetchFn: () => Promise<T>,
   deps: React.DependencyList,
   live: boolean,
   errorMessage: string,
+  enabled = true,
 ): ViewDataState<T> {
-  const [data, setData] = useState<T | null>(null);
+  // Data is stored with the range it was fetched for, so a range change can say it's stale.
+  const key = deps.join("|");
+  const [loaded, setLoaded] = useState<{ data: T; key: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,26 +43,36 @@ export function useViewData<T>(
 
   const runFetch = useCallback(async () => {
     const token = ++latest.current;
+    const forKey = key;
     try {
       const next = await fetch();
       if (token !== latest.current) return; // superseded by a newer request
       setError(null);
-      setData(next);
+      setLoaded({ data: next, key: forKey });
     } catch (e) {
       if (token !== latest.current) return;
       setError(e instanceof Error ? e.message : errorMessage);
     } finally {
       if (token === latest.current) setLoading(false);
     }
+    // `key` changes exactly when `fetch` does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetch, errorMessage]);
 
   useEffect(() => {
+    if (!enabled) return;
     setLoading(true);
     void runFetch();
     if (!live) return;
     const id = setInterval(() => void runFetch(), 30_000);
     return () => clearInterval(id);
-  }, [runFetch, live]);
+  }, [runFetch, live, enabled]);
 
-  return { data, loading, error, refresh: runFetch };
+  return {
+    data: loaded?.data ?? null,
+    stale: loaded !== null && loaded.key !== key,
+    loading,
+    error,
+    refresh: runFetch,
+  };
 }

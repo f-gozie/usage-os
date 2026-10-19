@@ -85,7 +85,7 @@ export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProp
     return dayBounds(days[days.length - 1]).end;
   }, [date]);
   const isThisYear = date.getFullYear() === today.getFullYear();
-  const year = useYearData(rung === "year" ? yearStarts : [], yearEnd);
+  const year = useYearData(yearStarts, yearEnd, rung === "year");
   // All per-day derivation happens here, once per data load (or minute tick) — never in a
   // cell's render. Cells receive frozen models and memoize on identity.
   const yearModel = useMemo(
@@ -104,9 +104,10 @@ export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProp
   // Live only while the month rung is actually on screen: polling a view nobody is looking at
   // would spend battery re-deriving a grid that is not rendered.
   const month = useMonthData(
-    rung === "month" ? monthStarts : [],
+    monthStarts,
     monthEnd,
     rung === "month" && isThisMonth,
+    rung === "month",
   );
 
   const openMonth = useCallback(
@@ -146,41 +147,48 @@ export function CalendarView({ date, onDateChange, onOpenDay }: CalendarViewProp
         }
       />
 
-      {state.error ? (
-        <ErrorState message={state.error} onRetry={state.refresh} />
-      ) : state.loading && !state.data ? (
-        <Skeleton className="h-[420px] w-full" />
-      ) : rung === "year" && yearModel ? (
-        // Keyed so a layout switch remounts and replays the settle-in, rather than snapping.
-        layout === "rows" ? (
-          <YearRows
-            key="rows"
-            months={yearModel}
-            currentMonth={currentMonth}
-            onOpenMonth={openMonth}
-            // One rung at a time: a bar in the Year opens its Month, and the Month opens the Day.
-            // Jumping from a 13px bar straight to a Day skipped the rung the ladder is named for.
-            onOpenDay={openMonth}
+      {/* Until the new range arrives the previous one stays on screen, dimmed and inert, so a
+          heading never sits over another month's cells. */}
+      <div
+        aria-busy={state.stale || undefined}
+        className={cn("transition-opacity duration-150", state.stale && "pointer-events-none opacity-40")}
+      >
+        {state.error ? (
+          <ErrorState message={state.error} onRetry={state.refresh} />
+        ) : state.loading && !state.data ? (
+          <Skeleton className="h-[420px] w-full" />
+        ) : rung === "year" && yearModel ? (
+          // Keyed so a layout switch remounts and replays the settle-in, rather than snapping.
+          layout === "rows" ? (
+            <YearRows
+              key="rows"
+              months={yearModel}
+              currentMonth={currentMonth}
+              onOpenMonth={openMonth}
+              // One rung at a time: a bar in the Year opens its Month, and the Month opens the Day.
+              // Jumping from a 13px bar straight to a Day skipped the rung the ladder is named for.
+              onOpenDay={openMonth}
+            />
+          ) : (
+            <YearWall
+              key="wall"
+              months={yearModel}
+              currentMonth={currentMonth}
+              onOpenMonth={openMonth}
+              onOpenDay={openMonth}
+            />
+          )
+        ) : rung === "month" && month.data ? (
+          <MonthGrid
+            key={month.data.days[0]?.day_start}
+            days={month.data.days}
+            totalActive={month.data.total_active_secs}
+            emptyDays={month.data.empty_days}
+            now={now}
+            onOpenDay={openDay}
           />
-        ) : (
-          <YearWall
-            key="wall"
-            months={yearModel}
-            currentMonth={currentMonth}
-            onOpenMonth={openMonth}
-            onOpenDay={openMonth}
-          />
-        )
-      ) : rung === "month" && month.data ? (
-        <MonthGrid
-          key={monthStarts[0]}
-          days={month.data.days}
-          totalActive={month.data.total_active_secs}
-          emptyDays={month.data.empty_days}
-          now={now}
-          onOpenDay={openDay}
-        />
-      ) : null}
+        ) : null}
+      </div>
 
       <Legend />
     </div>
