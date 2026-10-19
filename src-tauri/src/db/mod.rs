@@ -1284,7 +1284,7 @@ mod tests {
         create_exclusion(&conn, "app", "1Password", "exclude").unwrap();
         set_setting(&conn, "theme", "warm").unwrap();
 
-        delete_all_data(&mut conn).unwrap();
+        delete_all_data(&mut conn, 2000).unwrap();
 
         // Record gone (incl. cascaded aliases).
         assert!(get_activity_logs(&conn, 0, 9999).unwrap().is_empty());
@@ -1305,5 +1305,24 @@ mod tests {
             get_setting(&conn, "theme").unwrap(),
             Some("warm".to_string())
         );
+    }
+
+    #[test]
+    fn delete_all_data_forgets_when_the_app_ran_but_keeps_the_live_session() {
+        let mut conn = setup_test_db();
+        let old = open_session(&conn, 100, "0.1.3").unwrap();
+        close_session(&conn, old, 500).unwrap();
+        let live = open_session(&conn, 1000, "0.1.4").unwrap();
+        touch_session(&conn, live, 1500).unwrap();
+
+        delete_all_data(&mut conn, 2000).unwrap();
+
+        // No history before the wipe: the past reads as unknown, not as "wasn't running".
+        assert_eq!(first_coverage_start(&conn).unwrap(), Some(2000));
+        // The live session's heartbeat still lands.
+        touch_session(&conn, live, 2600).unwrap();
+        let spans = get_coverage(&conn, 0, 10_000).unwrap();
+        assert_eq!(spans.len(), 1);
+        assert_eq!((spans[0].start, spans[0].end), (2000, 2600));
     }
 }

@@ -265,7 +265,7 @@ async exportEventsCsv() : Promise<Result<string, AppError>> {
 }
 },
 /**
- * Erase the captured record (events + derived projects/sites), preserving the user's
+ * Erase the captured record (events, derived projects/sites, when the app ran), preserving the user's
  * configuration (categories, rules, exclusions, settings). One transaction (see `db`).
  */
 async deleteAllData() : Promise<Result<null, AppError>> {

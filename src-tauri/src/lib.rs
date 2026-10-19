@@ -529,13 +529,13 @@ fn export_events_csv(app: tauri::AppHandle, db: State<DbState>) -> Result<String
     Ok(out.to_string_lossy().into_owned())
 }
 
-/// Erase the captured record (events + derived projects/sites), preserving the user's
+/// Erase the captured record (events, derived projects/sites, when the app ran), preserving the user's
 /// configuration (categories, rules, exclusions, settings). One transaction (see `db`).
 #[tauri::command]
 #[specta::specta]
 fn delete_all_data(db: State<DbState>) -> Result<(), AppError> {
     let mut conn = db.lock().map_err(|_| AppError::LockPoisoned)?;
-    db::delete_all_data(&mut conn).map_err(AppError::from)
+    db::delete_all_data(&mut conn, db::now_unix()).map_err(AppError::from)
 }
 
 /// The installed-app catalog (name + icon data-URI) backing the UI's `AppIcon`. Reads
@@ -1165,24 +1165,22 @@ pub fn run() {
         .build(tauri::generate_context!());
 
     match result {
-        // `_`-prefixed rather than plain names: only the macOS Reopen arm uses them (the
-        // variant doesn't exist elsewhere), and plain names would be unused on other targets.
-        Ok(app) => app.run(|_app_handle, _event| {
+        Ok(app) => app.run(|app_handle, event| {
             // While the window is closed there is no Dock icon, so re-opening the app from
             // Finder/Spotlight is the natural "bring it back" gesture — macOS activates this
             // process and fires Reopen instead of launching a second instance.
             #[cfg(target_os = "macos")]
-            if let tauri::RunEvent::Reopen { .. } = _event {
-                show_main(_app_handle);
+            if let tauri::RunEvent::Reopen { .. } = event {
+                show_main(app_handle);
             }
             // A clean exit — ⌘Q, the tray Quit, the glance Quit, or a system shutdown — closes
             // this run's coverage row at the real time. Without it the row would be reconciled
             // at its last heartbeat and we'd report up to a minute of blindness that never was.
             // A SIGKILL never reaches here, which is exactly what the watermark is for.
-            if let tauri::RunEvent::Exit = _event {
+            if let tauri::RunEvent::Exit = event {
                 let id = LIVE_SESSION.swap(0, Ordering::Relaxed);
                 if id != 0 {
-                    if let Some(db) = _app_handle.try_state::<db::DbConnection>() {
+                    if let Some(db) = app_handle.try_state::<db::DbConnection>() {
                         match db.lock() {
                             Ok(conn) => {
                                 if let Err(e) = db::close_session(&conn, id, db::now_unix()) {

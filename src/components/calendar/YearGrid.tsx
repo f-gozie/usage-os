@@ -3,10 +3,6 @@ import { memo } from "react";
 import type { DayModel } from "@/components/calendar/yearModel";
 import { cn } from "@/lib/utils";
 
-// Re-exported so existing imports keep one home for the year's vocabulary.
-export { dayLabel, dayState, YEAR_CEILING_SECS } from "@/components/calendar/yearModel";
-export type { DayState } from "@/components/calendar/yearModel";
-
 /** The stacked bar for one day: height is hours, segments are categories.
  *
  *  Height is geometry, not a second colour channel — which is what keeps this from becoming a

@@ -200,15 +200,24 @@
     const longest = runsOf(segs).reduce((m, r) => (r.mins > (m?.mins ?? 0) ? r : m), null);
     if (longest && longest.mins >= 15) facts.longest = { mins: longest.mins, at: longest.start };
 
-    // Span: from the first to the last run of five minutes or more.
-    const real = runs.filter((r) => r.mins >= 5);
-    if (on("span") && active >= 60 && real.length) {
-      const end = real[real.length - 1].end;
-      facts.span = {
-        from: real[0].start,
-        to: end,
-        ongoing: day.today != null,
-      };
+    // Span: activity an hour or more apart is a separate group; a group of under five minutes at
+    // either end (a glance at the clock) doesn't move the start or end.
+    const groups = [];
+    for (const [a, b] of main) {
+      const g = groups[groups.length - 1];
+      if (g && a - g.end < 60) {
+        g.end = Math.max(g.end, b);
+        g.mins += b - a;
+      } else groups.push({ start: a, end: b, mins: b - a });
+    }
+    while (groups.length > 1 && groups[0].mins < 5) groups.shift();
+    while (groups.length > 1 && groups[groups.length - 1].mins < 5) groups.pop();
+    const bounds = groups.length
+      ? { from: groups[0].start, to: groups[groups.length - 1].end, inside: groups.reduce((s, g) => s + g.mins, 0) }
+      : null;
+    if (on("span") && bounds && bounds.inside >= 60) {
+      const ongoing = day.today != null;
+      if (ongoing || clock(bounds.from) !== clock(bounds.to)) facts.span = { from: bounds.from, to: bounds.to, ongoing };
     }
 
     // Parts of the day.
@@ -267,9 +276,8 @@
 
     // The longest break inside the span, measured over every bit of activity (a few scattered
     // minutes mean it wasn't a break) — never across a stretch UsageOS wasn't running.
-    if (on("break") && real.length > 1) {
-      const from = real[0].start;
-      const to = real[real.length - 1].end;
+    if (on("break") && bounds) {
+      const { from, to } = bounds;
       let away = from;
       let best = null;
       for (const [a, b] of main) {
@@ -362,11 +370,15 @@
   function template(f) {
     if (!f.leading) return "No activity tracked today yet.";
     const out = [];
-    const tail = f.tail ? `, counting ${short(f.tail.mins)} just after midnight` : "";
+    const tail = !f.tail
+      ? ""
+      : clock(f.tail.until) === "around midnight"
+        ? `, including ${short(f.tail.mins)} just after midnight`
+        : `, including ${short(f.tail.mins)} between midnight and ${clock(f.tail.until)}`;
     if (f.span) {
       out.push(
         f.span.ongoing
-          ? `You’ve been active since ${clock(f.span.from)}, ${short(f.active)} so far.`
+          ? `You’ve been active since ${clock(f.span.from)}, ${short(f.active)} so far${tail}.`
           : `You were active from ${clock(f.span.from)} until ${clock(f.span.to)}, ${short(f.active)} in all${tail}.`,
       );
     } else {
@@ -392,9 +404,9 @@
       const at = when(f.longest.at);
       out.push(
         f.texture === "in short pieces, switching often"
-          ? `It came in short pieces; the longest ran ${s} ${at}.`
+          ? `The time came in short pieces; the longest ran ${s} ${at}.`
           : f.texture === "mostly in long stretches"
-            ? `Most of it came in long stretches, the longest ${s} ${at}.`
+            ? `The time came mostly in long stretches; the longest ran ${s} ${at}.`
             : `Your longest stretch ran ${s} ${at}.`,
       );
     }

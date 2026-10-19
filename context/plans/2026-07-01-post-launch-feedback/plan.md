@@ -229,7 +229,13 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
 - [x] `perf.rs` (feature-gated) compiles again — it had fallen behind D72's signature changes,
       which `clippy --all-features` (a merge gate) catches.
 - [x] Owner checked the new recap in the running app.
-- [ ] Open: every real day so far reads "It came in short pieces". True, but it may read as
+- [x] **Branch review** (`reviews/2026-10-19-watch-coverage-calendar-recap.md`): fixed the four
+      Criticals — a whole unwatched day drew no broken ring; "Delete all data" left the coverage
+      history; the recap's range ignored short activity at the day's ends; a few minutes after a
+      long night gave "from around 10 until around 10" — plus the recap wording (prose durations,
+      "including … between midnight and around 3 at night", "The time came…", a past empty day).
+      Calendar hover lift restored (animation fill). Warnings left open are listed in the review.
+- [ ] Open: every real day so far reads "The time came in short pieces". True, but it may read as
       repetitive; revisit the texture thresholds after a week of use.
 - [ ] Later, needs its own decision: an opt-in narrator using a model the user already runs
       locally (Ollama / LM Studio), held to the same six days and a Rust check that every name,

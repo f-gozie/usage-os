@@ -771,16 +771,13 @@ fn build_runs(
         .collect()
 }
 
-/// Format a duration the way the UI reads it: "4h 15m" / "45m" / "30s".
-fn human_secs(secs: i64) -> String {
-    let hours = secs / 3600;
-    let minutes = (secs % 3600) / 60;
-    if hours > 0 {
-        format!("{hours}h {minutes}m")
-    } else if minutes > 0 {
-        format!("{minutes}m")
-    } else {
-        format!("{secs}s")
+/// A duration for a sentence: "4h 15m", "3h", "45m", "30s".
+fn prose_secs(secs: i64) -> String {
+    match (secs / 3600, (secs % 3600) / 60) {
+        (0, 0) => format!("{secs}s"),
+        (0, m) => format!("{m}m"),
+        (h, 0) => format!("{h}h"),
+        (h, m) => format!("{h}h {m}m"),
     }
 }
 
@@ -822,7 +819,7 @@ pub struct RecapFacts {
     /// When the day ran, from its first to its last real stretch of activity.
     pub span: Option<SpanFact>,
     /// Activity just after midnight that the night's sleep separates from the day proper.
-    pub after_midnight_secs: Option<i64>,
+    pub after_midnight: Option<AfterMidnightFact>,
     /// What each part of the day mostly went to, neighbouring parts that agree merged.
     pub parts: Vec<PartFact>,
     /// The apps and sites the top two categories mostly happened in.
@@ -830,6 +827,8 @@ pub struct RecapFacts {
     pub texture: Option<Texture>,
     /// The longest time away inside the span — never a stretch UsageOS wasn't running.
     pub longest_break: Option<BreakFact>,
+    /// The day has ended, so an empty one says "on this day", not "today yet".
+    pub day_over: bool,
 }
 
 /// Seconds since the day's local midnight, so the phrasing needs no time-zone library.
@@ -839,6 +838,14 @@ pub struct SpanFact {
     pub to: i64,
     /// The day isn't over yet: the recap says "so far", never "until".
     pub ongoing: bool,
+}
+
+/// Active time before the night's gap, and when it stopped (seconds since midnight). Both are
+/// said, so 2h of activity spread to 3am doesn't read as two hours "just after midnight".
+#[derive(Debug, Clone)]
+pub struct AfterMidnightFact {
+    pub secs: i64,
+    pub until: i64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -876,10 +883,12 @@ pub struct BreakFact {
 }
 
 // Day-shape thresholds (D74), tuned on `design/recap.html`.
-/// A day needs this much activity before its start and end are worth saying.
+/// A day needs this much activity between its start and end before they are worth saying.
 const SPAN_MIN_ACTIVE_SECS: i64 = 3600;
-/// Runs shorter than this don't move the start or end (a glance at the clock at 6am).
-const SPAN_RUN_MIN_SECS: i64 = 5 * 60;
+/// Activity an hour or more apart is a separate group; a group with less than five minutes of
+/// activity at either end of the day doesn't move the start or end.
+const GROUP_GAP_SECS: i64 = 3600;
+const GROUP_MIN_ACTIVE_SECS: i64 = 5 * 60;
 /// Activity ending before this, then a long gap, belongs to the night before.
 const NIGHT_ENDS_SECS: i64 = 5 * 3600;
 const OVERNIGHT_GAP_SECS: i64 = 3 * 3600;
@@ -980,77 +989,19 @@ fn compute_recap_facts(day: &DayInput) -> RecapFacts {
         .collect();
     active.sort_by_key(|e| e.start_time);
 
-    // The night's tail: activity before 5am that a gap of 3h+ separates from the rest.
-    let night_ends = day.day_start + NIGHT_ENDS_SECS;
-    let tail_len = active
-        .windows(2)
-        .rposition(|w| {
-            w[0].end_time <= night_ends && w[1].start_time - w[0].end_time >= OVERNIGHT_GAP_SECS
-        })
-        .map_or(0, |i| i + 1);
-    let tail_secs: i64 = active[..tail_len].iter().map(|e| duration(e)).sum();
-    let day_begins = active[..tail_len].last().map(|e| e.end_time);
+    let (tail, main) = active.split_at(night_tail_len(&active, day.day_start));
+    let tail_secs: i64 = tail.iter().map(|e| duration(e)).sum();
 
-    // The day's real stretches: past the tail, and long enough to move the start or end.
-    let real: Vec<&CategoryRun> = day
-        .runs
-        .iter()
-        .filter(|r| r.secs >= SPAN_RUN_MIN_SECS && !matches!(day_begins, Some(t) if r.start < t))
-        .collect();
-
-    let span = match (real.first(), real.last()) {
-        (Some(first), Some(last)) if day.active_secs >= SPAN_MIN_ACTIVE_SECS => Some(SpanFact {
-            from: first.start - day.day_start,
-            to: last.end - day.day_start,
-            ongoing: day.now >= day.day_start && day.now < day.day_start + 86_400,
-        }),
-        _ => None,
-    };
-
-    // Measured over every bit of activity, not just the runs that set the span: a few scattered
-    // minutes in the middle of an afternoon mean it wasn't a break.
-    let longest_break = match (real.first(), real.last()) {
-        (Some(first), Some(last)) => {
-            let mut away_from = first.start;
-            let mut best: Option<BreakFact> = None;
-            for e in &active[tail_len..] {
-                if e.end_time <= first.start || e.start_time >= last.end {
-                    continue;
-                }
-                let (from, to) = (away_from, e.start_time);
-                let blind = day.gaps.iter().any(|g| g.start < to && g.end > from);
-                if !blind
-                    && to - from >= BREAK_MIN_SECS
-                    && best.as_ref().is_none_or(|b| to - from > b.secs)
-                {
-                    best = Some(BreakFact {
-                        secs: to - from,
-                        from: from - day.day_start,
-                    });
-                }
-                away_from = away_from.max(e.end_time);
-            }
-            best
-        }
-        _ => None,
-    };
-
-    let texture = (day.active_secs >= TEXTURE_MIN_ACTIVE_SECS).then(|| {
-        let in_long: i64 = day
-            .runs
-            .iter()
-            .filter(|r| r.secs >= LONG_STRETCH_SECS)
-            .map(|r| r.secs)
-            .sum();
-        let pct = in_long * 100 / day.active_secs;
-        if pct >= TEXTURE_LONG_PCT {
-            Some(Texture::LongStretches)
-        } else if pct <= TEXTURE_SHORT_PCT && day.runs.len() >= TEXTURE_SHORT_MIN_RUNS {
-            Some(Texture::ShortPieces)
-        } else {
-            None
-        }
+    let bounds = active_bounds(main);
+    let span = bounds.and_then(|(from, to, inside)| {
+        let ongoing = day.now >= day.day_start && day.now < day.day_start + 86_400;
+        let (from, to) = (from - day.day_start, to - day.day_start);
+        // "From around 10 until around 10" says nothing; neither does a range around a few minutes.
+        let says_something = ongoing || clock_phrase(from) != clock_phrase(to);
+        (inside >= SPAN_MIN_ACTIVE_SECS && says_something).then_some(SpanFact { from, to, ongoing })
     });
+    let longest_break =
+        bounds.and_then(|(from, to, _)| longest_break(main, from, to, day.gaps, day.day_start));
 
     RecapFacts {
         active_secs: day.active_secs,
@@ -1060,7 +1011,13 @@ fn compute_recap_facts(day: &DayInput) -> RecapFacts {
         longest_focus,
         unwatched_secs: crate::db::unwatched_secs(day.gaps),
         span,
-        after_midnight_secs: (tail_secs >= AFTER_MIDNIGHT_MIN_SECS).then_some(tail_secs),
+        after_midnight: tail
+            .last()
+            .filter(|_| tail_secs >= AFTER_MIDNIGHT_MIN_SECS)
+            .map(|last| AfterMidnightFact {
+                secs: tail_secs,
+                until: last.end_time - day.day_start,
+            }),
         parts: day_parts(&active, day.categories, day.day_start),
         places: day
             .slices
@@ -1069,8 +1026,97 @@ fn compute_recap_facts(day: &DayInput) -> RecapFacts {
             .filter(|c| c.secs > 0)
             .filter_map(|c| places_of(c, &active, day.categories))
             .collect(),
-        texture: texture.flatten(),
+        texture: texture_of(day.runs, day.active_secs),
         longest_break,
+        day_over: day.now >= day.day_start + 86_400,
+    }
+}
+
+/// How many of the (sorted) events belong to the night before: activity ending before 5am that a
+/// gap of 3h+ separates from the rest of the day.
+fn night_tail_len(active: &[&ActivityLog], day_start: i64) -> usize {
+    let night_ends = day_start + NIGHT_ENDS_SECS;
+    active
+        .windows(2)
+        .rposition(|w| {
+            w[0].end_time <= night_ends && w[1].start_time - w[0].end_time >= OVERNIGHT_GAP_SECS
+        })
+        .map_or(0, |i| i + 1)
+}
+
+/// The day's first and last activity, plus the active seconds between them. Activity is grouped
+/// where an hour or more separates it; a group of only a few minutes at either end (a glance at
+/// the clock at 6am) doesn't move the start or end.
+fn active_bounds(main: &[&ActivityLog]) -> Option<(i64, i64, i64)> {
+    let mut groups: Vec<(i64, i64, i64)> = Vec::new();
+    for e in main {
+        match groups.last_mut() {
+            Some(g) if e.start_time - g.1 < GROUP_GAP_SECS => {
+                g.1 = g.1.max(e.end_time);
+                g.2 += duration(e);
+            }
+            _ => groups.push((e.start_time, e.end_time, duration(e))),
+        }
+    }
+    while groups.len() > 1 && groups[0].2 < GROUP_MIN_ACTIVE_SECS {
+        groups.remove(0);
+    }
+    while groups.len() > 1 && groups[groups.len() - 1].2 < GROUP_MIN_ACTIVE_SECS {
+        groups.pop();
+    }
+    let (first, last) = (groups.first()?, groups.last()?);
+    Some((first.0, last.1, groups.iter().map(|g| g.2).sum()))
+}
+
+/// The longest time with no activity between `from` and `to`, measured over every bit of
+/// activity (a few scattered minutes mean it wasn't a break), and never across a stretch
+/// UsageOS wasn't running.
+fn longest_break(
+    main: &[&ActivityLog],
+    from: i64,
+    to: i64,
+    gaps: &[CoverageGap],
+    day_start: i64,
+) -> Option<BreakFact> {
+    let mut away_from = from;
+    let mut best: Option<BreakFact> = None;
+    for e in main {
+        if e.end_time <= from || e.start_time >= to {
+            continue;
+        }
+        let back = e.start_time;
+        let blind = gaps.iter().any(|g| g.start < back && g.end > away_from);
+        if !blind
+            && back - away_from >= BREAK_MIN_SECS
+            && best.as_ref().is_none_or(|b| back - away_from > b.secs)
+        {
+            best = Some(BreakFact {
+                secs: back - away_from,
+                from: away_from - day_start,
+            });
+        }
+        away_from = away_from.max(e.end_time);
+    }
+    best
+}
+
+/// Whether the time came mostly in long stretches or in short pieces; `None` in between.
+fn texture_of(runs: &[CategoryRun], active_secs: i64) -> Option<Texture> {
+    if active_secs < TEXTURE_MIN_ACTIVE_SECS {
+        return None;
+    }
+    let in_long: i64 = runs
+        .iter()
+        .filter(|r| r.secs >= LONG_STRETCH_SECS)
+        .map(|r| r.secs)
+        .sum();
+    let pct = in_long * 100 / active_secs;
+    if pct >= TEXTURE_LONG_PCT {
+        Some(Texture::LongStretches)
+    } else if pct <= TEXTURE_SHORT_PCT && runs.len() >= TEXTURE_SHORT_MIN_RUNS {
+        Some(Texture::ShortPieces)
+    } else {
+        None
     }
 }
 
@@ -1215,12 +1261,26 @@ pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
         None if facts.unwatched_secs >= MOSTLY_UNWATCHED_SECS => {
             "UsageOS wasn’t running on this day, so there’s nothing to show.".to_string()
         }
-        None => "No activity tracked today yet.".to_string(),
+        None if !facts.day_over => "No activity tracked today yet.".to_string(),
+        None if facts.unwatched_secs >= RECAP_GAP_MENTION_SECS => format!(
+            "Nothing was tracked on this day. UsageOS wasn’t running for {} of it.",
+            prose_secs(facts.unwatched_secs)
+        ),
+        None => "Nothing was tracked on this day.".to_string(),
         Some(leading) => {
-            let total = human_secs(facts.active_secs);
+            let total = prose_secs(facts.active_secs);
             let counting = facts
-                .after_midnight_secs
-                .map(|secs| format!(", counting {} just after midnight", human_secs(secs)))
+                .after_midnight
+                .as_ref()
+                .map(|night| match clock_phrase(night.until).as_str() {
+                    "around midnight" => {
+                        format!(", including {} just after midnight", prose_secs(night.secs))
+                    }
+                    until => format!(
+                        ", including {} between midnight and {until}",
+                        prose_secs(night.secs)
+                    ),
+                })
                 .unwrap_or_default();
             let mut out = vec![match &facts.span {
                 Some(span) if span.ongoing => format!(
@@ -1240,9 +1300,9 @@ pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
                     Some(second) => format!(
                         "{} led at {}, then {} at {}.",
                         leading.name,
-                        human_secs(leading.secs),
+                        prose_secs(leading.secs),
                         second.name,
-                        human_secs(second.secs),
+                        prose_secs(second.secs),
                     ),
                     None => format!("All of it was {}.", leading.name),
                 });
@@ -1279,21 +1339,21 @@ pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
             }
 
             if let Some(focus) = &facts.longest_focus {
-                let (secs, when) = (human_secs(focus.secs), focus.when);
+                let (secs, when) = (prose_secs(focus.secs), focus.when);
                 out.push(match facts.texture {
                     Some(Texture::ShortPieces) => {
-                        format!("It came in short pieces; the longest ran {secs} {when}.")
+                        format!("The time came in short pieces; the longest ran {secs} {when}.")
                     }
-                    Some(Texture::LongStretches) => {
-                        format!("Most of it came in long stretches, the longest {secs} {when}.")
-                    }
+                    Some(Texture::LongStretches) => format!(
+                        "The time came mostly in long stretches; the longest ran {secs} {when}."
+                    ),
                     None => format!("Your longest stretch ran {secs} {when}."),
                 });
             }
             if let Some(gap) = &facts.longest_break {
                 out.push(format!(
                     "The longest break was {}, from {}.",
-                    human_secs(gap.secs),
+                    prose_secs(gap.secs),
                     clock_phrase(gap.from)
                 ));
             }
@@ -1305,7 +1365,7 @@ pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
             if facts.unwatched_secs >= RECAP_GAP_MENTION_SECS {
                 out.push(format!(
                     "UsageOS wasn’t running for {} of it, so this is only part of the day.",
-                    human_secs(facts.unwatched_secs),
+                    prose_secs(facts.unwatched_secs),
                 ));
             }
             out.join(" ")
@@ -1319,7 +1379,7 @@ pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
 }
 
 /// Spell a duration out in full words for the AI prompt ("4 hours 53 minutes") — never the "47m"
-/// shorthand, which the model misreads as "47 million". Prompt-only; the UI keeps [`human_secs`].
+/// shorthand, which the model misreads as "47 million". Prompt-only; the recap sentences use [`prose_secs`].
 fn human_secs_long(secs: i64) -> String {
     let hours = secs / 3600;
     let minutes = (secs % 3600) / 60;
@@ -1630,7 +1690,7 @@ mod tests {
 
     #[test]
     fn recap_is_empty_when_no_active_time() {
-        let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![], 3600);
         assert_eq!(day.recap.text, "No activity tracked today yet.");
         assert_eq!(day.recap.generated_by, "template");
     }
@@ -1772,7 +1832,7 @@ mod tests {
     #[test]
     fn a_quiet_but_watched_day_still_reads_as_quiet() {
         let day = build_day_view(&[idle(0, 600)], &ctx_map(), &proj_map(), 0, vec![], LATER);
-        assert_eq!(day.recap.text, "No activity tracked today yet.");
+        assert_eq!(day.recap.text, "Nothing was tracked on this day.");
         assert_eq!(day.unwatched_secs, 0);
     }
 
@@ -1911,7 +1971,7 @@ mod tests {
         let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
         let t = &day.recap.text;
         assert!(
-            t.starts_with("You were active from around 9 in the morning until around 11 at night, 10h 0m in all, counting 1h 0m just after midnight."),
+            t.starts_with("You were active from around 9 in the morning until around 11 at night, 10h in all, including 1h between midnight and around 1 at night."),
             "{t}"
         );
         assert!(
@@ -1928,7 +1988,7 @@ mod tests {
         let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], now);
         let t = &day.recap.text;
         assert!(
-            t.starts_with("You’ve been active since around 8 in the morning, 2h 0m so far."),
+            t.starts_with("You’ve been active since around 8 in the morning, 2h so far."),
             "{t}"
         );
         assert!(!t.contains("until"), "{t}");
@@ -1944,7 +2004,7 @@ mod tests {
         assert!(
             day.recap
                 .text
-                .contains("The longest break was 3h 0m, from around 11 in the morning."),
+                .contains("The longest break was 3h, from around 11 in the morning."),
             "{}",
             day.recap.text
         );
@@ -1990,6 +2050,84 @@ mod tests {
     }
 
     #[test]
+    fn short_pieces_at_the_end_of_the_day_still_count_toward_its_range() {
+        // An evening of 4-minute switches is outside every 5-minute run, but it is still the day.
+        let mut events = vec![
+            ev(9 * H, 9 * H + 1800, "Cursor", Some(1), None),
+            ev(14 * H, 14 * H + 600, "Cursor", Some(1), None),
+        ];
+        events.extend((0..15).map(|i| {
+            let t = 20 * H + i * 240;
+            ev(t, t + 240, "Slack", Some(2 + i % 2), None)
+        }));
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let t = &day.recap.text;
+        assert!(t.contains("until around 9 at night"), "{t}");
+        assert!(
+            t.contains("The longest break was 5h 50m, from around 2 in the afternoon."),
+            "{t}"
+        );
+    }
+
+    #[test]
+    fn a_few_minutes_after_a_long_night_give_no_range() {
+        let events = vec![
+            ev(1800, 3 * H + 1800, "Cursor", Some(1), None),
+            ev(10 * H, 10 * H + 600, "Cursor", Some(1), None),
+        ];
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        let t = &day.recap.text;
+        assert!(!t.contains("active from"), "{t}");
+        assert!(t.starts_with("3h 10m tracked."), "{t}");
+    }
+
+    #[test]
+    fn time_after_midnight_says_when_it_stopped() {
+        // Two hours of activity spread from midnight to nearly 3am (Oct 19, 2026, on device).
+        let mut events: Vec<ActivityLog> = (0..8)
+            .map(|i| ev(i * 1260, i * 1260 + 900, "Claude", Some(1), None))
+            .collect();
+        events.push(ev(8 * H, 11 * H, "Claude", Some(1), None));
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        assert!(
+            day.recap
+                .text
+                .contains("including 2h between midnight and around 2:30 at night."),
+            "{}",
+            day.recap.text
+        );
+    }
+
+    #[test]
+    fn a_glance_at_the_clock_does_not_start_the_day() {
+        let events = vec![
+            ev(6 * H, 6 * H + 60, "Clock", Some(2), None),
+            ev(9 * H, 12 * H, "Cursor", Some(1), None),
+        ];
+        let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
+        assert!(
+            day.recap
+                .text
+                .starts_with("You were active from around 9 in the morning until around noon"),
+            "{}",
+            day.recap.text
+        );
+    }
+
+    #[test]
+    fn a_past_empty_day_is_not_today_and_says_what_is_known() {
+        let gaps = vec![CoverageGap {
+            start: 0,
+            end: 20 * H,
+        }];
+        let day = build_day_view(&[], &ctx_map(), &proj_map(), 0, gaps, LATER);
+        assert_eq!(
+            day.recap.text,
+            "Nothing was tracked on this day. UsageOS wasn’t running for 20h of it."
+        );
+    }
+
+    #[test]
     fn neighbouring_parts_that_agree_merge() {
         let events = vec![ev(9 * H, 16 * H, "Cursor", Some(1), None)];
         let day = build_day_view(&events, &ctx_map(), &proj_map(), 0, vec![], LATER);
@@ -2021,7 +2159,7 @@ mod tests {
         assert!(
             day.recap
                 .text
-                .contains("It came in short pieces; the longest ran 16m in the morning."),
+                .contains("The time came in short pieces; the longest ran 16m in the morning."),
             "{}",
             day.recap.text
         );

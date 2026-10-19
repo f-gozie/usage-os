@@ -99,6 +99,16 @@ describe("Dial coverage gaps", () => {
     expect(gap).toHaveAttribute("stroke-dasharray", "3 7");
   });
 
+  it("draws a whole day nobody watched as a full broken ring, not an empty arc", () => {
+    const { container } = render(<Dial {...base} gaps={[{ start: at(0), end: at(24) }]} />);
+
+    const gap = [...container.querySelectorAll("path")].find((p) =>
+      p.querySelector("title")?.textContent?.includes("wasn’t running"),
+    );
+    // Two half-circle arcs; a single arc from midnight to midnight would draw nothing.
+    expect(gap?.getAttribute("d")?.match(/A/g)).toHaveLength(2);
+  });
+
   it("skips a stretch too short to read, so a reboot leaves no speck", () => {
     const { container } = render(
       <Dial {...base} gaps={[{ start: at(12), end: at(12) + 120 }]} />,
