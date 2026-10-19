@@ -35,7 +35,6 @@ const LAYOUT_KEY = "calendar_year_layout";
 /** Sunday-first, matching the shipped `weekDays()` and the Week view. */
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-
 export interface CalendarViewProps {
   date: Date;
   onDateChange: (date: Date) => void;

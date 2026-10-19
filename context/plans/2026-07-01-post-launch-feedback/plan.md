@@ -251,8 +251,8 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
 - [x] Coverage: a running app reads as covered up to now (no false gap after wake); a heartbeat
       reopens a session a second launch closed; no sub-5-minute gap at a day's edge (D72 addendum).
 - [x] Recap: a browser is never named as a place, even one that records no sites (Firefox);
-      "The longest break was 3h, starting around 11 in the morning."; "Most of it was on the
-      usageos project."
+      "The longest break was 3h, starting around 11 in the morning."; "The usageos project
+      took the most time."
 - [x] Copy: curly apostrophes in error messages; the refresh tooltip no longer promises polling;
       the week back link reads "← 12–18 October 2026".
 - [x] One source for "not recorded": an `unrecorded` flag from Rust replaces four TS copies.

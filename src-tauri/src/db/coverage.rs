@@ -13,7 +13,7 @@
 use super::*;
 
 /// A stretch during which the app was running. `end` is the clean exit where there was one, else
-/// the last heartbeat — the most that can be honestly claimed for a process that vanished.
+/// now for the running app, or the last heartbeat for a process that vanished.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct CoverageSpan {
     pub start: i64,

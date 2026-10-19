@@ -163,20 +163,18 @@ describe.each([
   );
 
   it("opens a day's month from one delegated listener, not a handler per cell", () => {
-    const onOpenDay = vi.fn();
-    const { getAllByRole } = render(<Layout months={months} currentMonth={8} onOpen={onOpenDay} />);
+    const onOpen = vi.fn();
+    const { getAllByRole } = render(<Layout months={months} currentMonth={8} onOpen={onOpen} />);
     const bar = getAllByRole("button").find((b) => b.getAttribute("data-day") === String(at(8, 15)));
     fireEvent.click(bar as HTMLElement);
-    expect(onOpenDay).toHaveBeenCalledWith(at(8, 15));
+    expect(onOpen).toHaveBeenCalledWith(at(8, 15));
   });
 
   it("opens a month from its name", () => {
-    const onOpenMonth = vi.fn();
-    const { getByRole } = render(
-      <Layout months={months} currentMonth={8} onOpen={onOpenMonth} />,
-    );
+    const onOpen = vi.fn();
+    const { getByRole } = render(<Layout months={months} currentMonth={8} onOpen={onOpen} />);
     fireEvent.click(getByRole("button", { name: "Sep" }));
-    expect(onOpenMonth).toHaveBeenCalledWith(at(8, 15));
+    expect(onOpen).toHaveBeenCalledWith(at(8, 15));
   });
 });
 

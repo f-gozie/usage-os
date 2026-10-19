@@ -318,7 +318,7 @@ fn get_year(
     let first_coverage = db::first_coverage_start(&conn)?;
     let now = db::now_unix();
     let year_start = day_starts.first().copied().unwrap_or(year_end);
-    let spans = db::get_coverage(&conn, year_start, year_end, db::now_unix())?;
+    let spans = db::get_coverage(&conn, year_start, year_end, now)?;
 
     let mut unwatched = Vec::with_capacity(day_starts.len());
     let mut known = Vec::with_capacity(day_starts.len());

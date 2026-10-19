@@ -1179,7 +1179,8 @@ fn day_parts(
             }
             _ => continue,
         };
-        // Parts that say the same thing merge, adjacent or not: "morning and evening".
+        // Parts that say the same thing merge unless a different one sits between them, so a
+        // quiet afternoon still gives "The morning and evening went to Work".
         match parts.last_mut() {
             Some(prev) if prev.what == what => prev.part = format!("{} and {name}", prev.part),
             _ => parts.push(PartFact {
@@ -1317,7 +1318,7 @@ pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
     let text = match &facts.leading {
         // Nothing tracked. Which of the two reasons it is matters more than anything else the
         // recap says: a day you rested and a day the recorder was dead are opposite facts.
-        None if facts.unwatched_secs >= MOSTLY_UNWATCHED_SECS => {
+        None if is_unrecorded(facts.unwatched_secs) => {
             "UsageOS wasn’t running on this day, so there’s nothing to show.".to_string()
         }
         None if !facts.day_over => "No activity tracked today yet.".to_string(),
@@ -1417,7 +1418,7 @@ pub(crate) fn render_template_recap(facts: &RecapFacts) -> Recap {
                 ));
             }
             if let Some(project) = &facts.leading_project {
-                out.push(format!("Most of it was on the {project} project."));
+                out.push(format!("The {project} project took the most time."));
             }
             // Appended, never prepended: the day still had a shape, and this is a footnote about
             // the recorder, not a verdict on you. Stated plainly so the totals read as partial.
@@ -1541,7 +1542,7 @@ fn leading_project(runs: &[CategoryRun], active_secs: i64) -> Option<String> {
     let mut ranked: Vec<(&str, i64)> = totals.into_iter().collect();
     ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
     let (name, secs) = *ranked.first()?;
-    // "Mostly on X" needs a CLEAR leader: ≥40% of active time AND strictly ahead of the
+    // "The X project took the most time" needs a CLEAR leader: ≥40% of active time AND strictly ahead of the
     // runner-up — otherwise a 40/40 split would be narrated as if one project dominated.
     let tied = ranked.get(1).is_some_and(|&(_, second)| second == secs);
     if tied || secs * 100 < active_secs * 40 {
@@ -2006,7 +2007,7 @@ mod tests {
         assert!(t.contains("then Comms at"), "runner-up category: {t}");
         assert!(t.contains("Your longest stretch ran"), "focus stretch: {t}");
         assert!(
-            t.contains("Most of it was on the usageos project."),
+            t.contains("The usageos project took the most time."),
             "leading project: {t}"
         );
     }

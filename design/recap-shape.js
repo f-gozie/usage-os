@@ -411,7 +411,7 @@
       );
     }
     if (f.break) out.push(`The longest break was ${short(f.break.mins)}, starting ${clock(f.break.from)}.`);
-    if (f.project) out.push(`Most of it was on the ${f.project} project.`);
+    if (f.project) out.push(`The ${f.project} project took the most time.`);
     if (f.unwatched >= 30) out.push(`UsageOS wasn’t running for ${short(f.unwatched)} of it, so this is only part of the day.`);
     return out.join(" ");
   }
