@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.4 — a calendar, and a recap that tells the day (2026)
+
+- **A calendar** — a new Calendar tab shows each month as a dial per day and the year as a bar per day. Click a day to open it; a link at the top takes you back to the month.
+- **A recap that tells the shape of your day** — when it started and ended, what the morning, afternoon and evening went to, the apps and sites behind it, and your longest break, instead of repeating the totals shown below it. The app writes it straight from your data, so it reads the same every time you open that day.
+- **It knows when it wasn't running** — UsageOS now notes when it was open, so a day it missed shows as missed, not as a day you didn't use your computer. Days before this version can't be told apart.
+- **Smaller fixes** — a button to jump back to today from any day; hovering a row in "Where it went" no longer leaves the day filtered; Delete all data also forgets when the app was running.
+
 ## v0.1.3 — a clearer fix for lost permissions (2026)
 
 - **The permission warning now says the whole fix** — after switching Accessibility or Automation off and back on in System Settings, quit and reopen UsageOS. The running app doesn't pick the change up on its own, so the old wording left the warning on screen after you'd done what it said.
