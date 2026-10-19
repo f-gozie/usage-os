@@ -168,8 +168,11 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
       key from the ⌘W that merely hides the window, and the glance has a bare one-click `Quit`
       beside "Open UsageOS →". D72 makes their consequence visible; it does not make them
       harder to hit.
+- [x] **Shipped in [v0.1.4](https://github.com/f-gozie/usage-os/releases/tag/v0.1.4)**
+      (2026-10-19). Follow-up fixes (coverage read to now, heartbeat reopen, edge slivers)
+      **shipped in [v0.1.5](https://github.com/f-gozie/usage-os/releases/tag/v0.1.5)**.
 
-## Calendar — Year → Month → Day (designed, not built)
+## Calendar — Year → Month → Day (D73)
 
 - [x] Boards: `design/month.html` (the three cell treatments compared; heat blocks ruled out
       because darkness-as-hours makes colour encode two things) and `design/calendar.html` (the
@@ -212,6 +215,8 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
       before the coverage log began are unknown and counted as zero. It now counts finished days
       with nothing tracked ("Days with nothing tracked"); cells keep "Not recorded" for days the
       log proves.
+- [x] **Shipped in [v0.1.4](https://github.com/f-gozie/usage-os/releases/tag/v0.1.4)**
+      (2026-10-19), with D75's tile. Legend and tile-label fixes in v0.1.5.
 
 ## Daily recap — the shape of the day (D74)
 
@@ -243,6 +248,8 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
 - [ ] Later, needs its own decision: an opt-in narrator using a model the user already runs
       locally (Ollama / LM Studio), held to the same six days and a Rust check that every name,
       number and time in its output appears in the facts.
+- [x] **Shipped in [v0.1.4](https://github.com/f-gozie/usage-os/releases/tag/v0.1.4)**
+      (2026-10-19); wording follow-ups in v0.1.5.
 
 ## Review follow-ups for 0.1.5 (branch `fix/review-followups`)
 
@@ -261,4 +268,5 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
 - [x] Dead code and backstory comments removed; `dev-with-restore.sh` backs up with
       `sqlite3 .backup` (WAL-safe).
 - [ ] Not seen on device: the Calendar legend with a renamed category, the wake-from-sleep case.
-
+- [x] **Shipped in [v0.1.5](https://github.com/f-gozie/usage-os/releases/tag/v0.1.5)**
+      (2026-10-19, PR #47). Owner checked the signed build on device before publishing.
