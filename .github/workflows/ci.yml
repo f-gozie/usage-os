@@ -2,7 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # spike/** runs the Windows spike job below; remove with that job.
+    branches: [main, 'spike/**']
   pull_request:
     branches: [main]
 
@@ -141,3 +142,118 @@ jobs:
             echo "SDK < 26 — FoundationModels is unavailable on this runner; skipping the build."
             echo "(The sidecar is verified on-device + by sidecar/build.sh; see the spike README.)"
           fi
+
+  # SPIKE (spike/windows-port only, not for main): does UsageOS build, test and bundle on
+  # Windows? Every step is continue-on-error so one run records the whole picture. Findings:
+  # context/plans/2026-10-20-windows-spike/.
+  windows-spike:
+    name: Windows spike (non-blocking)
+    if: startsWith(github.ref, 'refs/heads/spike/')
+    runs-on: windows-latest
+    continue-on-error: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Keep LF line endings (bindings diff)
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # Same stub as the test job; tauri-build wants the .exe suffix on Windows.
+      - name: Stage placeholder sidecar binary
+        run: |
+          TRIPLE="$(rustc --print host-tuple 2>/dev/null || rustc -vV | sed -n 's/^host: //p')"
+          mkdir -p src-tauri/binaries
+          printf 'stub' > "src-tauri/binaries/usageos-ai-$TRIPLE.exe"
+          echo "staged src-tauri/binaries/usageos-ai-$TRIPLE.exe"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Check TypeScript types
+        continue-on-error: true
+        run: npx tsc --noEmit
+
+      - name: Run TypeScript tests
+        continue-on-error: true
+        run: npx vitest run
+
+      - name: Build Rust
+        id: build
+        continue-on-error: true
+        working-directory: src-tauri
+        run: cargo build
+
+      - name: Run Clippy (deny warnings)
+        id: clippy
+        continue-on-error: true
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Run Rust tests
+        id: test
+        continue-on-error: true
+        working-directory: src-tauri
+        run: cargo test 2>&1 | tee ../cargo-test.log; exit ${PIPESTATUS[0]}
+
+      - name: Regenerate IPC bindings
+        id: bindings
+        continue-on-error: true
+        working-directory: src-tauri
+        run: cargo test export_bindings
+
+      - name: Assert IPC bindings are fresh
+        id: bindings_fresh
+        continue-on-error: true
+        run: git diff --exit-code -- src/bindings.ts
+
+      # Release bundle without signing or updater artifacts (no keys on this branch).
+      - name: Bundle NSIS installer (unsigned)
+        id: bundle
+        continue-on-error: true
+        run: npx tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Upload installer
+        if: steps.bundle.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: usageos-windows-spike-nsis
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          retention-days: 7
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "| step | outcome |"
+            echo "|---|---|"
+            echo "| cargo build | ${{ steps.build.outcome }} |"
+            echo "| clippy -D warnings | ${{ steps.clippy.outcome }} |"
+            echo "| cargo test | ${{ steps.test.outcome }} |"
+            echo "| export_bindings | ${{ steps.bindings.outcome }} |"
+            echo "| bindings fresh | ${{ steps.bindings_fresh.outcome }} |"
+            echo "| NSIS bundle | ${{ steps.bundle.outcome }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
