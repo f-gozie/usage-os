@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'spike/**']
   pull_request:
     branches: [main]
 
@@ -15,10 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            rust: stable
-          - os: macos-latest
-            rust: stable
+          # spike: the June 22 commit as it was, Windows only
           - os: windows-latest
             rust: stable
 
