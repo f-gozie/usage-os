@@ -219,6 +219,18 @@ jobs:
         working-directory: src-tauri
         run: cargo test 2>&1 | tee ../cargo-test.log; exit ${PIPESTATUS[0]}
 
+      # Which executables import TaskDialogIndirect (comctl32 v6 only) and which carry the
+      # common-controls manifest. Counts are byte matches; 0 means absent.
+      - name: Inspect executables (TaskDialogIndirect, manifest)
+        continue-on-error: true
+        working-directory: src-tauri/target/debug
+        run: |
+          for f in usage-os.exe deps/usage_os_lib-*.exe; do
+            imp=$(grep -c -a TaskDialogIndirect "$f" || true)
+            man=$(grep -c -a Microsoft.Windows.Common-Controls "$f" || true)
+            echo "$f TaskDialogIndirect=$imp manifest=$man" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+
       - name: Regenerate IPC bindings
         id: bindings
         continue-on-error: true
