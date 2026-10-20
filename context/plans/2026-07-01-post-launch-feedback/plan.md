@@ -285,6 +285,9 @@ titles from private windows, against the README's promise.
       as the private-window check; "no window" fails closed.
 - [ ] Open: titles recorded before 0.1.6 are untouched — decide whether to clear past
       Safari/Firefox titles.
-- [ ] Not verified on device: Safari/Firefox/Comet/Dia recording no title, and Chrome/Brave/Arc
-      titles arriving from the script, in the signed build.
+- [x] Verified on device in the signed build (2026-10-20): Chrome kept titles and sites from
+      the script; a private Chrome window stored no title or URL and was marked private; Safari,
+      Comet and Dia were recorded as time only, unmarked. Firefox not installed here.
+- [x] **Shipped in [v0.1.6](https://github.com/f-gozie/usage-os/releases/tag/v0.1.6)** (PR #48;
+      tag on merge commit `c253b07`). Cask and landing link bumped.
 
