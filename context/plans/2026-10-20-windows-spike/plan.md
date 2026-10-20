@@ -51,6 +51,12 @@ fix clears it on both.
    Tauri's runtime and so pulled those imports into the test executable. Windows had been
    green on #7, which is why specta took the blame.
 
+Checked in CI ([run 39391520315](https://github.com/f-gozie/usage-os/actions/runs/39391520315),
+"Inspect executables" step): both `usage-os.exe` and the lib test executable
+`usage_os_lib-<hash>.exe` contain the `TaskDialogIndirect` import, and with the fix both carry
+the common-controls manifest. Without the fix that same test executable is the one that
+exits with 0xc0000139.
+
 **Fix** (`src-tauri/build.rs` + `src-tauri/windows-app-manifest.xml`, the same manifest
 Tauri ships): on `windows`/`msvc` targets only, turn off tauri-build's own manifest
 (`WindowsAttributes::new_without_app_manifest()`) and link the manifest into **every** target
