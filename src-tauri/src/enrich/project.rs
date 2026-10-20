@@ -201,12 +201,12 @@ fn classify_title(app: &str, title: &str) -> Classified {
         .map(str::trim)
         .filter(|p| !p.is_empty())
         .collect();
-    let (Some(&first), Some(&last)) = (parts.first(), parts.last()) else {
-        return Classified::NoSignal;
-    };
     // One segment is just the app or a file; the same name twice is a lone file opened as its
     // own folder (`notes.md — notes.md`).
-    if parts.len() < 2 || first == last {
+    let [first, .., last] = parts[..] else {
+        return Classified::NoSignal;
+    };
+    if first == last {
         return Classified::NoSignal;
     }
     let folder = match at {
