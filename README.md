@@ -30,14 +30,14 @@ UsageOS is a private, on-device time tracker. It runs quietly in the background,
 - **Nothing leaves your machine.** No cloud, no account, no telemetry, and no network calls in the data path. It's open source, so you can read the code and check for yourself.
 - **Your data is one file** — a local SQLite database on your machine. Export it or delete it whenever you want.
 - **It never uses screen recording.** It reads window titles and, if you allow it, the address of the page open in your browser. That's all it reads.
-- **You stay in control.** For incognito and private windows, no title or URL is ever stored. You can leave any app or site out completely, or mark one private so it still counts the time but hides the title — your password manager or bank included.
+- **You stay in control.** For incognito and private windows, no title or URL is ever stored. When it can't tell whether a browser window is private — always in Safari and Firefox, and in any browser without the Automation permission — it stores only the browser and the time. You can leave any app or site out completely, or mark one private so it still counts the time but hides the title — your password manager or bank included.
 
 ## Permissions
 
 UsageOS asks for two macOS permissions. Both are optional — it still works without them, just with less detail.
 
 - **Accessibility** — to read the title of your active window, so it can tell what you were working on, not just which app was open.
-- **Automation** — to read the address of the current browser tab, so browsing shows the actual site instead of just “browsing.” Private windows are never read.
+- **Automation** — to check that a browser window isn't private and read the address of its tab, so browsing shows the actual site and page instead of just “browsing.” Private windows are never read. Without it, browsers are recorded as time only. Chrome, Brave, Edge, Arc, Vivaldi and Opera support this; Safari and Firefox don't, so they're always recorded as time only.
 
 It never asks for Screen Recording.
 

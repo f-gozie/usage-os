@@ -1,6 +1,6 @@
 [package]
 name = "usage-os"
-version = "0.1.5"
+version = "0.1.6"
 description = "UsageOS — a private, on-device app that records where your time goes and tells you the story of your day."
 authors = ["Favour Agozie"]
 edition = "2021"
@@ -76,13 +76,19 @@ objc2-app-kit = { version = "0.3.2", features = [
     "NSPanel",
     "NSResponder",
     "libc",
+    "objc2-uniform-type-identifiers",
 ] }
+# Asking macOS which apps open web pages and HTML files, to tell a browser from anything else.
+objc2-uniform-type-identifiers = { version = "0.3.2", features = ["UTType"] }
 objc2-foundation = { version = "0.3.2", features = [
     "NSString",
     "NSNotification",
     "NSOperation",
     "NSBundle",
     "NSError",
+    "NSURL",
+    "NSArray",
+    "NSEnumerator",
     "block2",
 ] }
 # Start at login (D69): SMAppService registers the agent plist bundled inside the .app, so

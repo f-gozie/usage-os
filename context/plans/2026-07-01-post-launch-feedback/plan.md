@@ -270,3 +270,21 @@ ordinary overnight. So: a one-off outage, and a permanent class of silence.
 - [ ] Not seen on device: the Calendar legend with a renamed category, the wake-from-sleep case.
 - [x] **Shipped in [v0.1.5](https://github.com/f-gozie/usage-os/releases/tag/v0.1.5)**
       (2026-10-19, PR #47). Owner checked the signed build on device before publishing.
+
+## Private browser windows that can't be checked (D76) — for 0.1.6
+
+Found while debating issues #44/#45: Safari, Firefox, and Chromium without Automation kept window
+titles from private windows, against the README's promise.
+
+- [x] Fail closed: `BrowserUrl::Unverified` drops title and URL for browsers that can't prove a
+      window non-private; the time and app still count.
+- [x] README, Onboarding and Settings copy say Safari and Firefox (and any browser without
+      Automation) are recorded as time only.
+- [x] Any app macOS lists as opening web links and HTML files counts as a browser (Comet, Dia
+      were on no list); terminals excepted. Chromium titles now come from the same script call
+      as the private-window check; "no window" fails closed.
+- [ ] Open: titles recorded before 0.1.6 are untouched — decide whether to clear past
+      Safari/Firefox titles.
+- [ ] Not verified on device: Safari/Firefox/Comet/Dia recording no title, and Chrome/Brave/Arc
+      titles arriving from the script, in the signed build.
+

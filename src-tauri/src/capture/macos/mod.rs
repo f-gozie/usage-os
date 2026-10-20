@@ -194,7 +194,8 @@ impl CallbackContext {
     }
 
     /// Build and send a [`FocusEvent`] for the current app + title, adding the front-tab url
-    /// (browsers) and cwd (terminals). An incognito/private window drops BOTH title and url (D8).
+    /// (browsers) and cwd (terminals). An incognito/private window drops BOTH title and url (D8), and
+    /// so does a browser window that can't be proven non-private (D76).
     fn emit_with_title(&self, title: Option<String>) {
         let mut title = title;
         let mut url = None;
@@ -204,7 +205,13 @@ impl CallbackContext {
                 title = None; // D8: never record an incognito window's title or url
                 is_private = true;
             }
-            browser::BrowserUrl::Normal(u) => url = u,
+            // D76: a browser window that can't be proven non-private keeps no title either.
+            browser::BrowserUrl::Unverified => title = None,
+            // The title and URL of the window that was checked, not the Accessibility title.
+            browser::BrowserUrl::Normal { url: u, title: t } => {
+                url = Some(u);
+                title = Some(t);
+            }
             browser::BrowserUrl::NotBrowser => {}
         }
         let cwd = terminal::front_cwd(&self.bundle_id, self.pid);

@@ -346,3 +346,32 @@ _D74 addendum (2026-10-19, from the branch review — `reviews/2026-10-19-watch-
 
 _D72 addendum (2026-10-19, review follow-up — `reviews/2026-10-19-watch-coverage-calendar-recap.md`):_ an open coverage session now reads as covered up to **now**, not its last heartbeat. Startup closes any session a dead process left open, so an open one always belongs to a running app; reading it to its heartbeat made a Mac that had just woken from sleep show a multi-hour "wasn't running" gap until the next beat. A heartbeat also clears `ended_at`, so a second launch that wrongly closed the first instance's session (it doesn't hold the single-instance lock, but still reconciles) is undone by the first instance's next beat. The 5-minute gap minimum is measured after clipping to the day. And the "not recorded" threshold now lives only in Rust: `DayView`, `DaySlice`, `YearDay` and `TimelineView` carry an `unrecorded` flag, replacing four copies of `23 * 3600` in the frontend.
 
+### D76 — A browser window that can't be proven non-private records no title
+**The README promised "for incognito and private windows, no title or URL is ever stored", and it wasn't true.** `browser::inspect` could tell a private window apart only in Chromium browsers (Chrome, Brave, Edge, Arc, Vivaldi, Opera), and only with the Automation permission, by asking for `mode of front window`. Safari and Firefox fell through as `NotBrowser`, and a Chromium browser whose script failed (Automation denied) as `Normal(None)`. Both kept their Accessibility window title, private window or not. A code comment called this "the R18 safe default"; R18 in the feasibility audit says the opposite: "safe-default = no URL when uncertain (never record private)". Found while reviewing issues #44 and #45 (a three-agent debate, all three agreeing on the remedy).
+
+**Decision: fail closed.** A new `BrowserUrl::Unverified` drops the title as well as the URL, for any browser whose front window can't be proven normal. That means:
+- **any app macOS lists as opening both web links and HTML files**, except a known terminal. This is found through `NSWorkspace` and cached per app, because a list of names can't keep up with new browsers: Comet and Dia were on no list, and the review caught them;
+- **a fixed backstop list** (Safari, Firefox and its builds, Tor, Zen, Orion, DuckDuckGo, Chromium), in case macOS can't answer;
+- **any Chromium script result that isn't an explicit normal-window answer**: denied Automation, a spawn error, or unexpected output.
+
+The time and the app still count, and the window is *not* marked private, because nothing says it was. With this, the README's promise holds for every browser, and the copy now says what it costs: Safari and Firefox are recorded as time only, as is any browser without Automation (Onboarding, Settings, README). Terminals are excluded from the registry check because some register for web links and HTML; they would otherwise lose their titles.
+
+**The title must come from the window that was checked.** The Accessibility title was read first and the AppleScript privacy check ran a moment later, as separate reads. Switching from a private window to a normal one in between could let the private title through, and `front window` was even resolved twice inside the script. Now:
+- the script binds `front window` once;
+- it returns that window's tab URL and title together;
+- the app records that title instead of the Accessibility one;
+- "no window" also fails closed, since it proves nothing about the title read just before.
+
+**Rejected:**
+- Keeping titles and softening the README. It makes the privacy promise weaker to fit the code.
+- Per-browser heuristics, e.g. Firefox's private-window title suffix. They're locale- and version-fragile, and Safari has none.
+- An opt-in "record Safari/Firefox titles anyway" setting now. It's deferred until someone asks; the safe default ships first.
+
+**Consequences:**
+- Safari and Firefox users lose title-based sorting and project inference from titles.
+- Chromium users get titles back by granting Automation; the D71 health banner already tells them when it's missing.
+- A Firefox integration (#44, native messaging) would be the way to bring Firefox detail back safely, because its `incognito` flag can prove a window normal.
+- Titles recorded before this release are left as they are. They can't be told apart after the fact either, and erasing every Safari/Firefox title ever recorded is a separate call.
+
+_Changed: `src-tauri/src/capture/macos/browser.rs` (`Unverified`, `Normal { url, title }` from one script call, `opens_web_pages`, `is_unverifiable_browser`, `classify`, 3 tests), `src-tauri/src/capture/macos/terminal.rs` (`is_terminal`), `src-tauri/src/capture/macos/mod.rs`, `src-tauri/Cargo.toml` (`objc2-uniform-type-identifiers`, NSURL/NSArray features), `README.md`, `src/components/onboarding/Onboarding.tsx`, `src/views/SettingsView.tsx`._
+
