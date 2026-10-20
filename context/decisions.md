@@ -375,3 +375,23 @@ The time and the app still count, and the window is *not* marked private, becaus
 
 _Changed: `src-tauri/src/capture/macos/browser.rs` (`Unverified`, `Normal { url, title }` from one script call, `opens_web_pages`, `is_unverifiable_browser`, `classify`, 3 tests), `src-tauri/src/capture/macos/terminal.rs` (`is_terminal`), `src-tauri/src/capture/macos/mod.rs`, `src-tauri/Cargo.toml` (`objc2-uniform-type-identifiers`, NSURL/NSArray features), `README.md`, `src/components/onboarding/Onboarding.tsx`, `src/views/SettingsView.tsx`._
 
+
+### D77 — A window title names a project only in a code editor; title-made projects are cleared once
+**Most projects were junk.** `classify_title` took the last ` - ` / ` — ` segment of any app's window title as a project, and old builds did this even for browser tabs with a URL. On the owner's database (4 months) 209 of 245 projects had under 10 minutes in total. The biggest came from the Chrome and Brave profile suffix (`… - Google Chrome - Favour` → "Favour", 8.7h over 13 days); the rest were Spotify track names, "WhatsApp video call", "SQLite 3.46.1", Figma page names and iTerm window sizes. Not one title-made project in that database was a real project. Zed was wrong as well: it puts the folder first (`usage_os — index.html`), so the last segment was the file.
+
+**Decision:**
+- A title is a project signal only for a short list of editors, each with the folder's position in its ` — `-separated title: VS Code, Code - Insiders, VSCodium, Cursor and Windsurf put it last; Zed puts it first. A title whose first and last segments are the same (`notes.md — notes.md`, a lone file opened as its own folder) gives no project. Every other app's title is content, so browsers, media and chat apps can't make a project from it, and the separate "skip the title when there's a URL" rule goes.
+- Migration 10 clears the old labels once, on the upgrading launch: a span loses its project when that project has no git remote and the span has no `file://` URL, and projects left with no spans are deleted. Projects from a git remote (terminal cwd, github.com URL) and from a `file://` path are kept. On the owner's database this leaves 44 of 245 projects.
+
+**Rejected:**
+- Stripping browser title suffixes (profile name, "Audio playing", "High memory usage") before taking the last segment. It fixes Chrome's profile name only, needs a list that changes with every browser and locale, and leaves tracks and calls.
+- A list of apps to ignore (the old `APP_NAMES`). It already missed WhatsApp, whose process name starts with an invisible left-to-right mark.
+- Clearing old labels from the user's "reprocess" action. That action is about category rules and doesn't touch projects; a one-time migration fixes everyone's history without them having to find it.
+- Re-running the new title rule over history instead of clearing. Only titles are stored, not cwd, so it can't tell a terminal's real project from a title-made one, and it adds a Rust pass for a few editor spans.
+
+**Consequences:**
+- A git folder with no remote loses its labels on past spans; new terminal spans get it back from the cwd. A gap is better than a wrong label (D30).
+- JetBrains IDEs, Xcode and Sublime Text get no project from their titles until their formats are checked.
+- A VS Code window on a non-default profile adds the profile name at the end of its title, which would be taken as the folder.
+
+_Changed: `src-tauri/src/enrich/project.rs` (`ProjectSignals.app`, `classify_title(app, title)`, `EDITOR_TITLES`, 3 tests), `src-tauri/src/capture/mod.rs`, `src-tauri/migrations/0010_clear_title_projects.sql`, `src-tauri/src/migrations.rs` (+1 test), `src-tauri/migrations/README.md`._

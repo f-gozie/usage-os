@@ -43,6 +43,10 @@ is authored by hand; the runner just sequences and guards it.
 | 4 | `0004_recategorize_claude_as_deep.sql` | Re-point the Claude rule (and past Claude spans) from Research to Deep work. |
 | 5 | `0005_drop_away_app_spans.sql` | Delete historical lock-screen/screensaver spans (see D41). |
 | 6 | `0006_relatable_default_categories.sql` | Fresh-install five-category model: Work · Browsing · Messaging · Entertainment · Personal (see D47). |
+| 7 | `0007_recap_cache.sql` | Cache for the day's recap, keyed by a hash of its facts (see D52). |
+| 8 | `0008_seed_site_rules.sql` | Site rules and rule precedence; history is recategorized once (see D70). |
+| 9 | `0009_watch_coverage.sql` | Record when the app was running, so an empty day can say why (see D72). |
+| 10 | `0010_clear_title_projects.sql` | Clear projects made from non-editor window titles (see D77). |
 
 > **Deferred (audit B3):** adding `CHECK` constraints to the enum-like columns in `0001`
 > (`mode`, `match_type`, `alias_kind`, abstain reason) needs a table rebuild or would change a

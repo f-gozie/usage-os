@@ -64,6 +64,11 @@ const MIGRATIONS: &[Migration] = &[
         name: "watch_coverage",
         sql: include_str!("../migrations/0009_watch_coverage.sql"),
     },
+    Migration {
+        version: 10,
+        name: "clear_title_projects",
+        sql: include_str!("../migrations/0010_clear_title_projects.sql"),
+    },
 ];
 
 /// Migration 8 seeds site rules that re-sort history, so applying it must be followed by a
@@ -431,5 +436,54 @@ mod tests {
             .unwrap();
         let matched = crate::db::find_category(&conn, "Claude", "", None).unwrap();
         assert_eq!(matched, Some(deep), "Claude app should now be Deep work");
+    }
+
+    #[test]
+    fn clears_title_made_projects_but_keeps_remote_and_file_ones() {
+        let mut conn = fresh();
+        conn.execute_batch(
+            "INSERT INTO projects (id, canonical_key, display_name, remote_url, created_at) VALUES
+                (1, 'Favour', 'Favour', NULL, 0),
+                (2, 'f-gozie/usage-os', 'usage-os', 'https://github.com/f-gozie/usage-os', 0),
+                (3, 'nudge', 'nudge', NULL, 0);
+             INSERT INTO project_aliases (project_id, alias_kind, alias_value) VALUES
+                (1, 'name', 'Favour'), (2, 'name', 'usage_os'), (3, 'name', 'nudge');
+             INSERT INTO activity_logs
+                (id, process_name, window_title, start_time, end_time, is_idle, url, project_id)
+             VALUES
+                (1, 'Google Chrome', 'Inbox - Google Chrome - Favour', 0, 60, 0, NULL, 1),
+                (2, 'Brave Browser', 'HesGoal - Brave - Favour', 60, 120, 0, 'https://fast.com/', 1),
+                (3, 'iTerm2', 'zsh', 120, 180, 0, NULL, 2),
+                (4, 'Google Chrome', 'mockup.html', 180, 240, 0,
+                    'file:///Users/x/projects/nudge/mockup.html', 3);
+             DELETE FROM schema_migrations WHERE version = 10;",
+        )
+        .unwrap();
+        run_migrations(&mut conn).unwrap();
+
+        let project_of = |id: i64| -> Option<i64> {
+            conn.query_row(
+                "SELECT project_id FROM activity_logs WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
+            .unwrap()
+        };
+        assert_eq!(project_of(1), None);
+        assert_eq!(project_of(2), None);
+        assert_eq!(project_of(3), Some(2));
+        assert_eq!(project_of(4), Some(3));
+        let ids: Vec<i64> = conn
+            .prepare("SELECT id FROM projects ORDER BY id")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_>>()
+            .unwrap();
+        assert_eq!(ids, vec![2, 3]);
+        let aliases: i64 = conn
+            .query_row("SELECT COUNT(*) FROM project_aliases", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(aliases, 2);
     }
 }
