@@ -291,3 +291,15 @@ titles from private windows, against the README's promise.
 - [x] **Shipped in [v0.1.6](https://github.com/f-gozie/usage-os/releases/tag/v0.1.6)** (PR #48;
       tag on merge commit `c253b07`). Cask and landing link bumped.
 
+
+## Projects from window titles (D77)
+
+Found by analysing the owner's database: 209 of 245 projects had under 10 minutes, made from
+browser profile names ("Favour", 8.7h), Spotify tracks, WhatsApp calls and app versions.
+
+- [x] A title names a project only in VS Code (and Insiders, VSCodium, Cursor, Windsurf), folder
+      last, and Zed, folder first. All other apps' titles give no project.
+- [x] Migration 10 clears title-made labels once and deletes projects left with no spans; git
+      remote and `file://` projects stay. Checked on a copy of the real database: 245 → 44.
+- [ ] Not checked: JetBrains, Xcode and Sublime Text title formats (no project from them yet).
+- [ ] Not seen on device: the migration on the upgrading launch, a Zed or VS Code span.

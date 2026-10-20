@@ -269,6 +269,7 @@ fn resolve_focus(conn: &Connection, ev: &FocusEvent) -> rusqlite::Result<Resolve
     let (project_id, project_abstain_reason) = match enrich::infer_project(
         conn,
         &ProjectSignals {
+            app: &ev.app_name,
             cwd: ev.cwd.as_deref(),
             url: ev.url.as_deref(),
             title: ev.window_title.as_deref(),

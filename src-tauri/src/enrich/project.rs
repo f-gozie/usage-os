@@ -15,6 +15,8 @@ use crate::db;
 /// The live signals available for one focus span.
 #[derive(Debug, Default, Clone)]
 pub struct ProjectSignals<'a> {
+    /// The frontmost app's name; decides whether its window title can name a project.
+    pub app: &'a str,
     pub cwd: Option<&'a str>,
     pub url: Option<&'a str>,
     pub title: Option<&'a str>,
@@ -67,14 +69,9 @@ pub fn infer_project(conn: &Connection, sig: &ProjectSignals) -> Result<ProjectA
         }
     }
 
-    // Title is a project signal only for native app windows (an editor's "file — project").
-    // When a URL is present the page is a browser tab, whose title is content — using it would
-    // mint fake projects ("YouTube"/"GitHub") for general pages, so skip it (D30).
-    if sig.url.is_none() {
-        if let Some(title) = sig.title {
-            if let Classified::Project(c) = classify_title(title) {
-                return Ok(ProjectAssignment::Assigned(resolve(conn, &c)?));
-            }
+    if let Some(title) = sig.title {
+        if let Classified::Project(c) = classify_title(sig.app, title) {
+            return Ok(ProjectAssignment::Assigned(resolve(conn, &c)?));
         }
     }
 
@@ -193,28 +190,34 @@ fn classify_url(url: &str) -> Classified {
     Classified::NoSignal
 }
 
-/// Editor titles often carry the folder (`<file> — <project>`). Lossy → weak, and
-/// never for bare app names.
-fn classify_title(title: &str) -> Classified {
+/// A code editor's title carries the open folder (D77). Lossy → weak. Any other app's title
+/// segments are content — a browser profile, a track, a call — never a project.
+fn classify_title(app: &str, title: &str) -> Classified {
+    let Some((_, at)) = EDITOR_TITLES.iter().find(|(name, _)| *name == app) else {
+        return Classified::NoSignal;
+    };
     let parts: Vec<&str> = title
         .split(" — ")
-        .flat_map(|p| p.split(" - "))
-        .map(|p| p.trim())
+        .map(str::trim)
         .filter(|p| !p.is_empty())
         .collect();
-
-    if parts.len() < 2 {
-        return Classified::NoSignal; // bare app name / no project in title
-    }
-    let candidate = parts[parts.len() - 1];
-    if APP_NAMES.iter().any(|a| candidate.eq_ignore_ascii_case(a)) {
+    // One segment is just the app or a file; the same name twice is a lone file opened as its
+    // own folder (`notes.md — notes.md`).
+    let [first, .., last] = parts[..] else {
+        return Classified::NoSignal;
+    };
+    if first == last {
         return Classified::NoSignal;
     }
+    let folder = match at {
+        FolderAt::First => first,
+        FolderAt::Last => last,
+    };
     Classified::Project(Candidate {
-        canonical_key: candidate.to_string(),
-        display_name: candidate.to_string(),
+        canonical_key: folder.to_string(),
+        display_name: folder.to_string(),
         remote_url: None,
-        name_alias: Some(candidate.to_string()),
+        name_alias: Some(folder.to_string()),
         weak: true,
     })
 }
@@ -268,16 +271,21 @@ const GENERAL_HOSTS: &[&str] = &[
     "instagram.com",
 ];
 
-const APP_NAMES: &[&str] = &[
-    "Claude",
-    "Spotify",
-    "Spotify Premium",
-    "Slack",
-    "Finder",
-    "Notion",
-    "WhatsApp",
-    "Google Chrome",
-    "Brave",
+/// Where an editor puts the folder in its `—`-separated window title.
+enum FolderAt {
+    First,
+    Last,
+}
+
+/// Editors whose window title names the open folder: VS Code and its forks title
+/// `main.rs — usage_os`, Zed `usage_os — main.rs`.
+const EDITOR_TITLES: &[(&str, FolderAt)] = &[
+    ("Code", FolderAt::Last),
+    ("Code - Insiders", FolderAt::Last),
+    ("VSCodium", FolderAt::Last),
+    ("Cursor", FolderAt::Last),
+    ("Windsurf", FolderAt::Last),
+    ("Zed", FolderAt::First),
 ];
 
 // ── Plumbing ─────────────────────────────────────────────────────────────────
@@ -414,6 +422,7 @@ mod tests {
         let from_title = infer_project(
             &conn,
             &ProjectSignals {
+                app: "Code",
                 title: Some(&format!("main.rs — {folder}")),
                 ..Default::default()
             },
@@ -520,20 +529,71 @@ mod tests {
         assert_eq!(key_of(&conn, id), "nudge");
     }
 
+    fn from_title(conn: &Connection, app: &str, title: &str) -> ProjectAssignment {
+        infer_project(
+            conn,
+            &ProjectSignals {
+                app,
+                title: Some(title),
+                ..Default::default()
+            },
+        )
+        .unwrap()
+    }
+
     #[test]
-    fn bare_app_title_is_no_signal() {
+    fn editor_title_names_the_folder() {
         let conn = test_db();
-        assert_eq!(
-            infer_project(
-                &conn,
-                &ProjectSignals {
-                    title: Some("Spotify Premium"),
-                    ..Default::default()
-                }
-            )
-            .unwrap(),
-            ProjectAssignment::Abstain("no-signal")
-        );
+        for (app, title) in [
+            ("Code", "main.rs — usage_os"),
+            ("Cursor", "● lib.rs — usage_os"),
+            ("Zed", "usage_os — index.html"),
+        ] {
+            let ProjectAssignment::Assigned(id) = from_title(&conn, app, title) else {
+                panic!("expected Assigned for {app}: {title}");
+            };
+            assert_eq!(key_of(&conn, id), "usage_os", "{app}: {title}");
+        }
+        assert_eq!(db::get_projects(&conn).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn editor_title_without_a_folder_is_no_signal() {
+        let conn = test_db();
+        for (app, title) in [
+            ("Code", "Visual Studio Code"),
+            ("Zed", "notes.md"),
+            ("Zed", "notes.md — notes.md"),
+        ] {
+            assert_eq!(
+                from_title(&conn, app, title),
+                ProjectAssignment::Abstain("no-signal"),
+                "{app}: {title}"
+            );
+        }
+    }
+
+    #[test]
+    fn other_apps_titles_never_make_a_project() {
+        // Browser profile suffixes, tracks and calls (all seen as junk projects on real data).
+        let conn = test_db();
+        for (app, title) in [
+            ("Google Chrome", "Nudge Admin - Google Chrome - Favour"),
+            ("Brave Browser", "HesGoal - Brave - Favour"),
+            ("Spotify", "Burna Boy - Comfort"),
+            ("Spotify", "Spotify Premium"),
+            ("\u{200e}WhatsApp", "Mma - WhatsApp video call"),
+            ("TablePlus", "usage : usage.db - SQLite 3.46.1"),
+            ("Figma", "Form- Responsive - Final"),
+            ("iTerm2", "favour@host:~ — 120✕30"),
+        ] {
+            assert_eq!(
+                from_title(&conn, app, title),
+                ProjectAssignment::Abstain("no-signal"),
+                "{app}: {title}"
+            );
+        }
+        assert!(db::get_projects(&conn).unwrap().is_empty());
     }
 
     #[test]
